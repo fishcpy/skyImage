@@ -48,7 +48,7 @@ export function DashboardPage() {
             <CardTitle>容量上限</CardTitle>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">
-            {user?.capacity ? formatBytes(user.capacity) : "不限"}
+            {user?.capacity && user.capacity > 0 ? formatBytes(user.capacity) : "未配置"}
           </CardContent>
         </Card>
         <Card>

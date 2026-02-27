@@ -9,6 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   assignUserGroup,
   fetchGroups,
   fetchUsers,
@@ -21,6 +28,38 @@ const defaultGroupConfigs = {
   max_file_size: 10 * 1024 * 1024,
   max_capacity: 1024 * 1024 * 1024
 };
+
+type SizeUnit = 'B' | 'KB' | 'MB' | 'GB' | 'TB';
+
+const UNITS: { value: SizeUnit; label: string; bytes: number }[] = [
+  { value: 'B', label: 'B', bytes: 1 },
+  { value: 'KB', label: 'KB', bytes: 1024 },
+  { value: 'MB', label: 'MB', bytes: 1024 * 1024 },
+  { value: 'GB', label: 'GB', bytes: 1024 * 1024 * 1024 },
+  { value: 'TB', label: 'TB', bytes: 1024 * 1024 * 1024 * 1024 },
+];
+
+function bytesToUnit(bytes: number, unit: SizeUnit): number {
+  const unitInfo = UNITS.find(u => u.value === unit);
+  if (!unitInfo) return bytes;
+  return bytes / unitInfo.bytes;
+}
+
+function unitToBytes(value: number, unit: SizeUnit): number {
+  const unitInfo = UNITS.find(u => u.value === unit);
+  if (!unitInfo) return value;
+  return value * unitInfo.bytes;
+}
+
+function detectUnit(bytes: number): SizeUnit {
+  if (bytes === 0) return 'MB';
+  for (let i = UNITS.length - 1; i >= 0; i--) {
+    if (bytes >= UNITS[i].bytes && bytes % UNITS[i].bytes === 0) {
+      return UNITS[i].value;
+    }
+  }
+  return 'MB';
+}
 
 export function AdminGroupEditorPage() {
   const { id } = useParams();
@@ -44,20 +83,34 @@ export function AdminGroupEditorPage() {
     configs: { ...defaultGroupConfigs }
   });
 
+  const [fileSizeUnit, setFileSizeUnit] = useState<SizeUnit>('MB');
+  const [capacityUnit, setCapacityUnit] = useState<SizeUnit>('GB');
+
   useEffect(() => {
     if (isEditing && groups) {
       const target = groups.find((item) => item.id === Number(id));
       if (target) {
+        const fileSize = target.configs?.max_file_size ?? defaultGroupConfigs.max_file_size;
+        const capacity = target.configs?.max_capacity ?? defaultGroupConfigs.max_capacity;
+        
+        const detectedFileSizeUnit = detectUnit(fileSize);
+        const detectedCapacityUnit = detectUnit(capacity);
+        
+        setFileSizeUnit(detectedFileSizeUnit);
+        setCapacityUnit(detectedCapacityUnit);
+        
         setForm({
           ...target,
           configs: {
-            max_file_size: target.configs?.max_file_size ?? defaultGroupConfigs.max_file_size,
-            max_capacity: target.configs?.max_capacity ?? defaultGroupConfigs.max_capacity
+            max_file_size: fileSize,
+            max_capacity: capacity
           }
         });
       }
     } else if (!isEditing) {
       setForm({ name: "", configs: { ...defaultGroupConfigs } });
+      setFileSizeUnit('MB');
+      setCapacityUnit('GB');
     }
   }, [groups, id, isEditing]);
 
@@ -134,44 +187,80 @@ export function AdminGroupEditorPage() {
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>最大单文件 (MB)</Label>
-              <Input
-                type="number"
-                value={
-                  form.configs?.max_file_size
-                    ? (form.configs.max_file_size / 1024 / 1024).toString()
-                    : ""
-                }
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    configs: {
-                      ...prev.configs,
-                      max_file_size: Number(e.target.value || 0) * 1024 * 1024
-                    }
-                  }))
-                }
-              />
+              <Label>最大单文件大小</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="flex-1"
+                  value={
+                    form.configs?.max_file_size
+                      ? bytesToUnit(form.configs.max_file_size, fileSizeUnit).toString()
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const value = Number(e.target.value || 0);
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: {
+                        ...prev.configs,
+                        max_file_size: unitToBytes(value, fileSizeUnit)
+                      }
+                    }));
+                  }}
+                />
+                <Select value={fileSizeUnit} onValueChange={(v) => setFileSizeUnit(v as SizeUnit)}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UNITS.map(unit => (
+                      <SelectItem key={unit.value} value={unit.value}>
+                        {unit.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="space-y-2">
-              <Label>容量上限 (GB)</Label>
-              <Input
-                type="number"
-                value={
-                  form.configs?.max_capacity
-                    ? (form.configs.max_capacity / 1024 / 1024 / 1024).toString()
-                    : ""
-                }
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    configs: {
-                      ...prev.configs,
-                      max_capacity: Number(e.target.value || 0) * 1024 * 1024 * 1024
-                    }
-                  }))
-                }
-              />
+              <Label>容量上限</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="flex-1"
+                  value={
+                    form.configs?.max_capacity
+                      ? bytesToUnit(form.configs.max_capacity, capacityUnit).toString()
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const value = Number(e.target.value || 0);
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: {
+                        ...prev.configs,
+                        max_capacity: unitToBytes(value, capacityUnit)
+                      }
+                    }));
+                  }}
+                />
+                <Select value={capacityUnit} onValueChange={(v) => setCapacityUnit(v as SizeUnit)}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UNITS.map(unit => (
+                      <SelectItem key={unit.value} value={unit.value}>
+                        {unit.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <div className="flex items-center space-x-2">

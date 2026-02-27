@@ -28,7 +28,7 @@ export function CapacityMeter() {
         return {
             percent: pct,
             usedLabel: format(used),
-            totalLabel: capacity > 0 ? format(capacity) : "不限"
+            totalLabel: capacity > 0 ? format(capacity) : "未配置"
         };
     }, [user]);
     const handleRefresh = async () => {

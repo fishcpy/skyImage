@@ -140,7 +140,7 @@ export function AdminUserDetailPage() {
           <p>状态：{user.status === 1 ? "正常" : "已禁用"}</p>
           <p>
             容量使用：{formatBytes(user.usedCapacity ?? 0)} /{" "}
-            {user.capacity ? formatBytes(user.capacity) : "不限"}
+            {user.capacity && user.capacity > 0 ? formatBytes(user.capacity) : "未配置"}
           </p>
         </CardContent>
       </Card>
