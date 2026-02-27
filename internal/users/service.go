@@ -25,7 +25,6 @@ type Service struct {
 }
 
 var (
-	ErrSuperAdminRequired  = errors.New("super admin required")
 	ErrSuperAdminImmutable = errors.New("cannot modify super admin")
 )
 
@@ -190,8 +189,8 @@ func (s *Service) FindByID(ctx context.Context, id uint) (data.User, error) {
 }
 
 func (s *Service) UpdateStatus(ctx context.Context, actor data.User, userID uint, status uint8) error {
-	if !actor.IsSuperAdmin {
-		return ErrSuperAdminRequired
+	if !actor.IsAdmin {
+		return errors.New("admin required")
 	}
 	if actor.ID == userID {
 		return errors.New("cannot change your own status")
@@ -209,8 +208,8 @@ func (s *Service) UpdateStatus(ctx context.Context, actor data.User, userID uint
 }
 
 func (s *Service) ToggleAdmin(ctx context.Context, actor data.User, userID uint, isAdmin bool) error {
-	if !actor.IsSuperAdmin {
-		return ErrSuperAdminRequired
+	if !actor.IsAdmin {
+		return errors.New("admin required")
 	}
 	if actor.ID == userID {
 		return errors.New("cannot change your own role")
@@ -228,8 +227,8 @@ func (s *Service) ToggleAdmin(ctx context.Context, actor data.User, userID uint,
 }
 
 func (s *Service) CreateUser(ctx context.Context, actor data.User, input CreateUserInput) (data.User, error) {
-	if !actor.IsSuperAdmin {
-		return data.User{}, ErrSuperAdminRequired
+	if !actor.IsAdmin {
+		return data.User{}, errors.New("admin required")
 	}
 	role := strings.ToLower(strings.TrimSpace(input.Role))
 	if role != "admin" && role != "user" {
@@ -258,8 +257,8 @@ func (s *Service) CreateUser(ctx context.Context, actor data.User, input CreateU
 }
 
 func (s *Service) DeleteUser(ctx context.Context, actor data.User, userID uint) error {
-	if !actor.IsSuperAdmin {
-		return ErrSuperAdminRequired
+	if !actor.IsAdmin {
+		return errors.New("admin required")
 	}
 	if actor.ID == userID {
 		return errors.New("cannot delete yourself")
@@ -339,18 +338,12 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint, input ProfileU
 }
 
 func (s *Service) AssignGroup(ctx context.Context, actor data.User, userID uint, groupID *uint) (data.User, error) {
-	if !actor.IsSuperAdmin {
-		return data.User{}, ErrSuperAdminRequired
-	}
-	if actor.ID == userID {
-		return data.User{}, errors.New("cannot change your own group")
+	if !actor.IsAdmin {
+		return data.User{}, errors.New("admin required")
 	}
 	target, err := s.FindByID(ctx, userID)
 	if err != nil {
 		return data.User{}, err
-	}
-	if target.IsSuperAdmin {
-		return data.User{}, ErrSuperAdminImmutable
 	}
 	var group *data.Group
 	if groupID != nil {
