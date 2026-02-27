@@ -118,6 +118,26 @@ func (s *Server) registerRoutes() {
 	s.registerFileRoutes(apiGroup)
 	s.registerSiteRoutes(apiGroup)
 	s.registerStaticAssets()
+	s.registerFrontend()
+}
+
+func (s *Server) registerFrontend() {
+	// 服务前端静态文件
+	distPath := filepath.Clean(s.cfg.FrontendDist)
+	s.engine.Static("/assets", filepath.Join(distPath, "assets"))
+	
+	// SPA fallback - 所有未匹配的路由返回 index.html
+	s.engine.NoRoute(func(c *gin.Context) {
+		// 如果是 API 请求，返回 404
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		
+		// 其他请求返回前端 index.html
+		indexPath := filepath.Join(distPath, "index.html")
+		c.File(indexPath)
+	})
 }
 
 func (s *Server) registerStaticAssets() {
