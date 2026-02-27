@@ -5,13 +5,21 @@ on:
     branches:
       - main
       - master
-    tags:
-      - 'v*'
   pull_request:
     branches:
       - main
       - master
   workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号 (例如: 1.0.0)'
+        required: true
+        type: string
+      is_release:
+        description: '是否为正式版本'
+        required: true
+        type: boolean
+        default: false
 
 env:
   DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/skyimage
@@ -37,18 +45,46 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.DOCKER_IMAGE }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Determine tags
+        id: tags
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.is_release }}" = "true" ]; then
+            # 正式版本：使用输入的版本号
+            VERSION="${{ inputs.version }}"
+            TAGS="${{ env.DOCKER_IMAGE }}:${VERSION}"
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:latest"
+            
+            # 提取主版本号和次版本号
+            MAJOR=$(echo $VERSION | cut -d. -f1)
+            MINOR=$(echo $VERSION | cut -d. -f1-2)
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:${MAJOR}"
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:${MINOR}"
+            
+            echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # 手动触发但非正式版
+            VERSION="${{ inputs.version }}"
+            TAGS="${{ env.DOCKER_IMAGE }}:${VERSION}-preview"
+            echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+            echo "version=${VERSION}-preview" >> $GITHUB_OUTPUT
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            # PR 构建
+            TAGS="${{ env.DOCKER_IMAGE }}:pr-${{ github.event.pull_request.number }}"
+            echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+            echo "version=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          else
+            # 自动提交构建：预览版
+            SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+            TAGS="${{ env.DOCKER_IMAGE }}:preview"
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:preview-${SHORT_SHA}"
+            echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+            echo "version=preview-${SHORT_SHA}" >> $GITHUB_OUTPUT
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -56,13 +92,25 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.tags.outputs.version }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.repositoryUrl }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Create Git tag for release
+        if: github.event_name == 'workflow_dispatch' && inputs.is_release == true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ inputs.version }}" -m "Release version ${{ inputs.version }}"
+          git push origin "v${{ inputs.version }}"
+
       - name: Update Docker Hub description
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: steps.tags.outputs.is_release == 'true'
         uses: peter-evans/dockerhub-description@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -70,3 +118,17 @@ jobs:
           repository: ${{ env.DOCKER_IMAGE }}
           short-description: ${{ github.event.repository.description }}
           readme-filepath: ./README.md
+
+      - name: Build summary
+        run: |
+          echo "## 构建完成 ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**版本:** ${{ steps.tags.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**标签:** ${{ steps.tags.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "**类型:** ${{ steps.tags.outputs.is_release == 'true' && '正式版' || '预览版' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.tags.outputs.is_release }}" = "true" ]; then
+            echo "🎉 正式版本已发布！" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🔍 预览版本已构建，仅供测试使用" >> $GITHUB_STEP_SUMMARY
+          fi
