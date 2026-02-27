@@ -83,7 +83,7 @@ export function UserManagementPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="link" size="sm" asChild>
+                          <Button asChild size="sm">
                             <Link to={`/dashboard/admin/users/${user.id}`}>编辑</Link>
                           </Button>
                         </TableCell>
@@ -122,7 +122,7 @@ export function UserManagementPage() {
                         </Badge>
                       </div>
                     </div>
-                    <Button variant="outline" size="sm" className="w-full" asChild>
+                    <Button asChild size="sm" className="w-full">
                       <Link to={`/dashboard/admin/users/${user.id}`}>编辑</Link>
                     </Button>
                   </div>
