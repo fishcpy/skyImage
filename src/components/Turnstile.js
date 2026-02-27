@@ -1,6 +1,6 @@
 import { jsx as _jsx } from "react/jsx-runtime";
-import { useEffect, useRef } from "react";
-export function Turnstile({ siteKey, onVerify, onError, onExpire }) {
+import { useEffect, useRef, useImperativeHandle, forwardRef } from "react";
+export const Turnstile = forwardRef(({ siteKey, onVerify, onError, onExpire }, ref) => {
     const containerRef = useRef(null);
     const widgetIdRef = useRef(null);
     const verifyRef = useRef(onVerify);
@@ -15,6 +15,13 @@ export function Turnstile({ siteKey, onVerify, onError, onExpire }) {
     useEffect(() => {
         expireRef.current = onExpire;
     }, [onExpire]);
+    useImperativeHandle(ref, () => ({
+        reset: () => {
+            if (widgetIdRef.current && window.turnstile) {
+                window.turnstile.reset(widgetIdRef.current);
+            }
+        },
+    }));
     useEffect(() => {
         if (!containerRef.current || !window.turnstile)
             return;
@@ -39,4 +46,4 @@ export function Turnstile({ siteKey, onVerify, onError, onExpire }) {
         };
     }, [siteKey]);
     return _jsx("div", { ref: containerRef });
-}
+});

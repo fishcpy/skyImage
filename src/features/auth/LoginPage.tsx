@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Turnstile } from "@/components/Turnstile";
+import { Turnstile, type TurnstileRef } from "@/components/Turnstile";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -20,6 +20,7 @@ export function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [turnstileToken, setTurnstileToken] = useState<string>("");
   const [turnstileReady, setTurnstileReady] = useState(false);
+  const turnstileRef = useRef<TurnstileRef>(null);
 
   const {
     data: hasUsers,
@@ -71,6 +72,9 @@ export function LoginPage() {
       toast.error(message);
       // Reset Turnstile on error
       setTurnstileToken("");
+      if (turnstileRef.current) {
+        turnstileRef.current.reset();
+      }
     }
   });
 
@@ -143,6 +147,7 @@ export function LoginPage() {
           {turnstileConfig?.enabled && turnstileConfig.siteKey && turnstileReady && (
             <div className="flex justify-center">
               <Turnstile
+                ref={turnstileRef}
                 siteKey={turnstileConfig.siteKey}
                 onVerify={setTurnstileToken}
                 onError={() => {

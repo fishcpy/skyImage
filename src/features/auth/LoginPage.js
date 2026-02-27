@@ -1,5 +1,5 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ export function LoginPage() {
     const [form, setForm] = useState({ email: "", password: "" });
     const [turnstileToken, setTurnstileToken] = useState("");
     const [turnstileReady, setTurnstileReady] = useState(false);
+    const turnstileRef = useRef(null);
     const { data: hasUsers, isLoading: checkingUsers, error, refetch } = useQuery({
         queryKey: ["auth", "has-users"],
         queryFn: fetchHasUsers
@@ -64,6 +65,9 @@ export function LoginPage() {
             toast.error(message);
             // Reset Turnstile on error
             setTurnstileToken("");
+            if (turnstileRef.current) {
+                turnstileRef.current.reset();
+            }
         }
     });
     const handleLogin = () => {
@@ -88,7 +92,7 @@ export function LoginPage() {
     if (error) {
         return (_jsxs("div", { className: "flex min-h-screen flex-col items-center justify-center gap-4 bg-muted/30 p-4 text-center", children: [_jsx("p", { className: "text-lg font-semibold", children: "\u65E0\u6CD5\u8FDE\u63A5\u540E\u7AEF\u670D\u52A1" }), _jsx("p", { className: "text-sm text-muted-foreground", children: "\u8BF7\u786E\u8BA4 Go API \u5DF2\u542F\u52A8\u5E76\u53EF\u901A\u8FC7 /api \u8BBF\u95EE\u3002" }), _jsx(Button, { onClick: () => refetch(), children: "\u91CD\u8BD5\u68C0\u6D4B" })] }));
     }
-    return (_jsx("div", { className: "flex min-h-screen items-center justify-center bg-muted/30 p-4", children: _jsxs(Card, { className: "w-full max-w-md", children: [_jsx(CardHeader, { children: _jsx(CardTitle, { children: "\u7BA1\u7406\u5458\u767B\u5F55" }) }), _jsxs(CardContent, { className: "space-y-4", children: [checkingUsers && (_jsx("div", { className: "rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground", children: "\u6B63\u5728\u68C0\u6D4B\u7CFB\u7EDF\u72B6\u6001..." })), _jsxs("div", { className: "space-y-2", children: [_jsx(Label, { children: "\u90AE\u7BB1" }), _jsx(Input, { type: "email", value: form.email, onChange: (event) => setForm((prev) => ({ ...prev, email: event.target.value })) })] }), _jsxs("div", { className: "space-y-2", children: [_jsx(Label, { children: "\u5BC6\u7801" }), _jsx(Input, { type: "password", value: form.password, onChange: (event) => setForm((prev) => ({ ...prev, password: event.target.value })) })] }), turnstileConfig?.enabled && turnstileConfig.siteKey && turnstileReady && (_jsx("div", { className: "flex justify-center", children: _jsx(Turnstile, { siteKey: turnstileConfig.siteKey, onVerify: setTurnstileToken, onError: () => {
+    return (_jsx("div", { className: "flex min-h-screen items-center justify-center bg-muted/30 p-4", children: _jsxs(Card, { className: "w-full max-w-md", children: [_jsx(CardHeader, { children: _jsx(CardTitle, { children: "\u7BA1\u7406\u5458\u767B\u5F55" }) }), _jsxs(CardContent, { className: "space-y-4", children: [checkingUsers && (_jsx("div", { className: "rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground", children: "\u6B63\u5728\u68C0\u6D4B\u7CFB\u7EDF\u72B6\u6001..." })), _jsxs("div", { className: "space-y-2", children: [_jsx(Label, { children: "\u90AE\u7BB1" }), _jsx(Input, { type: "email", value: form.email, onChange: (event) => setForm((prev) => ({ ...prev, email: event.target.value })) })] }), _jsxs("div", { className: "space-y-2", children: [_jsx(Label, { children: "\u5BC6\u7801" }), _jsx(Input, { type: "password", value: form.password, onChange: (event) => setForm((prev) => ({ ...prev, password: event.target.value })) })] }), turnstileConfig?.enabled && turnstileConfig.siteKey && turnstileReady && (_jsx("div", { className: "flex justify-center", children: _jsx(Turnstile, { ref: turnstileRef, siteKey: turnstileConfig.siteKey, onVerify: setTurnstileToken, onError: () => {
                                     setTurnstileToken("");
                                     toast.error("人机验证出错，请刷新页面重试");
                                 }, onExpire: () => {
