@@ -33,7 +33,7 @@ export function InstallerPage() {
 
   const [form, setForm] = useState({
     databaseType: "sqlite",
-    databasePath: "storage/data/skyImage.db",
+    databasePath: "storage/data/skyimage.db",
     databaseHost: "localhost",
     databasePort: "3306",
     databaseName: "skyimage",
@@ -120,7 +120,7 @@ export function InstallerPage() {
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, databasePath: e.target.value }))
                     }
-                    placeholder="storage/data/skyImage.db"
+                    placeholder="storage/data/skyimage.db"
                   />
                   <p className="text-sm text-muted-foreground">
                     SQLite 是一个轻量级的嵌入式数据库，无需额外配置，适合个人使用和小型项目。
