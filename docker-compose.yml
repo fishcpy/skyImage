@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   skyimage:
-    image: ${DOCKERHUB_USERNAME}/skyimage:latest
+    image: fishcpy/skyimage:latest
     container_name: skyimage
     restart: unless-stopped
     ports:
@@ -13,7 +13,7 @@ services:
       - DATABASE_PATH=storage/data/skyimage.db
       - STORAGE_PATH=storage/uploads
       - PUBLIC_BASE_URL=http://localhost:8080
-      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - JWT_SECRET=skyImage(可换为任意文本)
       - ALLOW_REGISTRATION=true
       - FRONTEND_DIST=dist
       - TZ=Asia/Shanghai
