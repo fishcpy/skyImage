@@ -31,9 +31,28 @@ func Load() (Config, error) {
 	viper.SetConfigName(".env")
 	viper.SetConfigType("env")
 	viper.AddConfigPath(".")
-	viper.AutomaticEnv()
-
+	
+	// 设置默认值
 	setDefaults()
+	
+	// 启用自动环境变量读取
+	viper.AutomaticEnv()
+	
+	// 显式绑定所有需要的环境变量
+	viper.BindEnv("HTTP_ADDR")
+	viper.BindEnv("DATABASE_PATH")
+	viper.BindEnv("DATABASE_TYPE")
+	viper.BindEnv("DATABASE_HOST")
+	viper.BindEnv("DATABASE_PORT")
+	viper.BindEnv("DATABASE_NAME")
+	viper.BindEnv("DATABASE_USER")
+	viper.BindEnv("DATABASE_PASSWORD")
+	viper.BindEnv("STORAGE_PATH")
+	viper.BindEnv("PUBLIC_BASE_URL")
+	viper.BindEnv("JWT_SECRET")
+	viper.BindEnv("LEGACY_DSN")
+	viper.BindEnv("FRONTEND_DIST")
+	viper.BindEnv("ALLOW_REGISTRATION")
 
 	_ = viper.ReadInConfig() // best-effort optional .env
 
