@@ -29,36 +29,75 @@ const defaultGroupConfigs = {
   max_capacity: 1024 * 1024 * 1024
 };
 
-type SizeUnit = 'B' | 'KB' | 'MB' | 'GB' | 'TB';
+type SizeUnit = "B" | "KB" | "MB" | "GB" | "TB";
 
 const UNITS: { value: SizeUnit; label: string; bytes: number }[] = [
-  { value: 'B', label: 'B', bytes: 1 },
-  { value: 'KB', label: 'KB', bytes: 1024 },
-  { value: 'MB', label: 'MB', bytes: 1024 * 1024 },
-  { value: 'GB', label: 'GB', bytes: 1024 * 1024 * 1024 },
-  { value: 'TB', label: 'TB', bytes: 1024 * 1024 * 1024 * 1024 },
+  { value: "B", label: "B", bytes: 1 },
+  { value: "KB", label: "KB", bytes: 1024 },
+  { value: "MB", label: "MB", bytes: 1024 * 1024 },
+  { value: "GB", label: "GB", bytes: 1024 * 1024 * 1024 },
+  { value: "TB", label: "TB", bytes: 1024 * 1024 * 1024 * 1024 }
 ];
 
+const DEFAULT_FILE_UNIT: SizeUnit = "MB";
+const DEFAULT_CAPACITY_UNIT: SizeUnit = "GB";
+const FILE_UNIT_STORAGE_KEY = "group-editor:file-unit";
+const CAPACITY_UNIT_STORAGE_KEY = "group-editor:capacity-unit";
+
 function bytesToUnit(bytes: number, unit: SizeUnit): number {
-  const unitInfo = UNITS.find(u => u.value === unit);
+  const unitInfo = UNITS.find((u) => u.value === unit);
   if (!unitInfo) return bytes;
   return bytes / unitInfo.bytes;
 }
 
 function unitToBytes(value: number, unit: SizeUnit): number {
-  const unitInfo = UNITS.find(u => u.value === unit);
+  const unitInfo = UNITS.find((u) => u.value === unit);
   if (!unitInfo) return value;
   return value * unitInfo.bytes;
 }
 
-function detectUnit(bytes: number): SizeUnit {
-  if (bytes === 0) return 'MB';
+function formatDisplayValue(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "";
+  }
+  const fixed = value.toFixed(2).replace(/\.?0+$/, "");
+  return fixed === "" ? "0" : fixed;
+}
+
+function parseInputValue(raw: string | undefined): number | undefined {
+  if (!raw || raw.trim() === "") {
+    return undefined;
+  }
+  const parsed = Number(raw);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function detectUnit(bytes: number, fallback: SizeUnit = DEFAULT_FILE_UNIT): SizeUnit {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return fallback;
+  }
   for (let i = UNITS.length - 1; i >= 0; i--) {
-    if (bytes >= UNITS[i].bytes && bytes % UNITS[i].bytes === 0) {
-      return UNITS[i].value;
+    const unit = UNITS[i];
+    if (bytes >= unit.bytes) {
+      return unit.value;
     }
   }
-  return 'MB';
+  return fallback;
+}
+
+function isValidUnit(value: string | null): value is SizeUnit {
+  return Boolean(value && UNITS.some((unit) => unit.value === value));
+}
+
+function loadStoredUnit(key: string): SizeUnit | null {
+  if (typeof window === "undefined") return null;
+  const stored = window.localStorage.getItem(key);
+  return isValidUnit(stored) ? stored : null;
+}
+
+function persistUnit(key: string, unit: SizeUnit) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(key, unit);
 }
 
 export function AdminGroupEditorPage() {
@@ -83,8 +122,14 @@ export function AdminGroupEditorPage() {
     configs: { ...defaultGroupConfigs }
   });
 
-  const [fileSizeUnit, setFileSizeUnit] = useState<SizeUnit>('MB');
-  const [capacityUnit, setCapacityUnit] = useState<SizeUnit>('GB');
+  const [fileSizeValue, setFileSizeValue] = useState<string>(
+    formatDisplayValue(bytesToUnit(defaultGroupConfigs.max_file_size, DEFAULT_FILE_UNIT))
+  );
+  const [capacityValue, setCapacityValue] = useState<string>(
+    formatDisplayValue(bytesToUnit(defaultGroupConfigs.max_capacity, DEFAULT_CAPACITY_UNIT))
+  );
+  const [fileSizeUnit, setFileSizeUnit] = useState<SizeUnit>(DEFAULT_FILE_UNIT);
+  const [capacityUnit, setCapacityUnit] = useState<SizeUnit>(DEFAULT_CAPACITY_UNIT);
 
   useEffect(() => {
     if (isEditing && groups) {
@@ -92,13 +137,11 @@ export function AdminGroupEditorPage() {
       if (target) {
         const fileSize = target.configs?.max_file_size ?? defaultGroupConfigs.max_file_size;
         const capacity = target.configs?.max_capacity ?? defaultGroupConfigs.max_capacity;
-        
-        const detectedFileSizeUnit = detectUnit(fileSize);
-        const detectedCapacityUnit = detectUnit(capacity);
-        
-        setFileSizeUnit(detectedFileSizeUnit);
-        setCapacityUnit(detectedCapacityUnit);
-        
+        const storedFileUnit = loadStoredUnit(FILE_UNIT_STORAGE_KEY);
+        const storedCapacityUnit = loadStoredUnit(CAPACITY_UNIT_STORAGE_KEY);
+        const fileUnitToUse = storedFileUnit ?? detectUnit(fileSize, DEFAULT_FILE_UNIT);
+        const capacityUnitToUse = storedCapacityUnit ?? detectUnit(capacity, DEFAULT_CAPACITY_UNIT);
+
         setForm({
           ...target,
           configs: {
@@ -106,11 +149,23 @@ export function AdminGroupEditorPage() {
             max_capacity: capacity
           }
         });
+        setFileSizeUnit(fileUnitToUse);
+        setCapacityUnit(capacityUnitToUse);
+        setFileSizeValue(formatDisplayValue(bytesToUnit(fileSize, fileUnitToUse)));
+        setCapacityValue(formatDisplayValue(bytesToUnit(capacity, capacityUnitToUse)));
       }
     } else if (!isEditing) {
       setForm({ name: "", configs: { ...defaultGroupConfigs } });
-      setFileSizeUnit('MB');
-      setCapacityUnit('GB');
+      const storedFileUnit = loadStoredUnit(FILE_UNIT_STORAGE_KEY) ?? DEFAULT_FILE_UNIT;
+      const storedCapacityUnit = loadStoredUnit(CAPACITY_UNIT_STORAGE_KEY) ?? DEFAULT_CAPACITY_UNIT;
+      setFileSizeUnit(storedFileUnit);
+      setCapacityUnit(storedCapacityUnit);
+      setFileSizeValue(
+        formatDisplayValue(bytesToUnit(defaultGroupConfigs.max_file_size, storedFileUnit))
+      );
+      setCapacityValue(
+        formatDisplayValue(bytesToUnit(defaultGroupConfigs.max_capacity, storedCapacityUnit))
+      );
     }
   }, [groups, id, isEditing]);
 
@@ -147,13 +202,20 @@ export function AdminGroupEditorPage() {
 
   const handleSubmit = () => {
     if (!form.name) return;
+    const parsedFileSize = parseInputValue(fileSizeValue);
+    const parsedCapacity = parseInputValue(capacityValue);
+    const maxFileSizeBytes =
+      parsedFileSize === undefined ? undefined : unitToBytes(parsedFileSize, fileSizeUnit);
+    const maxCapacityBytes =
+      parsedCapacity === undefined ? undefined : unitToBytes(parsedCapacity, capacityUnit);
+
     const payload = {
       id: form.id,
       name: form.name,
       isDefault: form.isDefault || false,
       configs: {
-        max_file_size: form.configs?.max_file_size ?? defaultGroupConfigs.max_file_size,
-        max_capacity: form.configs?.max_capacity ?? defaultGroupConfigs.max_capacity
+        max_file_size: maxFileSizeBytes ?? defaultGroupConfigs.max_file_size,
+        max_capacity: maxCapacityBytes ?? defaultGroupConfigs.max_capacity
       }
     };
     saveMutation.mutate(payload as GroupRecord);
@@ -193,23 +255,19 @@ export function AdminGroupEditorPage() {
                   type="number"
                   step="0.01"
                   className="flex-1"
-                  value={
-                    form.configs?.max_file_size
-                      ? bytesToUnit(form.configs.max_file_size, fileSizeUnit).toString()
-                      : ""
-                  }
+                  value={fileSizeValue}
                   onChange={(e) => {
-                    const value = Number(e.target.value || 0);
-                    setForm((prev) => ({
-                      ...prev,
-                      configs: {
-                        ...prev.configs,
-                        max_file_size: unitToBytes(value, fileSizeUnit)
-                      }
-                    }));
+                    setFileSizeValue(e.target.value);
                   }}
                 />
-                <Select value={fileSizeUnit} onValueChange={(v) => setFileSizeUnit(v as SizeUnit)}>
+                <Select
+                  value={fileSizeUnit}
+                  onValueChange={(v) => {
+                    const nextUnit = v as SizeUnit;
+                    setFileSizeUnit(nextUnit);
+                    persistUnit(FILE_UNIT_STORAGE_KEY, nextUnit);
+                  }}
+                >
                   <SelectTrigger className="w-24">
                     <SelectValue />
                   </SelectTrigger>
@@ -230,23 +288,19 @@ export function AdminGroupEditorPage() {
                   type="number"
                   step="0.01"
                   className="flex-1"
-                  value={
-                    form.configs?.max_capacity
-                      ? bytesToUnit(form.configs.max_capacity, capacityUnit).toString()
-                      : ""
-                  }
+                  value={capacityValue}
                   onChange={(e) => {
-                    const value = Number(e.target.value || 0);
-                    setForm((prev) => ({
-                      ...prev,
-                      configs: {
-                        ...prev.configs,
-                        max_capacity: unitToBytes(value, capacityUnit)
-                      }
-                    }));
+                    setCapacityValue(e.target.value);
                   }}
                 />
-                <Select value={capacityUnit} onValueChange={(v) => setCapacityUnit(v as SizeUnit)}>
+                <Select
+                  value={capacityUnit}
+                  onValueChange={(v) => {
+                    const nextUnit = v as SizeUnit;
+                    setCapacityUnit(nextUnit);
+                    persistUnit(CAPACITY_UNIT_STORAGE_KEY, nextUnit);
+                  }}
+                >
                   <SelectTrigger className="w-24">
                     <SelectValue />
                   </SelectTrigger>

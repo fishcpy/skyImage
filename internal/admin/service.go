@@ -283,8 +283,8 @@ func validateGroupConfigs(configs map[string]interface{}) error {
 		default:
 			return fmt.Errorf("max_file_size 必须是数字")
 		}
-		if size <= 0 {
-			return fmt.Errorf("最大单文件大小必须大于 0")
+		if size < 0 {
+			return fmt.Errorf("最大单文件大小必须大于等于 0")
 		}
 	}
 	
@@ -301,8 +301,8 @@ func validateGroupConfigs(configs map[string]interface{}) error {
 		default:
 			return fmt.Errorf("max_capacity 必须是数字")
 		}
-		if capacity <= 0 {
-			return fmt.Errorf("容量上限必须大于 0")
+		if capacity < 0 {
+			return fmt.Errorf("容量上限必须大于等于 0")
 		}
 	}
 	
