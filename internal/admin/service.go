@@ -92,6 +92,11 @@ func (s *Service) ListGroups(ctx context.Context) ([]data.Group, error) {
 }
 
 func (s *Service) CreateGroup(ctx context.Context, payload GroupPayload) (data.Group, error) {
+	// Validate configs
+	if err := validateGroupConfigs(payload.Configs); err != nil {
+		return data.Group{}, err
+	}
+	
 	cfgBytes, _ := json.Marshal(payload.Configs)
 	group := data.Group{
 		Name:      payload.Name,
@@ -112,6 +117,11 @@ func (s *Service) CreateGroup(ctx context.Context, payload GroupPayload) (data.G
 }
 
 func (s *Service) UpdateGroup(ctx context.Context, id uint, payload GroupPayload) (data.Group, error) {
+	// Validate configs
+	if err := validateGroupConfigs(payload.Configs); err != nil {
+		return data.Group{}, err
+	}
+	
 	group := data.Group{}
 	if err := s.db.WithContext(ctx).First(&group, id).Error; err != nil {
 		return group, err
@@ -253,4 +263,48 @@ func uniqueUint(values []uint) []uint {
 		result = append(result, v)
 	}
 	return result
+}
+
+func validateGroupConfigs(configs map[string]interface{}) error {
+	if configs == nil {
+		return nil
+	}
+	
+	// Validate max_file_size
+	if maxFileSize, ok := configs["max_file_size"]; ok {
+		var size float64
+		switch v := maxFileSize.(type) {
+		case float64:
+			size = v
+		case int:
+			size = float64(v)
+		case int64:
+			size = float64(v)
+		default:
+			return fmt.Errorf("max_file_size 必须是数字")
+		}
+		if size <= 0 {
+			return fmt.Errorf("最大单文件大小必须大于 0")
+		}
+	}
+	
+	// Validate max_capacity
+	if maxCapacity, ok := configs["max_capacity"]; ok {
+		var capacity float64
+		switch v := maxCapacity.(type) {
+		case float64:
+			capacity = v
+		case int:
+			capacity = float64(v)
+		case int64:
+			capacity = float64(v)
+		default:
+			return fmt.Errorf("max_capacity 必须是数字")
+		}
+		if capacity <= 0 {
+			return fmt.Errorf("容量上限必须大于 0")
+		}
+	}
+	
+	return nil
 }

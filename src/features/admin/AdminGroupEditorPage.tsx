@@ -191,7 +191,6 @@ export function AdminGroupEditorPage() {
               <div className="flex gap-2">
                 <Input
                   type="number"
-                  min="0"
                   step="0.01"
                   className="flex-1"
                   value={
@@ -229,7 +228,6 @@ export function AdminGroupEditorPage() {
               <div className="flex gap-2">
                 <Input
                   type="number"
-                  min="0"
                   step="0.01"
                   className="flex-1"
                   value={
