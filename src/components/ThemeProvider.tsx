@@ -16,7 +16,7 @@ const ThemeContext = createContext<ThemeContextValue>({
   setTheme: () => {}
 });
 
-const storageKey = "lsky-theme";
+const storageKey = "skyimage-theme";
 
 const readStoredTheme = (): Theme | null => {
   if (typeof window === "undefined") return null;

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-const storageKey = "lsky-auth";
+const storageKey = "skyimage-auth";
 const normalizeUser = (user) => {
     if (!user)
         return null;

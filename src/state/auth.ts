@@ -26,7 +26,7 @@ type AuthState = {
   markDisabled: () => void;
 };
 
-const storageKey = "lsky-auth";
+const storageKey = "skyimage-auth";
 
 const normalizeUser = (user: any): User | null => {
   if (!user) return null;
