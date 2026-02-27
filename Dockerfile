@@ -54,6 +54,10 @@ RUN apk --no-cache add ca-certificates tzdata sqlite-libs
 COPY --from=backend-builder /app/api .
 COPY --from=frontend-builder /app/dist ./dist
 
+# 复制启动脚本
+COPY docker-entrypoint.sh .
+RUN chmod +x docker-entrypoint.sh
+
 # 复制配置文件示例
 COPY .env.example .env.example
 
@@ -67,7 +71,13 @@ EXPOSE 8080
 ENV HTTP_ADDR=:8080 \
     STORAGE_PATH=storage/uploads \
     FRONTEND_DIST=dist \
+    DATABASE_TYPE=sqlite \
+    DATABASE_PATH=storage/data/skyimage.db \
+    ALLOW_REGISTRATION=true \
     TZ=Asia/Shanghai
 
+# 注意: JWT_SECRET 必须在运行时通过环境变量设置
+# 示例: docker run -e JWT_SECRET=your-secret-key ...
+
 # 启动应用
-CMD ["./api"]
+CMD ["./docker-entrypoint.sh"]
