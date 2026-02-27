@@ -20,6 +20,8 @@ services:
     volumes:
       - ./storage/data:/app/storage/data
       - ./storage/uploads:/app/storage/uploads
+      # 重要：.env 文件持久化，保存安装后的数据库配置
+      - ./.env:/app/.env
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/health"]
       interval: 30s
