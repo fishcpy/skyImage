@@ -20,15 +20,17 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <App />
         </BrowserRouter>
         <Toaster 
-          position="top-right" 
-          duration={2000}
+          position="top-center" 
+          duration={3000}
           closeButton
           richColors
+          expand={true}
+          visibleToasts={3}
           toastOptions={{
-            style: {
-              marginTop: '70px',
-            },
             className: 'toast-custom',
+            style: {
+              minWidth: '280px',
+            },
           }}
         />
       </ThemeProvider>

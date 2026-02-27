@@ -10,9 +10,9 @@ import { useAuthStore } from "./state/auth";
 import { ThemeProvider } from "./components/ThemeProvider";
 const queryClient = new QueryClient();
 useAuthStore.getState().hydrate();
-ReactDOM.createRoot(document.getElementById("root")).render(_jsx(React.StrictMode, { children: _jsx(QueryClientProvider, { client: queryClient, children: _jsxs(ThemeProvider, { children: [_jsx(BrowserRouter, { children: _jsx(App, {}) }), _jsx(Toaster, { position: "top-right", duration: 2000, closeButton: true, richColors: true, toastOptions: {
-                        style: {
-                            marginTop: '70px',
-                        },
+ReactDOM.createRoot(document.getElementById("root")).render(_jsx(React.StrictMode, { children: _jsx(QueryClientProvider, { client: queryClient, children: _jsxs(ThemeProvider, { children: [_jsx(BrowserRouter, { children: _jsx(App, {}) }), _jsx(Toaster, { position: "top-center", duration: 3000, closeButton: true, richColors: true, expand: true, visibleToasts: 3, toastOptions: {
                         className: 'toast-custom',
+                        style: {
+                            minWidth: '280px',
+                        },
                     } })] }) }) }));
