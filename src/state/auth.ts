@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { fetchProfile } from "@/lib/api";
 
 type User = {
   id: number;
@@ -203,8 +204,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     
     console.log('[Auth] Refreshing user...');
     try {
-      // Dynamically import to avoid circular dependency
-      const { fetchProfile } = await import("@/lib/api");
       const userData = await fetchProfile();
       console.log('[Auth] Fetched user data:', userData);
       const normalizedUser = normalizeUser(userData);
