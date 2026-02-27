@@ -1,0 +1,37 @@
+# Go artifacts
+bin/
+*.test
+*.exe
+*.log
+coverage.*
+*.prof
+*.out
+
+# Node/Vite
+node_modules/
+dist/
+.vite/
+.gocache/
+vite.err
+.cache/
+*.eslintcache
+
+# TypeScript
+*.tsbuildinfo
+
+# Runtime data
+storage/data/
+storage/uploads/
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+tmp/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/

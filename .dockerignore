@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+.github
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Node
+node_modules
+.pnpm-store
+pnpm-lock.yaml
+
+# Go
+.gocache
+*.exe
+*.test
+*.out
+api.exe
+
+# Build artifacts
+dist
+
+# Environment
+.env
+.env.local
+
+# Storage
+storage/data/*
+storage/uploads/*
+!storage/data/.gitkeep
+!storage/uploads/.gitkeep
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+LICENSE

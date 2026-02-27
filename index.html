@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>skyImage 控制台</title>
+    <script>
+      (function () {
+        try {
+          var storageKey = "lsky-theme";
+          var stored = localStorage.getItem(storageKey);
+          var systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var resolved =
+            stored === "light" || stored === "dark"
+              ? stored
+              : systemPrefersDark
+                ? "dark"
+                : "light";
+          if (resolved === "dark") {
+            document.documentElement.classList.add("dark");
+          } else {
+            document.documentElement.classList.remove("dark");
+          }
+        } catch (error) {
+          console.warn("theme init failed", error);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
