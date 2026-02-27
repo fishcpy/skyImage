@@ -53,7 +53,7 @@ export function MyImagesPage() {
       </Card>
       {preview && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
           onClick={() => setPreview(null)}
         >
           <div className="space-y-4 rounded-lg bg-background p-4 shadow-2xl">
