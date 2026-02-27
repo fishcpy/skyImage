@@ -5,8 +5,10 @@ import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   assignUserGroup,
+  deleteUserAccount,
   fetchGroups,
   fetchUserDetail,
   toggleUserAdmin,
@@ -32,6 +34,7 @@ export function AdminUserDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.user);
+  const isAdmin = currentUser?.isAdmin;
 
   const userId = Number(id);
 
@@ -99,10 +102,26 @@ export function AdminUserDetailPage() {
     }
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteUserAccount(userId),
+    onSuccess: () => {
+      toast.success("用户已删除");
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      navigate("/dashboard/admin/users");
+    },
+    onError: (error) => toast.error(error.message)
+  });
+
   const handleGroupChange = (value: string) => {
     const next = value === "none" ? null : Number(value);
     setGroupId(value === "none" ? "none" : Number(value));
     groupMutation.mutate(next);
+  };
+
+  const handleDelete = () => {
+    if (window.confirm("删除后该用户及其文件将被清理，确定继续吗？")) {
+      deleteMutation.mutate();
+    }
   };
 
   if (!user) {
@@ -112,36 +131,75 @@ export function AdminUserDetailPage() {
           <Link to="/dashboard/admin/users" className="text-primary">
             用户管理
           </Link>{" "}
-          / 用户详情
+          / 编辑用户
         </p>
         <p className="text-sm text-muted-foreground">正在加载...</p>
       </div>
     );
   }
 
-  const immutable = user.isSuperAdmin;
+  const isSuperAdmin = user.isSuperAdmin;
+  const canModify = isAdmin && !isSuperAdmin;
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">
-        <Link to="/dashboard/admin/users" className="text-primary">
-          用户管理
-        </Link>{" "}
-        / {user.name}
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          <Link to="/dashboard/admin/users" className="text-primary">
+            用户管理
+          </Link>{" "}
+          / {user.name}
+        </p>
+        {isSuperAdmin && (
+          <Badge variant="secondary">受保护账户</Badge>
+        )}
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>基本信息</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <p>昵称：{user.name}</p>
-          <p>邮箱：{user.email}</p>
-          <p>角色：{user.isSuperAdmin ? "超级管理员" : user.isAdmin ? "管理员" : "普通用户"}</p>
-          <p>状态：{user.status === 1 ? "正常" : "已禁用"}</p>
-          <p>
-            容量使用：{formatBytes(user.usedCapacity ?? 0)} /{" "}
-            {user.capacity && user.capacity > 0 ? formatBytes(user.capacity) : "未配置"}
-          </p>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="text-sm text-muted-foreground">昵称</p>
+              <p className="font-medium">{user.name}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">邮箱</p>
+              <p className="font-medium">{user.email}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">角色</p>
+              <div>
+                {user.isSuperAdmin ? (
+                  <Badge variant="secondary">超级管理员</Badge>
+                ) : user.isAdmin ? (
+                  <Badge>管理员</Badge>
+                ) : (
+                  <Badge variant="outline">普通用户</Badge>
+                )}
+              </div>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">状态</p>
+              <div>
+                <Badge variant={user.status === 1 ? "secondary" : "outline"}>
+                  {user.status === 1 ? "正常" : "已禁用"}
+                </Badge>
+              </div>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">容量使用</p>
+              <p className="font-medium">{formatBytes(user.usedCapacity ?? 0)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">容量上限</p>
+              <p className="font-medium">
+                {user.capacity && user.capacity > 0 ? formatBytes(user.capacity) : "未配置"}
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -153,7 +211,7 @@ export function AdminUserDetailPage() {
           <Select
             value={groupId === "none" ? "none" : String(groupId)}
             onValueChange={handleGroupChange}
-            disabled={immutable}
+            disabled={!isAdmin}
           >
             <SelectTrigger>
               <SelectValue placeholder="选择角色组" />
@@ -177,28 +235,77 @@ export function AdminUserDetailPage() {
         <CardHeader>
           <CardTitle>权限控制</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          {!immutable && (
-            <Button
-              variant="outline"
-              onClick={() => statusMutation.mutate(user.status === 1 ? 0 : 1)}
-              disabled={statusMutation.isPending}
-            >
-              {user.status === 1 ? "禁用账户" : "启用账户"}
+        <CardContent>
+          <div className="space-y-4">
+            {/* 账户状态 */}
+            <div className="flex items-center justify-between p-4 rounded-lg border">
+              <div>
+                <p className="font-medium">账户状态</p>
+                <p className="text-sm text-muted-foreground">
+                  {user.status === 1 ? "账户正常，可以登录和使用" : "账户已禁用，无法登录"}
+                </p>
+              </div>
+              {canModify && (
+                <Button
+                  variant={user.status === 1 ? "outline" : "default"}
+                  onClick={() => statusMutation.mutate(user.status === 1 ? 0 : 1)}
+                  disabled={statusMutation.isPending}
+                >
+                  {user.status === 1 ? "禁用" : "启用"}
+                </Button>
+              )}
+              {!canModify && (
+                <Badge variant="secondary">不可修改</Badge>
+              )}
+            </div>
+
+            {/* 管理员权限 */}
+            <div className="flex items-center justify-between p-4 rounded-lg border">
+              <div>
+                <p className="font-medium">管理员权限</p>
+                <p className="text-sm text-muted-foreground">
+                  {user.isAdmin ? "拥有管理后台访问权限" : "普通用户，无管理权限"}
+                </p>
+              </div>
+              {canModify && (
+                <Button
+                  variant={user.isAdmin ? "outline" : "default"}
+                  onClick={() => adminMutation.mutate(!user.isAdmin)}
+                  disabled={adminMutation.isPending}
+                >
+                  {user.isAdmin ? "降级" : "升级"}
+                </Button>
+              )}
+              {isSuperAdmin && (
+                <Badge variant="secondary">超级管理员</Badge>
+              )}
+            </div>
+
+            {/* 删除账户 */}
+            {canModify && (
+              <div className="flex items-center justify-between p-4 rounded-lg border border-destructive/50 bg-destructive/5">
+                <div>
+                  <p className="font-medium text-destructive">删除账户</p>
+                  <p className="text-sm text-muted-foreground">
+                    删除后该用户及其所有文件将被永久清理，此操作不可恢复
+                  </p>
+                </div>
+                <Button
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={deleteMutation.isPending}
+                >
+                  删除
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-6 pt-6 border-t">
+            <Button variant="secondary" onClick={() => navigate("/dashboard/admin/users")}>
+              返回列表
             </Button>
-          )}
-          {!user.isSuperAdmin && (
-            <Button
-              variant="ghost"
-              onClick={() => adminMutation.mutate(!user.isAdmin)}
-              disabled={adminMutation.isPending}
-            >
-              {user.isAdmin ? "降级为普通用户" : "升级为管理员"}
-            </Button>
-          )}
-          <Button variant="secondary" onClick={() => navigate("/dashboard/admin/users")}>
-            返回列表
-          </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -57,9 +57,9 @@ export function AppShell() {
                 title: "系统",
                 items: [
                     { to: "/dashboard/admin/console", label: "控制台", icon: Activity },
+                    { to: "/dashboard/admin/images", label: "图片管理", icon: ImageIcon },
                     { to: "/dashboard/admin/groups", label: "角色组", icon: Users },
                     { to: "/dashboard/admin/users", label: "用户管理", icon: Users2 },
-                    { to: "/dashboard/admin/images", label: "图片管理", icon: ImageIcon },
                     { to: "/dashboard/admin/strategies", label: "储存策略", icon: Layers3 },
                     { to: "/dashboard/admin/settings", label: "系统设置", icon: ServerCog }
                 ]
