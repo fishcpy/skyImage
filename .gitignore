@@ -39,3 +39,5 @@ Thumbs.db
 # Ignore compiled JS files in src directory (generated from TS/TSX)
 src/**/*.js
 src/**/*.jsx
+src/*.js
+src/*.jsx
