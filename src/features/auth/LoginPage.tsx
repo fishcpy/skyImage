@@ -168,6 +168,12 @@ export function LoginPage() {
           >
             {mutation.isPending ? "登录中..." : "登录"}
           </Button>
+          <div className="text-center text-sm">
+            <span className="text-muted-foreground">还没有账号？</span>{" "}
+            <a href="/register" className="text-primary hover:underline">
+              立即注册
+            </a>
+          </div>
         </CardContent>
       </Card>
     </div>

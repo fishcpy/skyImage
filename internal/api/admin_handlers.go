@@ -366,6 +366,7 @@ type systemSettingsPayload struct {
 	About                   string `json:"about"`
 	EnableGallery           bool   `json:"enableGallery"`
 	EnableApi               bool   `json:"enableApi"`
+	AllowRegistration       bool   `json:"allowRegistration"`
 	SMTPHost                string `json:"smtpHost"`
 	SMTPPort                string `json:"smtpPort"`
 	SMTPUsername            string `json:"smtpUsername"`
@@ -402,6 +403,7 @@ func (s *Server) handleAdminSystemSettings(c *gin.Context) {
 			About:                   settings["site.about"],
 			EnableGallery:           settings["features.gallery"] != "false",
 			EnableApi:               settings["features.api"] != "false",
+			AllowRegistration:       settings["features.allow_registration"] != "false",
 			SMTPHost:                settings["mail.smtp.host"],
 			SMTPPort:                settings["mail.smtp.port"],
 			SMTPUsername:            settings["mail.smtp.username"],
@@ -451,22 +453,23 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 		notice = defaultAccountDisabledNotice
 	}
 	values := map[string]string{
-		"site.title":              payload.SiteTitle,
-		"site.description":        payload.SiteDescription,
-		"site.about":              payload.About,
-		"features.gallery":        strconv.FormatBool(payload.EnableGallery),
-		"features.api":            strconv.FormatBool(payload.EnableApi),
-		"mail.smtp.host":          payload.SMTPHost,
-		"mail.smtp.port":          payload.SMTPPort,
-		"mail.smtp.username":      payload.SMTPUsername,
-		"mail.smtp.password":      payload.SMTPPassword,
-		"mail.smtp.secure":        strconv.FormatBool(payload.SMTPSecure),
-		"mail.register.verify":    strconv.FormatBool(payload.EnableRegisterVerify),
-		"mail.login.notification": strconv.FormatBool(payload.EnableLoginNotification),
-		"turnstile.site_key":      payload.TurnstileSiteKey,
-		"turnstile.secret_key":    payload.TurnstileSecretKey,
-		"turnstile.enabled":       strconv.FormatBool(payload.EnableTurnstile),
-		"account.disabled_notice": notice,
+		"site.title":                 payload.SiteTitle,
+		"site.description":           payload.SiteDescription,
+		"site.about":                 payload.About,
+		"features.gallery":           strconv.FormatBool(payload.EnableGallery),
+		"features.api":               strconv.FormatBool(payload.EnableApi),
+		"features.allow_registration": strconv.FormatBool(payload.AllowRegistration),
+		"mail.smtp.host":             payload.SMTPHost,
+		"mail.smtp.port":             payload.SMTPPort,
+		"mail.smtp.username":         payload.SMTPUsername,
+		"mail.smtp.password":         payload.SMTPPassword,
+		"mail.smtp.secure":           strconv.FormatBool(payload.SMTPSecure),
+		"mail.register.verify":       strconv.FormatBool(payload.EnableRegisterVerify),
+		"mail.login.notification":    strconv.FormatBool(payload.EnableLoginNotification),
+		"turnstile.site_key":         payload.TurnstileSiteKey,
+		"turnstile.secret_key":       payload.TurnstileSecretKey,
+		"turnstile.enabled":          strconv.FormatBool(payload.EnableTurnstile),
+		"account.disabled_notice":    notice,
 	}
 	if settings["turnstile.last_verified_signature"] != newSignature {
 		values["turnstile.last_verified_signature"] = ""

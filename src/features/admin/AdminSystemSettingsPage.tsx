@@ -33,6 +33,7 @@ export function AdminSystemSettingsPage() {
     about: "",
     enableGallery: true,
     enableApi: true,
+    allowRegistration: true,
     smtpHost: "",
     smtpPort: "",
     smtpUsername: "",
@@ -262,6 +263,19 @@ export function AdminSystemSettingsPage() {
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
               >
                 开启 API
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="allowRegistration"
+                checked={form.allowRegistration}
+                onCheckedChange={(checked) => handleChange("allowRegistration", checked)}
+              />
+              <Label
+                htmlFor="allowRegistration"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                允许用户注册
               </Label>
             </div>
           </div>

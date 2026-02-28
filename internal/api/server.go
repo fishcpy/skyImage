@@ -22,19 +22,21 @@ import (
 	"skyimage/internal/middleware"
 	"skyimage/internal/turnstile"
 	"skyimage/internal/users"
+	"skyimage/internal/verification"
 )
 
 type Server struct {
-	engine    *gin.Engine
-	mu        sync.RWMutex
-	cfg       config.Config
-	db        *gorm.DB
-	installer *installer.Service
-	admin     *admin.Service
-	files     *files.Service
-	users     *users.Service
-	mail      *mail.Service
-	turnstile *turnstile.Service
+	engine       *gin.Engine
+	mu           sync.RWMutex
+	cfg          config.Config
+	db           *gorm.DB
+	installer    *installer.Service
+	admin        *admin.Service
+	files        *files.Service
+	users        *users.Service
+	mail         *mail.Service
+	turnstile    *turnstile.Service
+	verification *verification.Service
 }
 
 func NewServer(cfg config.Config, db *gorm.DB) *Server {
@@ -67,6 +69,7 @@ func (s *Server) applyRuntimeConfig(cfg config.Config, db *gorm.DB) {
 	s.users = users.New(db, cfg.JWTSecret)
 	s.mail = mail.New(adminService)
 	s.turnstile = turnstile.New(adminService)
+	s.verification = verification.New()
 	if s.installer != nil {
 		s.installer.SetRuntime(db, cfg)
 	}

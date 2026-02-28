@@ -78,13 +78,24 @@ export async function login(payload: { email: string; password: string; turnstil
   return res.data.data;
 }
 
+export async function sendVerificationCode(payload: { email: string; turnstileToken?: string }) {
+  const res = await apiClient.post<{ data: { message: string } }>("/auth/send-verification-code", payload);
+  return res.data.data;
+}
+
 export async function register(payload: {
   name: string;
   email: string;
   password: string;
+  verificationCode: string;
   turnstileToken?: string;
 }) {
   const res = await apiClient.post<{ data: any }>("/auth/register", payload);
+  return res.data.data;
+}
+
+export async function fetchRegistrationStatus() {
+  const res = await apiClient.get<{ data: { allowed: boolean; emailVerifyEnabled: boolean } }>("/auth/registration-status");
   return res.data.data;
 }
 
@@ -345,6 +356,7 @@ export type SystemSettingsInput = {
   about: string;
   enableGallery: boolean;
   enableApi: boolean;
+  allowRegistration: boolean;
   smtpHost: string;
   smtpPort: string;
   smtpUsername: string;

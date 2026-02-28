@@ -36,9 +36,10 @@ func New(db *gorm.DB, jwtSecret string) *Service {
 }
 
 type RegisterInput struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Name         string `json:"name"`
+	Email        string `json:"email"`
+	Password     string `json:"password"`
+	RegisteredIP string `json:"-"` // 不从JSON读取，由服务器设置
 }
 
 type LoginInput struct {
@@ -77,6 +78,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (data.User, er
 		PasswordHash: string(hashed),
 		Configs:      datatypes.JSON([]byte(`{}`)),
 		Status:       1,
+		RegisteredIP: in.RegisteredIP,
 	}
 	if group, err := s.defaultGroup(ctx); err == nil && group != nil {
 		user.GroupID = &group.ID
@@ -122,6 +124,11 @@ func (s *Service) generateToken(user data.User) (string, error) {
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(s.jwtSecret)
+}
+
+// GenerateToken 导出版本，供其他包使用
+func (s *Service) GenerateToken(user data.User) (string, error) {
+	return s.generateToken(user)
 }
 
 func (s *Service) ParseToken(ctx context.Context, tokenString string) (data.User, error) {

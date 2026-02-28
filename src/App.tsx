@@ -5,6 +5,7 @@ import { InstallerPage } from "@/features/installer/InstallerPage";
 import { UploadPage } from "@/features/files/UploadPage";
 import { UserManagementPage } from "@/features/users/UserManagementPage";
 import { LoginPage } from "@/features/auth/LoginPage";
+import { RegisterPage } from "@/features/auth/RegisterPage";
 import { fetchInstallerStatus } from "@/lib/api";
 import { SplashScreen } from "@/components/SplashScreen";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -64,6 +65,7 @@ export default function App() {
       <Routes>
         <Route path="/installer" element={<InstallerPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         {installed && (
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard/*" element={<AppShell />}>
