@@ -1,6 +1,7 @@
 package files
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
 	"crypto/sha1"
@@ -10,8 +11,10 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"math/rand"
 	"mime/multipart"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -29,14 +32,16 @@ import (
 )
 
 type Service struct {
-	db  *gorm.DB
-	cfg config.Config
+	db      *gorm.DB
+	cfg     config.Config
+	limiter *uploadLimiter
 }
 
 func New(db *gorm.DB, cfg config.Config) *Service {
 	return &Service{
-		db:  db,
-		cfg: cfg,
+		db:      db,
+		cfg:     cfg,
+		limiter: newUploadLimiter(),
 	}
 }
 
@@ -75,6 +80,7 @@ type strategyConfig struct {
 	Base    string
 	Pattern string
 	Query   string
+	Exts    []string
 }
 
 func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.FileHeader, opts UploadOptions) (data.FileAsset, error) {
@@ -90,6 +96,19 @@ func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.Fi
 			var groupCfg map[string]interface{}
 			if len(group.Configs) > 0 {
 				if err := json.Unmarshal(group.Configs, &groupCfg); err == nil {
+					maxMinute := intFromAny(groupCfg["upload_rate_minute"])
+					maxHour := intFromAny(groupCfg["upload_rate_hour"])
+					if (maxMinute > 0 || maxHour > 0) && s.limiter != nil {
+						allowed, retryAfter := s.limiter.Allow(user.ID, maxMinute, maxHour)
+						if !allowed {
+							waitSeconds := int(math.Ceil(retryAfter.Seconds()))
+							if waitSeconds < 1 {
+								waitSeconds = 1
+							}
+							return data.FileAsset{}, fmt.Errorf("上传过于频繁，请在 %d 秒后重试", waitSeconds)
+						}
+					}
+
 					// Check single file size limit
 					if maxSize, ok := groupCfg["max_file_size"]; ok {
 						var maxBytes int64
@@ -145,6 +164,25 @@ func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.Fi
 	}
 	defer handle.Close()
 
+	head := make([]byte, 512)
+	headSize, err := io.ReadFull(handle, head)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		return data.FileAsset{}, err
+	}
+	if headSize == 0 {
+		return data.FileAsset{}, errors.New("empty file")
+	}
+	contentType := normalizeContentType(http.DetectContentType(head[:headSize]))
+	if !isAllowedMediaType(contentType) {
+		return data.FileAsset{}, fmt.Errorf("不支持的文件类型: %s", contentType)
+	}
+	originalExt := strings.TrimPrefix(strings.ToLower(filepath.Ext(file.Filename)), ".")
+	if len(cfg.Exts) > 0 {
+		if originalExt == "" || !extAllowed(cfg.Exts, originalExt) {
+			return data.FileAsset{}, fmt.Errorf("不允许的文件后缀: %s", originalExt)
+		}
+	}
+
 	key := uuid.NewString()
 	now := time.Now()
 	relativePath := s.buildRelativePath(cfg, user, file.Filename, key, now)
@@ -170,7 +208,8 @@ func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.Fi
 
 	md5Hasher := md5.New()
 	sha1Hasher := sha1.New()
-	size, err := io.Copy(dest, io.TeeReader(handle, io.MultiWriter(md5Hasher, sha1Hasher)))
+	reader := io.MultiReader(bytes.NewReader(head[:headSize]), handle)
+	size, err := io.Copy(dest, io.TeeReader(reader, io.MultiWriter(md5Hasher, sha1Hasher)))
 	if err != nil {
 		return data.FileAsset{}, err
 	}
@@ -185,7 +224,7 @@ func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.Fi
 		Name:            filepath.Base(destPath),
 		OriginalName:    file.Filename,
 		Size:            size,
-		MimeType:        file.Header.Get("Content-Type"),
+		MimeType:        contentType,
 		Extension:       strings.TrimPrefix(strings.ToLower(filepath.Ext(destPath)), "."),
 		ChecksumMD5:     hex.EncodeToString(md5Hasher.Sum(nil)),
 		ChecksumSHA1:    hex.EncodeToString(sha1Hasher.Sum(nil)),
@@ -196,6 +235,12 @@ func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.Fi
 	if fileAsset.MimeType == "" {
 		fileAsset.MimeType = "application/octet-stream"
 	}
+
+	publicURL := s.buildPublicURLFromConfig(cfg, fileAsset)
+	if publicURL == "" {
+		return data.FileAsset{}, fmt.Errorf("storage strategy %d has no external access domain", strategy.ID)
+	}
+	fileAsset.PublicURL = publicURL
 
 	if err := s.db.WithContext(ctx).Create(&fileAsset).Error; err != nil {
 		return data.FileAsset{}, err
@@ -259,15 +304,38 @@ func (s *Service) PublicURL(ctx context.Context, file data.FileAsset) (string, e
 			return "", err
 		}
 	}
+	if strings.TrimSpace(file.PublicURL) != "" {
+		return sanitizeURL(file.PublicURL), nil
+	}
 	publicURL := sanitizeURL(s.buildPublicURL(file))
 	if publicURL == "" {
 		return "", fmt.Errorf("storage strategy %d has no external access domain", file.StrategyID)
 	}
+	_ = s.db.WithContext(ctx).
+		Model(&data.FileAsset{}).
+		Where("id = ? AND (public_url IS NULL OR public_url = '')", file.ID).
+		UpdateColumn("public_url", publicURL).Error
 	return publicURL, nil
 }
 
 func (s *Service) buildPublicURL(file data.FileAsset) string {
 	cfg := s.parseStrategyConfig(file.Strategy)
+	base := strings.TrimSpace(cfg.Base)
+	if base == "" {
+		return ""
+	}
+	rel := deriveRelativePath(file, cfg)
+	if rel == "" {
+		rel = file.Name
+	}
+	publicURL := joinPublicURL(base, rel)
+	if cfg.Query != "" {
+		publicURL = appendQuery(publicURL, cfg.Query)
+	}
+	return publicURL
+}
+
+func (s *Service) buildPublicURLFromConfig(cfg strategyConfig, file data.FileAsset) string {
 	base := strings.TrimSpace(cfg.Base)
 	if base == "" {
 		return ""
@@ -316,6 +384,37 @@ func (s *Service) FindByKey(ctx context.Context, key string) (data.FileAsset, er
 		Where("key = ?", key).
 		First(&file).Error
 	return file, err
+}
+
+func (s *Service) FindByRelativePath(ctx context.Context, rel string) (data.FileAsset, error) {
+	rel = sanitizeRelativePath(rel)
+	if rel == "" {
+		return data.FileAsset{}, gorm.ErrRecordNotFound
+	}
+	var file data.FileAsset
+	err := s.db.WithContext(ctx).
+		Where("relative_path = ?", rel).
+		First(&file).Error
+	if err == nil {
+		return file, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return file, err
+	}
+	likeUnix := "%" + "/" + rel
+	likeWin := "%" + "\\" + strings.ReplaceAll(rel, "/", "\\")
+	err = s.db.WithContext(ctx).
+		Where("relative_path = '' OR relative_path IS NULL").
+		Where("path LIKE ? OR path LIKE ?", likeUnix, likeWin).
+		First(&file).Error
+	if err != nil {
+		return file, err
+	}
+	_ = s.db.WithContext(ctx).
+		Model(&data.FileAsset{}).
+		Where("id = ? AND (relative_path = '' OR relative_path IS NULL)", file.ID).
+		UpdateColumn("relative_path", rel).Error
+	return file, nil
 }
 
 func (s *Service) ListPublic(ctx context.Context, limit int, offset int) ([]data.FileAsset, error) {
@@ -386,6 +485,34 @@ func (s *Service) DeleteByAdmin(ctx context.Context, id uint) error {
 	})
 }
 
+// FreezePublicURLsForStrategy stores the current public URL for files that don't have one yet.
+// This prevents existing links from changing when a strategy is updated.
+func (s *Service) FreezePublicURLsForStrategy(ctx context.Context, strategy data.Strategy) error {
+	cfg := s.parseStrategyConfig(strategy)
+	if strings.TrimSpace(cfg.Base) == "" {
+		return nil
+	}
+	var files []data.FileAsset
+	if err := s.db.WithContext(ctx).
+		Where("strategy_id = ? AND (public_url IS NULL OR public_url = '')", strategy.ID).
+		Find(&files).Error; err != nil {
+		return err
+	}
+	for _, file := range files {
+		publicURL := s.buildPublicURLFromConfig(cfg, file)
+		if publicURL == "" {
+			continue
+		}
+		if err := s.db.WithContext(ctx).
+			Model(&data.FileAsset{}).
+			Where("id = ? AND (public_url IS NULL OR public_url = '')", file.ID).
+			UpdateColumn("public_url", publicURL).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func removeFile(path string) error {
 	if err := os.Remove(path); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -436,6 +563,7 @@ func (s *Service) parseStrategyConfig(strategy data.Strategy) strategyConfig {
 		Base:    s.cfg.PublicBaseURL,
 		Pattern: "",
 		Query:   "",
+		Exts:    nil,
 	}
 	if len(strategy.Configs) > 0 {
 		var raw map[string]interface{}
@@ -467,9 +595,22 @@ func (s *Service) parseStrategyConfig(strategy data.Strategy) strategyConfig {
 			if v := stringFromAny(raw["query"]); v != "" {
 				cfg.Query = v
 			}
+			cfg.Exts = parseExtensionsFromAny(raw["allowed_extensions"])
+			if len(cfg.Exts) == 0 {
+				cfg.Exts = parseExtensionsFromAny(raw["allowed_exts"])
+			}
+			if len(cfg.Exts) == 0 {
+				cfg.Exts = parseExtensionsFromAny(raw["extensions"])
+			}
+			if len(cfg.Exts) == 0 {
+				cfg.Exts = parseExtensionsFromAny(raw["allowedExtensions"])
+			}
 		}
 	}
 	if cfg.Pattern == "" {
+		cfg.Pattern = "{year}/{month}/{day}/{uuid}"
+	}
+	if !strings.Contains(cfg.Pattern, "{uuid}") {
 		cfg.Pattern = "{year}/{month}/{day}/{uuid}"
 	}
 	cfg.Base = s.normalizeExternalBase(cfg.Base, cfg.Driver, cfg.Root)
@@ -707,11 +848,6 @@ func (s *Service) normalizeExternalBase(base string, driver string, root string)
 	if driver == "" {
 		driver = "local"
 	}
-	if driver == "local" && !hasURLPath(base) {
-		if segment := s.storageSegment(root); segment != "" {
-			base = base + "/" + segment
-		}
-	}
 	return base
 }
 
@@ -739,15 +875,6 @@ func (s *Service) storageSegment(root string) string {
 	return segment
 }
 
-func hasURLPath(raw string) bool {
-	parsed, err := url.Parse(raw)
-	if err != nil {
-		return false
-	}
-	path := strings.Trim(parsed.Path, "/")
-	return path != ""
-}
-
 func stringFromAny(value interface{}) string {
 	switch v := value.(type) {
 	case string:
@@ -757,4 +884,125 @@ func stringFromAny(value interface{}) string {
 	default:
 		return ""
 	}
+}
+
+func parseExtensionsFromAny(value interface{}) []string {
+	switch v := value.(type) {
+	case string:
+		return parseExtensions(v)
+	case []string:
+		return parseExtensions(strings.Join(v, ","))
+	case []interface{}:
+		items := make([]string, 0, len(v))
+		for _, raw := range v {
+			if s, ok := raw.(string); ok {
+				items = append(items, s)
+			}
+		}
+		return parseExtensions(strings.Join(items, ","))
+	default:
+		return nil
+	}
+}
+
+func parseExtensions(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		switch r {
+		case ',', ';', ' ', '\n', '\t', '\r':
+			return true
+		default:
+			return false
+		}
+	})
+	seen := make(map[string]struct{}, len(parts))
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		ext := strings.TrimSpace(part)
+		if ext == "" {
+			continue
+		}
+		ext = strings.TrimPrefix(ext, ".")
+		ext = strings.ToLower(ext)
+		if ext == "" {
+			continue
+		}
+		if _, ok := seen[ext]; ok {
+			continue
+		}
+		seen[ext] = struct{}{}
+		result = append(result, ext)
+	}
+	return result
+}
+
+func extAllowed(allowed []string, ext string) bool {
+	if len(allowed) == 0 {
+		return true
+	}
+	ext = strings.TrimPrefix(strings.ToLower(ext), ".")
+	for _, item := range allowed {
+		if strings.EqualFold(item, ext) {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeContentType(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	if idx := strings.Index(trimmed, ";"); idx >= 0 {
+		trimmed = trimmed[:idx]
+	}
+	return strings.ToLower(strings.TrimSpace(trimmed))
+}
+
+func isAllowedMediaType(contentType string) bool {
+	if contentType == "" {
+		return false
+	}
+	switch contentType {
+	case "image/jpeg",
+		"image/png",
+		"image/gif",
+		"image/webp",
+		"image/bmp",
+		"image/tiff",
+		"image/avif",
+		"image/x-icon":
+		return true
+	case "image/svg+xml":
+		return false
+	case "video/mp4",
+		"video/webm",
+		"video/ogg",
+		"video/quicktime",
+		"video/x-msvideo",
+		"video/x-matroska",
+		"video/mpeg":
+		return true
+	}
+	return false
+}
+
+func intFromAny(value interface{}) int {
+	switch v := value.(type) {
+	case float64:
+		return int(v)
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case string:
+		if parsed, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			return parsed
+		}
+	}
+	return 0
 }

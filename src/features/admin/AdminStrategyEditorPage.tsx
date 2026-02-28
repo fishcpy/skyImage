@@ -43,7 +43,8 @@ export function AdminStrategyEditorPage() {
     configs: {
       driver: "local",
       root: "storage/uploads",
-      url: ""
+      url: "",
+      path_template: "{year}/{month}/{day}/{uuid}"
     }
   });
   const [selectedGroups, setSelectedGroups] = useState<number[]>([]);
@@ -52,6 +53,16 @@ export function AdminStrategyEditorPage() {
     if (isEditing && strategies) {
       const target = strategies.find((item) => item.id === Number(id));
       if (target) {
+        const allowedExtensions =
+          target.configs?.allowed_extensions ||
+          target.configs?.allowed_exts ||
+          target.configs?.extensions ||
+          target.configs?.allowedExtensions ||
+          "";
+        const pathTemplate =
+          target.configs?.path_template ||
+          target.configs?.pattern ||
+          "{year}/{month}/{day}/{uuid}";
         setForm({
           ...target,
           configs: {
@@ -61,7 +72,9 @@ export function AdminStrategyEditorPage() {
               target.configs?.url ||
               target.configs?.base_url ||
               target.configs?.baseUrl ||
-              ""
+              "",
+            allowed_extensions: allowedExtensions,
+            path_template: pathTemplate
           }
         });
         setSelectedGroups(target.groups?.map((group) => group.id) || []);
@@ -71,7 +84,13 @@ export function AdminStrategyEditorPage() {
         key: 1,
         name: "",
         intro: "",
-        configs: { driver: "local", root: "storage/uploads", url: "" }
+        configs: {
+          driver: "local",
+          root: "storage/uploads",
+          url: "",
+          allowed_extensions: "",
+          path_template: "{year}/{month}/{day}/{uuid}"
+        }
       });
       setSelectedGroups([]);
     }
@@ -89,6 +108,11 @@ export function AdminStrategyEditorPage() {
 
   const handleSave = () => {
     if (!form.name) return;
+    const template = (form.configs as any)?.path_template || "{year}/{month}/{day}/{uuid}";
+    if (template && !String(template).includes("{uuid}")) {
+      toast.error("路径模板必须包含 {uuid} 以确保唯一性");
+      return;
+    }
     saveMutation.mutate({
       ...form,
       groupIds: selectedGroups,
@@ -103,7 +127,10 @@ export function AdminStrategyEditorPage() {
           form.configs?.url ||
           form.configs?.base_url ||
           form.configs?.baseUrl ||
-          ""
+          "",
+        allowed_extensions: form.configs?.allowed_extensions || "",
+        path_template: form.configs?.path_template || "{year}/{month}/{day}/{uuid}",
+        pattern: form.configs?.path_template || "{year}/{month}/{day}/{uuid}"
       }
     } as StrategyRecord);
   };
@@ -182,10 +209,44 @@ export function AdminStrategyEditorPage() {
                     configs: { ...prev.configs, url: e.target.value }
                   }))
                 }
-                placeholder="https://cdn.example.com/uploads"
+                placeholder="https://cdn.example.com"
               />
-              <p className="text-xs text-muted-foreground">用于生成图像预览链接，可为空。</p>
+              <p className="text-xs text-muted-foreground">
+                仅允许填写域名（不含路径），路径由“路径模板”控制，可为空。
+              </p>
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>允许上传后缀（可选）</Label>
+            <Input
+              value={(form.configs as any)?.allowed_extensions || ""}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  configs: { ...prev.configs, allowed_extensions: e.target.value }
+                }))
+              }
+              placeholder="jpg,png,webp,mp4"
+            />
+            <p className="text-xs text-muted-foreground">使用英文逗号分隔，留空表示不限制。</p>
+          </div>
+          <div className="space-y-2">
+            <Label>路径模板</Label>
+            <Input
+              value={(form.configs as any)?.path_template || ""}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  configs: { ...prev.configs, path_template: e.target.value }
+                }))
+              }
+              placeholder="{year}/{month}/{day}/{uuid}"
+            />
+            <p className="text-xs text-muted-foreground">
+              可用变量：{`{year}`}/{`{month}`}/{`{day}`}/{`{hour}`}/{`{minute}`}/{`{second}`}/
+              {`{unix}`}/{`{uuid}`}/{`{userId}`}/{`{userName}`}/{`{original}`}/{`{ext}`}/
+              {`{rand6}`}（例如：{`{original}`}/{`{rand6}`}）。不包含 {`{ext}`} 将自动追加后缀。
+            </p>
           </div>
           <div className="space-y-2">
             <Label>授权角色组</Label>

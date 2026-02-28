@@ -298,16 +298,18 @@ func closeDB(db *gorm.DB) {
 func ensureDefaultGroup(tx *gorm.DB) (uint, error) {
 	var group data.Group
 	err := tx.Where("is_default = ?", true).First(&group).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		group = data.Group{
-			Name:      "Default",
-			IsDefault: true,
-			Configs: datatypes.JSON([]byte(`{
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			group = data.Group{
+				Name:      "Default",
+				IsDefault: true,
+				Configs: datatypes.JSON([]byte(`{
 				"max_file_size": 10485760,
 				"max_capacity": 1073741824,
-				"default_visibility": "private"
+				"default_visibility": "private",
+				"upload_rate_minute": 0,
+				"upload_rate_hour": 0
 			}`)),
-		}
+			}
 		if err := tx.Create(&group).Error; err != nil {
 			return 0, fmt.Errorf("create default group: %w", err)
 		}

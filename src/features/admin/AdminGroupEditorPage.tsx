@@ -26,7 +26,9 @@ import { useAuthStore } from "@/state/auth";
 
 const defaultGroupConfigs = {
   max_file_size: 10 * 1024 * 1024,
-  max_capacity: 1024 * 1024 * 1024
+  max_capacity: 1024 * 1024 * 1024,
+  upload_rate_minute: 0,
+  upload_rate_hour: 0
 };
 
 type SizeUnit = "B" | "KB" | "MB" | "GB" | "TB";
@@ -130,6 +132,12 @@ export function AdminGroupEditorPage() {
   );
   const [fileSizeUnit, setFileSizeUnit] = useState<SizeUnit>(DEFAULT_FILE_UNIT);
   const [capacityUnit, setCapacityUnit] = useState<SizeUnit>(DEFAULT_CAPACITY_UNIT);
+  const [rateMinuteValue, setRateMinuteValue] = useState<string>(
+    formatDisplayValue(defaultGroupConfigs.upload_rate_minute)
+  );
+  const [rateHourValue, setRateHourValue] = useState<string>(
+    formatDisplayValue(defaultGroupConfigs.upload_rate_hour)
+  );
 
   useEffect(() => {
     if (isEditing && groups) {
@@ -137,6 +145,9 @@ export function AdminGroupEditorPage() {
       if (target) {
         const fileSize = target.configs?.max_file_size ?? defaultGroupConfigs.max_file_size;
         const capacity = target.configs?.max_capacity ?? defaultGroupConfigs.max_capacity;
+        const rateMinute =
+          target.configs?.upload_rate_minute ?? defaultGroupConfigs.upload_rate_minute;
+        const rateHour = target.configs?.upload_rate_hour ?? defaultGroupConfigs.upload_rate_hour;
         const storedFileUnit = loadStoredUnit(FILE_UNIT_STORAGE_KEY);
         const storedCapacityUnit = loadStoredUnit(CAPACITY_UNIT_STORAGE_KEY);
         const fileUnitToUse = storedFileUnit ?? detectUnit(fileSize, DEFAULT_FILE_UNIT);
@@ -146,13 +157,17 @@ export function AdminGroupEditorPage() {
           ...target,
           configs: {
             max_file_size: fileSize,
-            max_capacity: capacity
+            max_capacity: capacity,
+            upload_rate_minute: rateMinute,
+            upload_rate_hour: rateHour
           }
         });
         setFileSizeUnit(fileUnitToUse);
         setCapacityUnit(capacityUnitToUse);
         setFileSizeValue(formatDisplayValue(bytesToUnit(fileSize, fileUnitToUse)));
         setCapacityValue(formatDisplayValue(bytesToUnit(capacity, capacityUnitToUse)));
+        setRateMinuteValue(formatDisplayValue(rateMinute));
+        setRateHourValue(formatDisplayValue(rateHour));
       }
     } else if (!isEditing) {
       setForm({ name: "", configs: { ...defaultGroupConfigs } });
@@ -166,6 +181,8 @@ export function AdminGroupEditorPage() {
       setCapacityValue(
         formatDisplayValue(bytesToUnit(defaultGroupConfigs.max_capacity, storedCapacityUnit))
       );
+      setRateMinuteValue(formatDisplayValue(defaultGroupConfigs.upload_rate_minute));
+      setRateHourValue(formatDisplayValue(defaultGroupConfigs.upload_rate_hour));
     }
   }, [groups, id, isEditing]);
 
@@ -204,6 +221,8 @@ export function AdminGroupEditorPage() {
     if (!form.name) return;
     const parsedFileSize = parseInputValue(fileSizeValue);
     const parsedCapacity = parseInputValue(capacityValue);
+    const parsedRateMinute = parseInputValue(rateMinuteValue);
+    const parsedRateHour = parseInputValue(rateHourValue);
     const maxFileSizeBytes =
       parsedFileSize === undefined ? undefined : unitToBytes(parsedFileSize, fileSizeUnit);
     const maxCapacityBytes =
@@ -215,7 +234,9 @@ export function AdminGroupEditorPage() {
       isDefault: form.isDefault || false,
       configs: {
         max_file_size: maxFileSizeBytes ?? defaultGroupConfigs.max_file_size,
-        max_capacity: maxCapacityBytes ?? defaultGroupConfigs.max_capacity
+        max_capacity: maxCapacityBytes ?? defaultGroupConfigs.max_capacity,
+        upload_rate_minute: parsedRateMinute ?? defaultGroupConfigs.upload_rate_minute,
+        upload_rate_hour: parsedRateHour ?? defaultGroupConfigs.upload_rate_hour
       }
     };
     saveMutation.mutate(payload as GroupRecord);
@@ -313,6 +334,32 @@ export function AdminGroupEditorPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>每分钟上传次数</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={rateMinuteValue}
+                onChange={(e) => {
+                  setRateMinuteValue(e.target.value);
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>每小时上传次数</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={rateHourValue}
+                onChange={(e) => {
+                  setRateHourValue(e.target.value);
+                }}
+              />
             </div>
           </div>
           <div className="flex items-center space-x-2">

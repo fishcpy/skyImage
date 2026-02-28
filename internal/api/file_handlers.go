@@ -1,9 +1,7 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -21,8 +19,6 @@ func (s *Server) registerFileRoutes(r *gin.RouterGroup) {
 	fileGroup.POST("", s.handleUploadFile)
 	fileGroup.GET("/:id", s.handleGetFile)
 	fileGroup.DELETE("/:id", s.handleDeleteFile)
-
-	s.engine.GET("/f/:key", s.handleServeFile)
 }
 
 func (s *Server) handleListFiles(c *gin.Context) {
@@ -137,23 +133,6 @@ func (s *Server) handleDeleteFile(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": "deleted"})
-}
-
-func (s *Server) handleServeFile(c *gin.Context) {
-	key := c.Param("key")
-	file, err := s.files.FindByKey(c.Request.Context(), key)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
-		return
-	}
-	if file.MimeType != "" {
-		c.Header("Content-Type", file.MimeType)
-	} else {
-		c.Header("Content-Type", "application/octet-stream")
-	}
-	filename := url.PathEscape(file.OriginalName)
-	c.Header("Content-Disposition", fmt.Sprintf("inline; filename*=UTF-8''%s", filename))
-	c.File(file.Path)
 }
 
 func (s *Server) handleListAvailableStrategies(c *gin.Context) {

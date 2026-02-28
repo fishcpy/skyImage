@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -143,6 +144,9 @@ func (s *Server) registerFrontend() {
 	})
 
 	s.engine.NoRoute(func(c *gin.Context) {
+		if s.tryServeLocalFile(c) {
+			return
+		}
 		indexPath := filepath.Join(distPath, "index.html")
 		c.File(indexPath)
 	})
@@ -214,13 +218,27 @@ func pathPrefix(raw string) string {
 	if strings.HasPrefix(raw, "//") {
 		raw = "http:" + raw
 	}
+	if strings.HasPrefix(raw, "/") {
+		return strings.Trim(strings.Trim(raw, "/"), "/")
+	}
 	if strings.Contains(raw, "://") {
 		u, err := url.Parse(raw)
 		if err == nil {
 			return strings.Trim(strings.Trim(u.Path, "/"), "/")
 		}
 	}
+	if looksLikeHost(raw) {
+		u, err := url.Parse("http://" + raw)
+		if err == nil {
+			return strings.Trim(strings.Trim(u.Path, "/"), "/")
+		}
+	}
 	return strings.Trim(strings.Trim(raw, "/"), "/")
+}
+
+func looksLikeHost(raw string) bool {
+	lower := strings.ToLower(raw)
+	return strings.Contains(raw, ".") || strings.Contains(raw, ":") || strings.HasPrefix(lower, "localhost")
 }
 
 func stringValue(cfg map[string]interface{}, key string) string {
@@ -239,6 +257,29 @@ func (s *Server) defaultLocalPublicSegment() string {
 		return "uploads"
 	}
 	return segment
+}
+
+func (s *Server) tryServeLocalFile(c *gin.Context) bool {
+	if c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead {
+		return false
+	}
+	rel := strings.Trim(c.Request.URL.Path, "/")
+	if rel == "" {
+		return false
+	}
+	file, err := s.files.FindByRelativePath(c.Request.Context(), rel)
+	if err != nil {
+		return false
+	}
+	if strings.TrimSpace(file.Path) == "" {
+		return false
+	}
+	info, err := os.Stat(file.Path)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	c.File(file.Path)
+	return true
 }
 
 func (s *Server) authMiddleware() gin.HandlerFunc {

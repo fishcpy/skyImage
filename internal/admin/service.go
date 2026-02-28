@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"gorm.io/datatypes"
@@ -170,7 +172,18 @@ func (s *Service) ListStrategies(ctx context.Context) ([]data.Strategy, error) {
 	return items, err
 }
 
+func (s *Service) FindStrategyByID(ctx context.Context, id uint) (data.Strategy, error) {
+	var strategy data.Strategy
+	err := s.db.WithContext(ctx).
+		Preload("Groups").
+		First(&strategy, id).Error
+	return strategy, err
+}
+
 func (s *Service) CreateStrategy(ctx context.Context, payload StrategyPayload) (data.Strategy, error) {
+	if err := validateStrategyConfigs(payload.Configs); err != nil {
+		return data.Strategy{}, err
+	}
 	cfgBytes, _ := json.Marshal(payload.Configs)
 	strategy := data.Strategy{
 		Key:     payload.Key,
@@ -189,6 +202,9 @@ func (s *Service) CreateStrategy(ctx context.Context, payload StrategyPayload) (
 }
 
 func (s *Service) UpdateStrategy(ctx context.Context, id uint, payload StrategyPayload) (data.Strategy, error) {
+	if err := validateStrategyConfigs(payload.Configs); err != nil {
+		return data.Strategy{}, err
+	}
 	var strategy data.Strategy
 	if err := s.db.WithContext(ctx).First(&strategy, id).Error; err != nil {
 		return strategy, err
@@ -305,6 +321,118 @@ func validateGroupConfigs(configs map[string]interface{}) error {
 			return fmt.Errorf("容量上限必须大于等于 0")
 		}
 	}
+
+	// Validate upload_rate_minute
+	if raw, ok := configs["upload_rate_minute"]; ok {
+		limit, err := asPositiveInt(raw)
+		if err != nil {
+			return fmt.Errorf("upload_rate_minute 必须是数字")
+		}
+		if limit < 0 {
+			return fmt.Errorf("upload_rate_minute 必须大于等于 0")
+		}
+	}
+
+	// Validate upload_rate_hour
+	if raw, ok := configs["upload_rate_hour"]; ok {
+		limit, err := asPositiveInt(raw)
+		if err != nil {
+			return fmt.Errorf("upload_rate_hour 必须是数字")
+		}
+		if limit < 0 {
+			return fmt.Errorf("upload_rate_hour 必须大于等于 0")
+		}
+	}
 	
 	return nil
+}
+
+func validateStrategyConfigs(configs map[string]interface{}) error {
+	if configs == nil {
+		return nil
+	}
+	for _, rawURL := range configStrings(configs, "url", "base_url", "baseUrl") {
+		if err := validateExternalDomain(rawURL); err != nil {
+			return err
+		}
+	}
+	template := ""
+	if values := configStrings(configs, "path_template", "pattern"); len(values) > 0 {
+		template = strings.TrimSpace(values[0])
+	}
+	if template != "" && !strings.Contains(template, "{uuid}") {
+		return fmt.Errorf("路径模板必须包含 {uuid} 以确保唯一性")
+	}
+	return nil
+}
+
+func validateExternalDomain(raw string) error {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil
+	}
+	if strings.HasPrefix(trimmed, "/") && !strings.HasPrefix(trimmed, "//") {
+		return fmt.Errorf("外部访问域名仅支持域名，不允许包含路径")
+	}
+	normalized := trimmed
+	if strings.HasPrefix(normalized, "//") {
+		normalized = "http:" + normalized
+	}
+	if !strings.Contains(normalized, "://") {
+		if looksLikeHost(normalized) {
+			normalized = "http://" + normalized
+		}
+	}
+	parsed, err := url.Parse(normalized)
+	if err != nil || parsed.Host == "" {
+		return fmt.Errorf("外部访问域名格式不正确")
+	}
+	if parsed.Path != "" && parsed.Path != "/" {
+		return fmt.Errorf("外部访问域名仅支持域名，不允许包含路径")
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("外部访问域名不允许包含参数或片段")
+	}
+	return nil
+}
+
+func looksLikeHost(raw string) bool {
+	lower := strings.ToLower(raw)
+	return strings.Contains(raw, ".") || strings.Contains(raw, ":") || strings.HasPrefix(lower, "localhost")
+}
+
+func firstConfigString(configs map[string]interface{}, keys ...string) string {
+	for _, key := range keys {
+		if v, ok := configs[key]; ok {
+			if s, ok := v.(string); ok {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+func configStrings(configs map[string]interface{}, keys ...string) []string {
+	values := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if v, ok := configs[key]; ok {
+			if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+				values = append(values, s)
+			}
+		}
+	}
+	return values
+}
+
+func asPositiveInt(value interface{}) (int, error) {
+	switch v := value.(type) {
+	case float64:
+		return int(v), nil
+	case int:
+		return v, nil
+	case int64:
+		return int(v), nil
+	default:
+		return 0, fmt.Errorf("invalid number")
+	}
 }

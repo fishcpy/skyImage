@@ -66,6 +66,9 @@ func NewDatabase(cfg config.Config) (*gorm.DB, error) {
 	if err := ensureRelativePathColumn(db); err != nil {
 		return nil, fmt.Errorf("prepare files table: %w", err)
 	}
+	if err := ensurePublicURLColumn(db); err != nil {
+		return nil, fmt.Errorf("prepare files table: %w", err)
+	}
 
 	if err := db.AutoMigrate(
 		&Group{},
@@ -101,4 +104,17 @@ func ensureRelativePathColumn(db *gorm.DB) error {
 		return err
 	}
 	return db.Exec("UPDATE `files` SET `relative_path` = '' WHERE `relative_path` IS NULL").Error
+}
+
+func ensurePublicURLColumn(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&FileAsset{}) {
+		return nil
+	}
+	if db.Migrator().HasColumn(&FileAsset{}, "public_url") {
+		return nil
+	}
+	if err := db.Exec("ALTER TABLE `files` ADD COLUMN `public_url` TEXT DEFAULT ''").Error; err != nil {
+		return err
+	}
+	return db.Exec("UPDATE `files` SET `public_url` = '' WHERE `public_url` IS NULL").Error
 }

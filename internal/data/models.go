@@ -55,6 +55,7 @@ type FileAsset struct {
 	Key             string    `gorm:"size:64;uniqueIndex;not null" json:"key"`
 	Path            string    `gorm:"size:512;not null" json:"path"`
 	RelativePath    string    `gorm:"size:512;default:''" json:"relativePath"`
+	PublicURL       string    `gorm:"size:2048;default:''" json:"publicUrl"`
 	Name            string    `gorm:"size:255;not null" json:"name"`
 	OriginalName    string    `gorm:"size:255" json:"originalName"`
 	Size            int64     `gorm:"not null" json:"size"`

@@ -279,9 +279,18 @@ func (s *Server) handleAdminUpdateStrategy(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
+	existing, err := s.admin.FindStrategyByID(c.Request.Context(), uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
 	var payload admin.StrategyPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := s.files.FreezePublicURLsForStrategy(c.Request.Context(), existing); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	item, err := s.admin.UpdateStrategy(c.Request.Context(), uint(id), payload)
