@@ -43,6 +43,7 @@ func NewServer(cfg config.Config, db *gorm.DB) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
 	engine.Use(gin.Logger(), gin.Recovery(), middleware.CORS())
+	engine.RedirectTrailingSlash = false
 
 	s := &Server{
 		engine: engine,
@@ -125,19 +126,23 @@ func (s *Server) registerRoutes() {
 }
 
 func (s *Server) registerFrontend() {
-	// 服务前端静态文件
 	distPath := filepath.Clean(s.cfg.FrontendDist)
-	s.engine.Static("/assets", filepath.Join(distPath, "assets"))
-	
-	// SPA fallback - 所有未匹配的路由返回 index.html
-	s.engine.NoRoute(func(c *gin.Context) {
-		// 如果是 API 请求，返回 404
+	assetsPath := filepath.Join(distPath, "assets")
+	s.engine.StaticFS("/assets", gin.Dir(assetsPath, false))
+
+	s.engine.Use(func(c *gin.Context) {
 		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
-			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			c.Next()
 			return
 		}
-		
-		// 其他请求返回前端 index.html
+		if strings.HasPrefix(c.Request.URL.Path, "/assets/") {
+			c.Next()
+			return
+		}
+		c.Next()
+	})
+
+	s.engine.NoRoute(func(c *gin.Context) {
 		indexPath := filepath.Join(distPath, "index.html")
 		c.File(indexPath)
 	})
