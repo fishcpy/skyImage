@@ -1,7 +1,7 @@
 package version
 
 // Version defines the current release identifier returned to the UI.
-const Version = "0.0.1-bate"
+const Version = "0.1.1"
 
 // About defines the project description shown on the about page.
-const About = "测试版，请勿用于生产环境"
+const About = "skyImage-云端图床"
