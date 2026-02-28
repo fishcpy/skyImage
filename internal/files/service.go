@@ -743,6 +743,7 @@ func randomDigits(length int) string {
 	return builder.String()
 }
 
+
 func joinPublicURL(base string, rel string) string {
 	trimmedBase := strings.TrimRight(strings.TrimSpace(base), "/")
 	trimmedRel := strings.TrimLeft(strings.TrimSpace(rel), "/")

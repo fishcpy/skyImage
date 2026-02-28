@@ -3,7 +3,6 @@ import { Activity, HardDrive, Users } from "lucide-react";
 
 import { fetchAdminMetrics } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 export function AdminConsolePage() {
   const { data, isLoading } = useQuery({
@@ -26,7 +25,6 @@ export function AdminConsolePage() {
   if (isLoading) {
     return <div>加载仪表盘数据...</div>;
   }
-
   return (
     <div className="space-y-6">
       <div>
@@ -52,35 +50,6 @@ export function AdminConsolePage() {
           icon={<HardDrive className="h-4 w-4 text-muted-foreground" />}
         />
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>最近上传</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {data?.recentUploads?.length ? (
-            data.recentUploads.map((file: any) => (
-              <div
-                key={file.id}
-                className="flex items-center justify-between rounded-md border px-3 py-2"
-              >
-                <div>
-                  <p className="text-sm font-medium">{file.originalName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {file.mimeType} · {new Date(file.createdAt).toLocaleString()}
-                  </p>
-                </div>
-                <Badge
-                  variant={file.visibility === "public" ? "default" : "secondary"}
-                >
-                  {file.visibility === "public" ? "公开" : "私有"}
-                </Badge>
-              </div>
-            ))
-          ) : (
-            <p className="text-sm text-muted-foreground">暂无上传记录</p>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
