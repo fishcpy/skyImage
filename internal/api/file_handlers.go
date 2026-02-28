@@ -19,6 +19,9 @@ func (s *Server) registerFileRoutes(r *gin.RouterGroup) {
 	fileGroup.POST("", s.handleUploadFile)
 	fileGroup.GET("/:id", s.handleGetFile)
 	fileGroup.DELETE("/:id", s.handleDeleteFile)
+	fileGroup.PATCH("/:id/visibility", s.handleUpdateFileVisibility)
+	fileGroup.PATCH("/batch/visibility", s.handleBatchUpdateFileVisibility)
+	fileGroup.POST("/batch/delete", s.handleBatchDeleteFiles)
 }
 
 func (s *Server) handleListFiles(c *gin.Context) {
@@ -133,6 +136,80 @@ func (s *Server) handleDeleteFile(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": "deleted"})
+}
+
+func (s *Server) handleUpdateFileVisibility(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var payload struct {
+		Visibility string `json:"visibility"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	file, err := s.files.UpdateVisibility(c.Request.Context(), user.ID, uint(id), payload.Visibility)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	dto, err := s.files.ToDTO(c.Request.Context(), file)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": dto})
+}
+
+func (s *Server) handleBatchUpdateFileVisibility(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	var payload struct {
+		IDs        []uint `json:"ids"`
+		Visibility string `json:"visibility"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	updated, err := s.files.UpdateVisibilityBatch(c.Request.Context(), user.ID, payload.IDs, payload.Visibility)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"updated": updated}})
+}
+
+func (s *Server) handleBatchDeleteFiles(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	var payload struct {
+		IDs []uint `json:"ids"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	deleted, err := s.files.DeleteBatch(c.Request.Context(), user.ID, payload.IDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"deleted": deleted}})
 }
 
 func (s *Server) handleListAvailableStrategies(c *gin.Context) {

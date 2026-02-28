@@ -190,6 +190,32 @@ export async function deleteFile(id: number) {
   await apiClient.delete(`/files/${id}`);
 }
 
+export async function updateFileVisibility(id: number, visibility: "public" | "private") {
+  const res = await apiClient.patch<{ data: FileRecord }>(`/files/${id}/visibility`, {
+    visibility
+  });
+  return res.data.data;
+}
+
+export async function updateFilesVisibilityBatch(
+  ids: number[],
+  visibility: "public" | "private"
+) {
+  const res = await apiClient.patch<{ data: { updated: number } }>(
+    "/files/batch/visibility",
+    { ids, visibility }
+  );
+  return res.data.data;
+}
+
+export async function deleteFilesBatch(ids: number[]) {
+  const res = await apiClient.post<{ data: { deleted: number } }>(
+    "/files/batch/delete",
+    { ids }
+  );
+  return res.data.data;
+}
+
 export async function uploadFile(payload: {
   file: File;
   visibility: "public" | "private";
@@ -348,6 +374,36 @@ export async function fetchAdminImages(params?: { limit?: number; offset?: numbe
 
 export async function deleteAdminImage(id: number) {
   await apiClient.delete(`/admin/images/${id}`);
+}
+
+export async function updateAdminImageVisibility(
+  id: number,
+  visibility: "public" | "private"
+) {
+  const res = await apiClient.patch<{ data: FileRecord }>(
+    `/admin/images/${id}/visibility`,
+    { visibility }
+  );
+  return res.data.data;
+}
+
+export async function updateAdminImagesVisibilityBatch(
+  ids: number[],
+  visibility: "public" | "private"
+) {
+  const res = await apiClient.patch<{ data: { updated: number } }>(
+    "/admin/images/batch/visibility",
+    { ids, visibility }
+  );
+  return res.data.data;
+}
+
+export async function deleteAdminImagesBatch(ids: number[]) {
+  const res = await apiClient.post<{ data: { deleted: number } }>(
+    "/admin/images/batch/delete",
+    { ids }
+  );
+  return res.data.data;
 }
 
 export type SystemSettingsInput = {

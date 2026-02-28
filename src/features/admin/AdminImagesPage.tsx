@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileTable } from "@/features/files/components/FileTable";
+import { ImageGrid } from "@/features/files/components/ImageGrid";
 import {
   fetchAdminImages,
   deleteAdminImage,
-  type FileRecord
+  deleteAdminImagesBatch,
+  type FileRecord,
+  updateAdminImageVisibility,
+  updateAdminImagesVisibilityBatch
 } from "@/lib/api";
 
 export function AdminImagesPage() {
@@ -24,6 +26,35 @@ export function AdminImagesPage() {
     }
   });
 
+  const visibilityMutation = useMutation({
+    mutationFn: (payload: { id: number; visibility: "public" | "private" }) =>
+      updateAdminImageVisibility(payload.id, payload.visibility),
+    onSuccess: () => {
+      toast.success("权限已更新");
+      queryClient.invalidateQueries({ queryKey: ["admin", "images"] });
+    },
+    onError: (error) => toast.error(error.message || "更新权限失败")
+  });
+
+  const batchVisibilityMutation = useMutation({
+    mutationFn: (payload: { ids: number[]; visibility: "public" | "private" }) =>
+      updateAdminImagesVisibilityBatch(payload.ids, payload.visibility),
+    onSuccess: () => {
+      toast.success("批量权限已更新");
+      queryClient.invalidateQueries({ queryKey: ["admin", "images"] });
+    },
+    onError: (error) => toast.error(error.message || "批量更新权限失败")
+  });
+
+  const batchDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => deleteAdminImagesBatch(ids),
+    onSuccess: () => {
+      toast.success("批量删除成功");
+      queryClient.invalidateQueries({ queryKey: ["admin", "images"] });
+    },
+    onError: (error) => toast.error(error.message || "批量删除失败")
+  });
+
   const deletingId =
     typeof deleteMutation.variables === "number"
       ? deleteMutation.variables
@@ -37,20 +68,22 @@ export function AdminImagesPage() {
           管理所有用户的上传内容，支持审核与删除。
         </p>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>全部文件</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FileTable
-            files={data as FileRecord[]}
-            isLoading={isLoading}
-            onDelete={(id) => deleteMutation.mutate(id)}
-            deletingId={deletingId}
-            showOwner
-          />
-        </CardContent>
-      </Card>
+      <ImageGrid
+        files={data as FileRecord[]}
+        isLoading={isLoading}
+        onDelete={(id) => deleteMutation.mutateAsync(id)}
+        deletingId={deletingId}
+        showOwner
+        onVisibilityChange={(id, visibility) => {
+          void visibilityMutation.mutateAsync({ id, visibility });
+        }}
+        onBatchVisibilityChange={(ids, visibility) => {
+          void batchVisibilityMutation.mutateAsync({ ids, visibility });
+        }}
+        onBatchDelete={(ids) => {
+          void batchDeleteMutation.mutateAsync(ids);
+        }}
+      />
     </div>
   );
 }

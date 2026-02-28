@@ -43,6 +43,9 @@ func (s *Server) registerAdminRoutes(r *gin.RouterGroup) {
 
 	adminGroup.GET("/images", s.handleAdminImages)
 	adminGroup.DELETE("/images/:id", s.handleAdminDeleteImage)
+	adminGroup.PATCH("/images/:id/visibility", s.handleAdminUpdateImageVisibility)
+	adminGroup.PATCH("/images/batch/visibility", s.handleAdminBatchUpdateImageVisibility)
+	adminGroup.POST("/images/batch/delete", s.handleAdminBatchDeleteImages)
 
 	adminGroup.GET("/system", s.handleAdminSystemSettings)
 	adminGroup.PUT("/system", s.handleAdminUpdateSystemSettings)
@@ -345,6 +348,65 @@ func (s *Server) handleAdminDeleteImage(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": "deleted"})
+}
+
+func (s *Server) handleAdminUpdateImageVisibility(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var payload struct {
+		Visibility string `json:"visibility"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	file, err := s.files.UpdateVisibilityByAdmin(c.Request.Context(), uint(id), payload.Visibility)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	dto, err := s.files.ToDTO(c.Request.Context(), file)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": dto})
+}
+
+func (s *Server) handleAdminBatchUpdateImageVisibility(c *gin.Context) {
+	var payload struct {
+		IDs        []uint `json:"ids"`
+		Visibility string `json:"visibility"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	updated, err := s.files.UpdateVisibilityByAdminBatch(c.Request.Context(), payload.IDs, payload.Visibility)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"updated": updated}})
+}
+
+func (s *Server) handleAdminBatchDeleteImages(c *gin.Context) {
+	var payload struct {
+		IDs []uint `json:"ids"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	deleted, err := s.files.DeleteByAdminBatch(c.Request.Context(), payload.IDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"deleted": deleted}})
 }
 
 func (s *Server) handleAdminSettings(c *gin.Context) {

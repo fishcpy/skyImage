@@ -472,6 +472,34 @@ func (s *Service) Delete(ctx context.Context, userID uint, id uint) error {
 	})
 }
 
+func (s *Service) UpdateVisibility(ctx context.Context, userID uint, id uint, visibility string) (data.FileAsset, error) {
+	var file data.FileAsset
+	if err := s.db.WithContext(ctx).First(&file, "id = ? AND user_id = ?", id, userID).Error; err != nil {
+		return file, err
+	}
+	normalized := users.NormalizeVisibility(visibility)
+	if err := s.db.WithContext(ctx).
+		Model(&data.FileAsset{}).
+		Where("id = ?", id).
+		UpdateColumn("visibility", normalized).Error; err != nil {
+		return file, err
+	}
+	file.Visibility = normalized
+	return file, nil
+}
+
+func (s *Service) UpdateVisibilityBatch(ctx context.Context, userID uint, ids []uint, visibility string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	normalized := users.NormalizeVisibility(visibility)
+	result := s.db.WithContext(ctx).
+		Model(&data.FileAsset{}).
+		Where("user_id = ? AND id IN ?", userID, ids).
+		UpdateColumn("visibility", normalized)
+	return result.RowsAffected, result.Error
+}
+
 func (s *Service) DeleteByAdmin(ctx context.Context, id uint) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var file data.FileAsset
@@ -483,6 +511,99 @@ func (s *Service) DeleteByAdmin(ctx context.Context, id uint) error {
 		}
 		return removeFile(file.Path)
 	})
+}
+
+func (s *Service) DeleteBatch(ctx context.Context, userID uint, ids []uint) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	var files []data.FileAsset
+	returned := int64(0)
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ? AND id IN ?", userID, ids).Find(&files).Error; err != nil {
+			return err
+		}
+		if len(files) == 0 {
+			return nil
+		}
+		var totalSize int64
+		for _, file := range files {
+			totalSize += file.Size
+		}
+		if err := tx.Delete(&data.FileAsset{}, "user_id = ? AND id IN ?", userID, ids).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&data.User{}).
+			Where("id = ?", userID).
+			UpdateColumn("use_capacity", gorm.Expr("use_capacity - ?", totalSize)).Error; err != nil {
+			return err
+		}
+		returned = int64(len(files))
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	for _, file := range files {
+		_ = removeFile(file.Path)
+	}
+	return returned, nil
+}
+
+func (s *Service) UpdateVisibilityByAdmin(ctx context.Context, id uint, visibility string) (data.FileAsset, error) {
+	var file data.FileAsset
+	if err := s.db.WithContext(ctx).First(&file, "id = ?", id).Error; err != nil {
+		return file, err
+	}
+	normalized := users.NormalizeVisibility(visibility)
+	if err := s.db.WithContext(ctx).
+		Model(&data.FileAsset{}).
+		Where("id = ?", id).
+		UpdateColumn("visibility", normalized).Error; err != nil {
+		return file, err
+	}
+	file.Visibility = normalized
+	return file, nil
+}
+
+func (s *Service) UpdateVisibilityByAdminBatch(ctx context.Context, ids []uint, visibility string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	normalized := users.NormalizeVisibility(visibility)
+	result := s.db.WithContext(ctx).
+		Model(&data.FileAsset{}).
+		Where("id IN ?", ids).
+		UpdateColumn("visibility", normalized)
+	return result.RowsAffected, result.Error
+}
+
+func (s *Service) DeleteByAdminBatch(ctx context.Context, ids []uint) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	var files []data.FileAsset
+	returned := int64(0)
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("id IN ?", ids).Find(&files).Error; err != nil {
+			return err
+		}
+		if len(files) == 0 {
+			return nil
+		}
+		if err := tx.Delete(&data.FileAsset{}, "id IN ?", ids).Error; err != nil {
+			return err
+		}
+		returned = int64(len(files))
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	for _, file := range files {
+		_ = removeFile(file.Path)
+	}
+	return returned, nil
 }
 
 // FreezePublicURLsForStrategy stores the current public URL for files that don't have one yet.
