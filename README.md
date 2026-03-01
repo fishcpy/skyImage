@@ -107,25 +107,6 @@ skyimage/
 └── storage/               # 存储目录
 ```
 
-## 配置说明
-
-| 配置项 | 说明 | 默认值 |
-|--------|------|--------|
-| HTTP_ADDR | 服务监听地址 | :8080 |
-| DATABASE_TYPE | 数据库类型 | sqlite |
-| DATABASE_PATH | SQLite 数据库路径 | - |
-| DATABASE_HOST | 数据库主机 | - |
-| DATABASE_PORT | 数据库端口 | - |
-| DATABASE_NAME | 数据库名称 | - |
-| DATABASE_USER | 数据库用户 | - |
-| DATABASE_PASSWORD | 数据库密码 | - |
-| STORAGE_PATH | 文件存储路径 | storage/uploads |
-| PUBLIC_BASE_URL | 公网访问地址 | http://localhost:8080 |
-| JWT_SECRET | JWT 密钥 | - |
-| ALLOW_REGISTRATION | 是否允许注册 | true |
-| LEGACY_DSN | 旧版数据库连接串 | - |
-| FRONTEND_DIST | 前端构建目录 | dist |
-
 ## 设计理念
 
 SkyImage 提供了简洁、现代的用户界面和流畅的用户体验。主要设计特点包括：
@@ -140,6 +121,11 @@ SkyImage 提供了简洁、现代的用户界面和流畅的用户体验。主�
 
 [Lsky Pro](https://github.com/lsky-org/lsky-pro) 参考了Lsky Pro的布局和部分逻辑
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=fishcpy/skyImage&type=date&legend=top-left)](https://www.star-history.com/#fishcpy/skyImage&type=date&legend=top-left)
+
 ## 许可证
 
 本项目采用 MIT 许可证。
+
