@@ -2,6 +2,44 @@
 
 SkyImage 是一个现代化的图床系统，采用前后端分离架构。
 
+# 预览
+
+![首页](/docs/img/preview1.png)
+![上传图片](/docs/img/preview2.png)
+![系统设置1](/docs/img/preview3.png)
+![系统设置2](/docs/img/preview4.png)
+
+# 安装
+
+## 建议使用docker部署
+
+### docker:
+```bash
+# 创建 skyimage 文件夹
+mkdir skyimage
+
+# 进入 skyimage 文件夹
+cd skyimage
+
+# 下载 docker-compose.yml
+curl -O https://raw.githubusercontent.com/fishcpy/skyImage/refs/heads/main/docker-compose.yml
+
+# 下载 .env
+curl -o .env https://raw.githubusercontent.com/fishcpy/skyImage/refs/heads/main/.env.example
+
+# 启动服务
+docker-compose up -d
+```
+
+启动后访问 `http://localhost:8080` 即可进入安装向导页面。
+
+### 数据持久化
+
+Docker 部署会挂载以下目录：
+- `./storage/data` - 数据库文件目录
+- `./storage/uploads` - 上传文件目录
+- `./.env` - 配置文件（安装后自动保存数据库配置）
+
 ## 技术栈
 
 ### 后端
@@ -86,33 +124,6 @@ skyimage/
 | ALLOW_REGISTRATION | 是否允许注册 | true |
 | LEGACY_DSN | 旧版数据库连接串 | - |
 | FRONTEND_DIST | 前端构建目录 | dist |
-
-## Docker 镜像构建
-
-项目使用 GitHub Actions 自动构建和推送 Docker 镜像到 Docker Hub。
-
-### 配置 GitHub Secrets
-
-在 GitHub 仓库设置中添加以下 Secrets：
-
-- `DOCKERHUB_USERNAME`: 你的 Docker Hub 用户名
-- `DOCKERHUB_TOKEN`: 你的 Docker Hub 访问令牌
-
-### 触发构建
-
-- 推送到 `main` 或 `master` 分支会构建 `latest` 标签
-- 推送 `v*` 标签会构建对应版本号的镜像（如 `v1.0.0`）
-- 支持 `linux/amd64` 和 `linux/arm64` 多架构
-
-### 手动构建
-
-```bash
-# 构建镜像
-docker build -t skyimage:latest .
-
-# 运行镜像
-docker run -d -p 8080:8080 skyimage:latest
-```
 
 ## 设计理念
 
