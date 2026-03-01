@@ -15,6 +15,11 @@ on:
         description: '版本号 (例如: 1.0.0)'
         required: true
         type: string
+      changelog:
+        description: '更新日志'
+        required: false
+        type: string
+        default: ''
       is_release:
         description: '是否为正式版本'
         required: true
@@ -101,13 +106,26 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Create Git tag for release
+      - name: Create GitHub Release
         if: github.event_name == 'workflow_dispatch' && inputs.is_release == true
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ inputs.version }}" -m "Release version ${{ inputs.version }}"
-          git push origin "v${{ inputs.version }}"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: Release v${{ inputs.version }}
+          body: |
+            ## 更新日志
+            
+            ${{ inputs.changelog }}
+            
+            ---
+            
+            ## Docker 镜像
+            - `${{ env.DOCKER_IMAGE }}:${{ inputs.version }}`
+            - `${{ env.DOCKER_IMAGE }}:latest`
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update Docker Hub description
         if: steps.tags.outputs.is_release == 'true'
