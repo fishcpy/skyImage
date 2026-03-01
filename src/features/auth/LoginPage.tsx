@@ -116,7 +116,7 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>管理员登录</CardTitle>
+          <CardTitle>登录</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {checkingUsers && (
