@@ -44,10 +44,18 @@ export type InstallerStatus = {
 };
 
 export async function fetchInstallerStatus() {
-  const res = await apiClient.get<{ data: InstallerStatus }>(
-    "/installer/status"
-  );
-  return res.data.data;
+  try {
+    const res = await apiClient.get<{ data: InstallerStatus }>(
+      "/installer/status"
+    );
+    return res.data.data;
+  } catch (error) {
+    const status = (error as Error & { status?: number }).status;
+    if (status === 404) {
+      return { installed: true };
+    }
+    throw error;
+  }
 }
 
 export async function runInstaller(payload: {

@@ -63,7 +63,7 @@ export default function App() {
     <>
       <SiteMetaWatcher active={Boolean(installed)} />
       <Routes>
-        <Route path="/installer" element={<InstallerPage />} />
+        {!installed && <Route path="/installer" element={<InstallerPage />} />}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         {installed && (
@@ -92,7 +92,7 @@ export default function App() {
                 <Route path="admin/strategies/:id" element={<AdminStrategyEditorPage />} />
                 <Route path="admin/settings" element={<AdminSystemSettingsPage />} />
               </Route>
-              <Route path="*" element={<NotFoundPage homePath="/dashboard" />} />
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
@@ -101,7 +101,7 @@ export default function App() {
           path="*"
           element={
             installed ? (
-              <NotFoundPage homePath="/dashboard" />
+              <NotFoundPage />
             ) : (
               <Navigate to="/installer" />
             )

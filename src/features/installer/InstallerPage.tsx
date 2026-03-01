@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
@@ -22,7 +21,6 @@ import { useAuthStore } from "@/state/auth";
 
 export function InstallerPage() {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const clearAuth = useAuthStore((state) => state.clear);
   const [step, setStep] = useState(1); // 1: 数据库配置, 2: 站点信息
   
@@ -51,7 +49,7 @@ export function InstallerPage() {
       clearAuth();
       toast.success("安装完成");
       queryClient.invalidateQueries({ queryKey: ["installer"] });
-      navigate("/login");
+      window.location.href = "/login";
     },
     onError: (error) => toast.error(error.message)
   });
