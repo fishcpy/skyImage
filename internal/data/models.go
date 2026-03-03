@@ -127,3 +127,15 @@ type InstallerState struct {
 func (InstallerState) TableName() string {
 	return "installer_states"
 }
+
+type SessionEntry struct {
+	ID        string    `gorm:"primaryKey;size:64" json:"id"`
+	UserID    uint      `gorm:"index;not null" json:"userId"`
+	ExpiresAt time.Time `gorm:"index;not null" json:"expiresAt"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+func (SessionEntry) TableName() string {
+	return "sessions"
+}

@@ -78,6 +78,7 @@ func NewDatabase(cfg config.Config) (*gorm.DB, error) {
 		&Strategy{},
 		&GroupStrategy{},
 		&InstallerState{},
+		&SessionEntry{},
 	); err != nil {
 		return nil, fmt.Errorf("auto migrate: %w", err)
 	}

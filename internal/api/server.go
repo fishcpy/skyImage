@@ -87,7 +87,9 @@ func (s *Server) applyRuntimeConfig(cfg config.Config, db *gorm.DB) {
 	s.turnstile = turnstile.New(adminService)
 	s.verification = verification.New()
 	if s.session == nil {
-		s.session = session.NewManager(24 * time.Hour)
+		s.session = session.NewManager(db, 24*time.Hour)
+	} else {
+		s.session.SetDB(db)
 	}
 	if s.installer != nil {
 		s.installer.SetRuntime(db, cfg)
