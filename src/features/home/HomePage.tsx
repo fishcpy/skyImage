@@ -6,17 +6,11 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { fetchRegistrationStatus, fetchSiteConfig } from "@/lib/api";
+import { fetchRegistrationStatus, type SiteConfig } from "@/lib/api";
 import { useAuthStore } from "@/state/auth";
 
-export function HomePage() {
+export function HomePage({ siteConfig }: { siteConfig?: SiteConfig }) {
   const token = useAuthStore((state) => state.token);
-
-  const { data: siteConfig } = useQuery({
-    queryKey: ["site-config"],
-    queryFn: fetchSiteConfig,
-    staleTime: 5 * 60 * 1000
-  });
   const { data: registrationStatus } = useQuery({
     queryKey: ["registration-status"],
     queryFn: fetchRegistrationStatus,

@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 
 import { InstallerPage } from "@/features/installer/InstallerPage";
 import { UploadPage } from "@/features/files/UploadPage";
@@ -34,21 +34,12 @@ import { NotFoundPage } from "@/features/misc/NotFoundPage";
 import { HomePage } from "@/features/home/HomePage";
 
 function HomeEntry() {
-  const { data: siteConfig } = useQuery({
+  const { data: siteConfig, isLoading } = useQuery({
     queryKey: ["site-config"],
     queryFn: fetchSiteConfig,
     staleTime: 0,
     refetchOnMount: true
   });
-
-  const cachedEnableHome = useMemo(() => {
-    if (typeof window === "undefined") {
-      return true;
-    }
-    const raw = window.localStorage.getItem("site-config:enable-home");
-    if (raw === "false") return false;
-    return true;
-  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined" || siteConfig?.enableHome === undefined) {
@@ -60,11 +51,12 @@ function HomeEntry() {
   if (siteConfig && siteConfig.enableHome === false) {
     return <Navigate to="/login" replace />;
   }
-  if (!siteConfig && cachedEnableHome === false) {
-    return <Navigate to="/login" replace />;
+
+  if (isLoading && !siteConfig) {
+    return <div className="min-h-screen bg-background" />;
   }
 
-  return <HomePage />;
+  return <HomePage siteConfig={siteConfig} />;
 }
 
 export default function App() {
