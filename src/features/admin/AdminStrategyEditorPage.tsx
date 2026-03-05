@@ -18,7 +18,8 @@ import {
 } from "@/lib/api";
 
 const driverOptions = [
-  { key: "local", label: "本地储存" }
+  { key: "local", label: "本地储存" },
+  { key: "webdav", label: "WebDAV" }
 ];
 
 export function AdminStrategyEditorPage() {
@@ -44,6 +45,11 @@ export function AdminStrategyEditorPage() {
       driver: "local",
       root: "storage/uploads",
       url: "",
+      webdav_endpoint: "",
+      webdav_username: "",
+      webdav_password: "",
+      webdav_base_path: "",
+      webdav_skip_tls_verify: false,
       path_template: "{year}/{month}/{day}/{uuid}"
     }
   });
@@ -73,6 +79,30 @@ export function AdminStrategyEditorPage() {
               target.configs?.base_url ||
               target.configs?.baseUrl ||
               "",
+            webdav_endpoint:
+              target.configs?.webdav_endpoint ||
+              target.configs?.webdav_url ||
+              target.configs?.webdavUrl ||
+              "",
+            webdav_username:
+              target.configs?.webdav_username ||
+              target.configs?.webdav_user ||
+              target.configs?.webdavUsername ||
+              "",
+            webdav_password:
+              target.configs?.webdav_password ||
+              target.configs?.webdav_pass ||
+              target.configs?.webdavPassword ||
+              "",
+            webdav_base_path:
+              target.configs?.webdav_base_path ||
+              target.configs?.webdav_path ||
+              target.configs?.webdavBasePath ||
+              "",
+            webdav_skip_tls_verify:
+              target.configs?.webdav_skip_tls_verify ||
+              target.configs?.webdavSkipTLSVerify ||
+              false,
             allowed_extensions: allowedExtensions,
             path_template: pathTemplate
           }
@@ -88,6 +118,11 @@ export function AdminStrategyEditorPage() {
           driver: "local",
           root: "storage/uploads",
           url: "",
+          webdav_endpoint: "",
+          webdav_username: "",
+          webdav_password: "",
+          webdav_base_path: "",
+          webdav_skip_tls_verify: false,
           allowed_extensions: "",
           path_template: "{year}/{month}/{day}/{uuid}"
         }
@@ -128,6 +163,28 @@ export function AdminStrategyEditorPage() {
           form.configs?.base_url ||
           form.configs?.baseUrl ||
           "",
+        webdav_endpoint:
+          form.configs?.webdav_endpoint ||
+          form.configs?.webdav_url ||
+          form.configs?.webdavUrl ||
+          "",
+        webdav_username:
+          form.configs?.webdav_username ||
+          form.configs?.webdav_user ||
+          form.configs?.webdavUsername ||
+          "",
+        webdav_password:
+          form.configs?.webdav_password ||
+          form.configs?.webdav_pass ||
+          form.configs?.webdavPassword ||
+          "",
+        webdav_base_path:
+          form.configs?.webdav_base_path ||
+          form.configs?.webdav_path ||
+          form.configs?.webdavBasePath ||
+          "",
+        webdav_skip_tls_verify:
+          Boolean(form.configs?.webdav_skip_tls_verify || form.configs?.webdavSkipTLSVerify),
         allowed_extensions: form.configs?.allowed_extensions || "",
         path_template: form.configs?.path_template || "{year}/{month}/{day}/{uuid}",
         pattern: form.configs?.path_template || "{year}/{month}/{day}/{uuid}"
@@ -189,16 +246,38 @@ export function AdminStrategyEditorPage() {
             />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>储存根路径</Label>
-              <Input
-                value={form.configs?.root || ""}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, configs: { ...prev.configs, root: e.target.value } }))
-                }
-              />
-              <p className="text-xs text-muted-foreground">确保该路径具有读写权限。</p>
-            </div>
+            {form.configs?.driver !== "webdav" ? (
+              <div className="space-y-2">
+                <Label>储存根路径</Label>
+                <Input
+                  value={form.configs?.root || ""}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: { ...prev.configs, root: e.target.value }
+                    }))
+                  }
+                />
+                <p className="text-xs text-muted-foreground">确保该路径具有读写权限。</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>WebDAV Endpoint</Label>
+                <Input
+                  value={(form.configs as any)?.webdav_endpoint || ""}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: { ...prev.configs, webdav_endpoint: e.target.value }
+                    }))
+                  }
+                  placeholder="https://dav.example.com/remote.php/dav/files/user"
+                />
+                <p className="text-xs text-muted-foreground">
+                  仅用于上传/删除，外链仍由“外部访问域名”控制。
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>外部访问域名</Label>
               <Input
@@ -216,6 +295,70 @@ export function AdminStrategyEditorPage() {
               </p>
             </div>
           </div>
+          {form.configs?.driver === "webdav" && (
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>WebDAV 用户名（可选）</Label>
+                <Input
+                  value={(form.configs as any)?.webdav_username || ""}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: { ...prev.configs, webdav_username: e.target.value }
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>WebDAV 密码（可选）</Label>
+                <Input
+                  type="password"
+                  value={(form.configs as any)?.webdav_password || ""}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: { ...prev.configs, webdav_password: e.target.value }
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>WebDAV 基础目录（可选）</Label>
+                <Input
+                  value={(form.configs as any)?.webdav_base_path || ""}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: { ...prev.configs, webdav_base_path: e.target.value }
+                    }))
+                  }
+                  placeholder="skyimage"
+                />
+                <p className="text-xs text-muted-foreground">
+                  最终上传路径 = 基础目录 + 路径模板。
+                </p>
+              </div>
+              <div className="flex items-center gap-2 pt-8">
+                <Checkbox
+                  id="webdav-skip-tls-verify"
+                  checked={Boolean(
+                    (form.configs as any)?.webdav_skip_tls_verify ||
+                      (form.configs as any)?.webdavSkipTLSVerify
+                  )}
+                  onCheckedChange={(checked) => {
+                    const actualValue = checked === "indeterminate" ? false : checked;
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: { ...prev.configs, webdav_skip_tls_verify: actualValue }
+                    }));
+                  }}
+                />
+                <Label htmlFor="webdav-skip-tls-verify" className="cursor-pointer">
+                  跳过 TLS 证书验证（不推荐）
+                </Label>
+              </div>
+            </div>
+          )}
           <div className="space-y-2">
             <Label>允许上传后缀（可选）</Label>
             <Input

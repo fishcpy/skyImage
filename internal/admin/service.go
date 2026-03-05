@@ -362,8 +362,17 @@ func validateStrategyConfigs(configs map[string]interface{}) error {
 	if configs == nil {
 		return nil
 	}
+	driver := strings.ToLower(strings.TrimSpace(firstConfigString(configs, "driver")))
+	if driver == "" {
+		driver = "local"
+	}
 	for _, rawURL := range configStrings(configs, "url", "base_url", "baseUrl") {
 		if err := validateExternalDomain(rawURL); err != nil {
+			return err
+		}
+	}
+	if driver == "webdav" {
+		if err := validateWebDAVConfigs(configs); err != nil {
 			return err
 		}
 	}
@@ -446,4 +455,20 @@ func asPositiveInt(value interface{}) (int, error) {
 	default:
 		return 0, fmt.Errorf("invalid number")
 	}
+}
+
+func validateWebDAVConfigs(configs map[string]interface{}) error {
+	endpoint := strings.TrimSpace(firstConfigString(configs, "webdav_endpoint", "webdav_url", "webdavUrl"))
+	if endpoint == "" {
+		return fmt.Errorf("WebDAV endpoint 不能为空")
+	}
+	parsed, err := url.Parse(endpoint)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("WebDAV endpoint 格式不正确")
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("WebDAV endpoint 仅支持 http/https")
+	}
+	return nil
 }

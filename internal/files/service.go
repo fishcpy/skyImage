@@ -1,10 +1,7 @@
 package files
 
 import (
-	"bytes"
 	"context"
-	"crypto/md5"
-	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -75,12 +72,17 @@ type FileDTO struct {
 }
 
 type strategyConfig struct {
-	Driver  string
-	Root    string
-	Base    string
-	Pattern string
-	Query   string
-	Exts    []string
+	Driver            string
+	Root              string
+	Base              string
+	Pattern           string
+	Query             string
+	Exts              []string
+	WebDAVEndpoint    string
+	WebDAVUsername    string
+	WebDAVPassword    string
+	WebDAVBasePath    string
+	WebDAVSkipTLSCert bool
 }
 
 func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.FileHeader, opts UploadOptions) (data.FileAsset, error) {
@@ -196,20 +198,7 @@ func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.Fi
 			filepath.Ext(file.Filename),
 		)
 	}
-	destPath := filepath.Join(cfg.Root, filepath.FromSlash(relativePath))
-	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
-		return data.FileAsset{}, err
-	}
-	dest, err := os.Create(destPath)
-	if err != nil {
-		return data.FileAsset{}, err
-	}
-	defer dest.Close()
-
-	md5Hasher := md5.New()
-	sha1Hasher := sha1.New()
-	reader := io.MultiReader(bytes.NewReader(head[:headSize]), handle)
-	size, err := io.Copy(dest, io.TeeReader(reader, io.MultiWriter(md5Hasher, sha1Hasher)))
+	storeResult, err := s.storeObject(ctx, cfg, relativePath, head[:headSize], handle)
 	if err != nil {
 		return data.FileAsset{}, err
 	}
@@ -219,15 +208,15 @@ func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.Fi
 		GroupID:         user.GroupID,
 		StrategyID:      strategy.ID,
 		Key:             key,
-		Path:            destPath,
+		Path:            storeResult.Path,
 		RelativePath:    filepath.ToSlash(relativePath),
-		Name:            filepath.Base(destPath),
+		Name:            filepath.Base(relativePath),
 		OriginalName:    file.Filename,
-		Size:            size,
+		Size:            storeResult.Size,
 		MimeType:        contentType,
-		Extension:       strings.TrimPrefix(strings.ToLower(filepath.Ext(destPath)), "."),
-		ChecksumMD5:     hex.EncodeToString(md5Hasher.Sum(nil)),
-		ChecksumSHA1:    hex.EncodeToString(sha1Hasher.Sum(nil)),
+		Extension:       strings.TrimPrefix(strings.ToLower(filepath.Ext(relativePath)), "."),
+		ChecksumMD5:     hex.EncodeToString(storeResult.MD5),
+		ChecksumSHA1:    hex.EncodeToString(storeResult.SHA1),
 		Visibility:      users.NormalizeVisibility(opts.Visibility),
 		StorageProvider: cfg.Driver,
 	}
@@ -304,16 +293,32 @@ func (s *Service) PublicURL(ctx context.Context, file data.FileAsset) (string, e
 			return "", err
 		}
 	}
-	if strings.TrimSpace(file.PublicURL) != "" {
+	driver := strings.ToLower(strings.TrimSpace(file.StorageProvider))
+	if driver == "" {
+		driver = strings.ToLower(strings.TrimSpace(file.Strategy.Name))
+	}
+	if driver == "" {
+		cfg := s.parseStrategyConfig(file.Strategy)
+		driver = strings.ToLower(strings.TrimSpace(cfg.Driver))
+	}
+
+	if strings.TrimSpace(file.PublicURL) != "" && driver != "webdav" {
 		return sanitizeURL(file.PublicURL), nil
 	}
+
 	publicURL := sanitizeURL(s.buildPublicURL(file))
 	if publicURL == "" {
 		return "", fmt.Errorf("storage strategy %d has no external access domain", file.StrategyID)
 	}
+	where := "id = ? AND (public_url IS NULL OR public_url = '')"
+	args := []interface{}{file.ID}
+	if driver == "webdav" {
+		where = "id = ? AND (public_url IS NULL OR public_url = '' OR public_url <> ?)"
+		args = []interface{}{file.ID, publicURL}
+	}
 	_ = s.db.WithContext(ctx).
 		Model(&data.FileAsset{}).
-		Where("id = ? AND (public_url IS NULL OR public_url = '')", file.ID).
+		Where(where, args...).
 		UpdateColumn("public_url", publicURL).Error
 	return publicURL, nil
 }
@@ -324,7 +329,7 @@ func (s *Service) buildPublicURL(file data.FileAsset) string {
 	if base == "" {
 		return ""
 	}
-	rel := deriveRelativePath(file, cfg)
+	rel := s.publicRelativePath(file, cfg)
 	if rel == "" {
 		rel = file.Name
 	}
@@ -340,7 +345,7 @@ func (s *Service) buildPublicURLFromConfig(cfg strategyConfig, file data.FileAss
 	if base == "" {
 		return ""
 	}
-	rel := deriveRelativePath(file, cfg)
+	rel := s.publicRelativePath(file, cfg)
 	if rel == "" {
 		rel = file.Name
 	}
@@ -468,7 +473,7 @@ func (s *Service) Delete(ctx context.Context, userID uint, id uint) error {
 			UpdateColumn("use_capacity", gorm.Expr("use_capacity - ?", file.Size)).Error; err != nil {
 			return err
 		}
-		return removeFile(file.Path)
+		return s.deleteStoredObject(ctx, tx, file)
 	})
 }
 
@@ -509,7 +514,7 @@ func (s *Service) DeleteByAdmin(ctx context.Context, id uint) error {
 		if err := tx.Delete(&data.FileAsset{}, id).Error; err != nil {
 			return err
 		}
-		return removeFile(file.Path)
+		return s.deleteStoredObject(ctx, tx, file)
 	})
 }
 
@@ -545,7 +550,7 @@ func (s *Service) DeleteBatch(ctx context.Context, userID uint, ids []uint) (int
 		return 0, err
 	}
 	for _, file := range files {
-		_ = removeFile(file.Path)
+		_ = s.deleteStoredObject(ctx, s.db, file)
 	}
 	return returned, nil
 }
@@ -601,7 +606,7 @@ func (s *Service) DeleteByAdminBatch(ctx context.Context, ids []uint) (int64, er
 		return 0, err
 	}
 	for _, file := range files {
-		_ = removeFile(file.Path)
+		_ = s.deleteStoredObject(ctx, s.db, file)
 	}
 	return returned, nil
 }
@@ -726,6 +731,44 @@ func (s *Service) parseStrategyConfig(strategy data.Strategy) strategyConfig {
 			if len(cfg.Exts) == 0 {
 				cfg.Exts = parseExtensionsFromAny(raw["allowedExtensions"])
 			}
+			if v := stringFromAny(raw["webdav_endpoint"]); v != "" {
+				cfg.WebDAVEndpoint = v
+			}
+			if v := stringFromAny(raw["webdav_url"]); v != "" {
+				cfg.WebDAVEndpoint = v
+			}
+			if v := stringFromAny(raw["webdavUrl"]); v != "" {
+				cfg.WebDAVEndpoint = v
+			}
+			if v := stringFromAny(raw["webdav_username"]); v != "" {
+				cfg.WebDAVUsername = v
+			}
+			if v := stringFromAny(raw["webdav_user"]); v != "" {
+				cfg.WebDAVUsername = v
+			}
+			if v := stringFromAny(raw["webdavUsername"]); v != "" {
+				cfg.WebDAVUsername = v
+			}
+			if v := stringFromAny(raw["webdav_password"]); v != "" {
+				cfg.WebDAVPassword = v
+			}
+			if v := stringFromAny(raw["webdav_pass"]); v != "" {
+				cfg.WebDAVPassword = v
+			}
+			if v := stringFromAny(raw["webdavPassword"]); v != "" {
+				cfg.WebDAVPassword = v
+			}
+			if v := stringFromAny(raw["webdav_base_path"]); v != "" {
+				cfg.WebDAVBasePath = v
+			}
+			if v := stringFromAny(raw["webdav_path"]); v != "" {
+				cfg.WebDAVBasePath = v
+			}
+			if v := stringFromAny(raw["webdavBasePath"]); v != "" {
+				cfg.WebDAVBasePath = v
+			}
+			cfg.WebDAVSkipTLSCert = boolFromAny(raw["webdav_skip_tls_verify"]) ||
+				boolFromAny(raw["webdavSkipTLSVerify"])
 		}
 	}
 	if cfg.Pattern == "" {
@@ -736,6 +779,10 @@ func (s *Service) parseStrategyConfig(strategy data.Strategy) strategyConfig {
 	}
 	cfg.Base = s.normalizeExternalBase(cfg.Base, cfg.Driver, cfg.Root)
 	cfg.Query = strings.TrimSpace(cfg.Query)
+	cfg.WebDAVEndpoint = strings.TrimRight(strings.TrimSpace(cfg.WebDAVEndpoint), "/")
+	cfg.WebDAVBasePath = sanitizeRelativePath(cfg.WebDAVBasePath)
+	cfg.WebDAVUsername = strings.TrimSpace(cfg.WebDAVUsername)
+	cfg.WebDAVPassword = strings.TrimSpace(cfg.WebDAVPassword)
 	return cfg
 }
 
@@ -941,6 +988,14 @@ func trimRelativeFromRoot(fullPath string, root string) string {
 	return ""
 }
 
+func (s *Service) publicRelativePath(file data.FileAsset, cfg strategyConfig) string {
+	rel := deriveRelativePath(file, cfg)
+	// 对于 WebDAV，不要在 public URL 中包含 WebDAVBasePath
+	// WebDAVBasePath 只用于 WebDAV 服务器的实际存储路径
+	// public URL 应该直接使用相对路径，以便正确匹配数据库中的 RelativePath
+	return rel
+}
+
 func (s *Service) normalizeExternalBase(base string, driver string, root string) string {
 	base = strings.TrimSpace(base)
 	if base == "" {
@@ -1127,4 +1182,22 @@ func intFromAny(value interface{}) int {
 		}
 	}
 	return 0
+}
+
+func boolFromAny(value interface{}) bool {
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		trimmed := strings.ToLower(strings.TrimSpace(v))
+		return trimmed == "1" || trimmed == "true" || trimmed == "yes" || trimmed == "on"
+	case int:
+		return v != 0
+	case int64:
+		return v != 0
+	case float64:
+		return v != 0
+	default:
+		return false
+	}
 }
