@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   fetchSystemSettings,
   updateSystemSettings,
   type SystemSettingsInput,
@@ -32,6 +39,10 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
   homeFeature3Title: "",
   homeFeature3Desc: "",
   about: "",
+  notFoundMode: "template",
+  notFoundHeading: "",
+  notFoundText: "",
+  notFoundHtml: "",
   enableGallery: true,
   enableHome: true,
   enableApi: true,
@@ -65,6 +76,10 @@ const siteFields: (keyof SystemSettingsInput)[] = [
   "homeFeature3Title",
   "homeFeature3Desc",
   "about",
+  "notFoundMode",
+  "notFoundHeading",
+  "notFoundText",
+  "notFoundHtml",
   "enableGallery",
   "enableHome",
   "enableApi",
@@ -263,6 +278,68 @@ export function AdminSiteSettingsPage() {
               value={form.about}
               onChange={(e) => handleChange("about", e.target.value)}
             />
+          </div>
+          
+          <div className="space-y-4 rounded-lg border p-4">
+            <div className="space-y-2">
+              <Label>404 页面模式</Label>
+              <Select
+                value={form.notFoundMode}
+                onValueChange={(value) => handleChange("notFoundMode", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择模式" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="template">默认模板</SelectItem>
+                  <SelectItem value="html">自定义 HTML</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                选择使用默认模板或完全自定义 HTML
+              </p>
+            </div>
+
+            {form.notFoundMode === "template" ? (
+              <>
+                <div className="space-y-2">
+                  <Label>404 大标题</Label>
+                  <Input
+                    value={form.notFoundHeading}
+                    onChange={(e) => handleChange("notFoundHeading", e.target.value)}
+                    placeholder="404"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    页面中间显示的大号404文字，留空则显示"404"
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>404 页面文本</Label>
+                  <Textarea
+                    rows={3}
+                    value={form.notFoundText}
+                    onChange={(e) => handleChange("notFoundText", e.target.value)}
+                    placeholder="留空则显示默认文本"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    自定义404页面显示的文本内容，支持换行。页面标题将使用站点标题
+                  </p>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Label>404 页面自定义 HTML</Label>
+                <Textarea
+                  rows={8}
+                  value={form.notFoundHtml}
+                  onChange={(e) => handleChange("notFoundHtml", e.target.value)}
+                  placeholder='<div class="text-center"><h1 class="text-6xl font-bold text-primary">404</h1><p class="mt-4">页面未找到</p></div>'
+                />
+                <p className="text-xs text-muted-foreground">
+                  使用自定义 HTML 完全控制404页面样式。支持 Tailwind CSS 类名
+                </p>
+              </div>
+            )}
           </div>
           <div className="flex flex-col gap-4">
             <div className="flex items-center space-x-2">

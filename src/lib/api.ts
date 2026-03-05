@@ -143,6 +143,10 @@ export type SiteConfig = {
   homeFeature3Title?: string;
   homeFeature3Desc?: string;
   about: string;
+  notFoundMode?: string;
+  notFoundHeading?: string;
+  notFoundText?: string;
+  notFoundHtml?: string;
   enableGallery: boolean;
   enableHome?: boolean;
   enableApi: boolean;
@@ -152,7 +156,15 @@ export type SiteConfig = {
 
 export async function fetchSiteConfig() {
   const res = await apiClient.get<{ data: SiteConfig }>("/site/config");
-  return res.data.data;
+  const config = res.data.data;
+  
+  try {
+    localStorage.setItem("skyimage-site-config", JSON.stringify(config));
+  } catch (error) {
+    console.warn("Failed to cache site config:", error);
+  }
+  
+  return config;
 }
 
 export async function fetchGalleryPublic(params?: {
@@ -446,6 +458,10 @@ export type SystemSettingsInput = {
   homeFeature3Title: string;
   homeFeature3Desc: string;
   about: string;
+  notFoundMode: string;
+  notFoundHeading: string;
+  notFoundText: string;
+  notFoundHtml: string;
   enableGallery: boolean;
   enableHome: boolean;
   enableApi: boolean;

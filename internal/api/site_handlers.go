@@ -35,6 +35,11 @@ func (s *Server) handleSiteConfig(c *gin.Context) {
 		disabledNotice = defaultAccountDisabledNotice
 	}
 
+	aboutText := settings["site.about"]
+	if strings.TrimSpace(aboutText) == "" {
+		aboutText = status.About
+	}
+
 	response := gin.H{
 		"title":                 settings["site.title"],
 		"description":           settings["site.description"],
@@ -50,7 +55,11 @@ func (s *Server) handleSiteConfig(c *gin.Context) {
 		"homeFeature2Desc":      settings["home.feature2_desc"],
 		"homeFeature3Title":     settings["home.feature3_title"],
 		"homeFeature3Desc":      settings["home.feature3_desc"],
-		"about":                 status.About,
+		"about":                 aboutText,
+		"notFoundMode":          settings["site.notfound_mode"],
+		"notFoundHeading":       settings["site.notfound_heading"],
+		"notFoundText":          settings["site.notfound_text"],
+		"notFoundHtml":          settings["site.notfound_html"],
 		"enableGallery":         enableGallery,
 		"enableHome":            enableHome,
 		"enableApi":             enableAPI,

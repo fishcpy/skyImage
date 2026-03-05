@@ -8,6 +8,21 @@
     <script>
       (function () {
         try {
+          var cachedConfig = localStorage.getItem("skyimage-site-config");
+          if (cachedConfig) {
+            var config = JSON.parse(cachedConfig);
+            if (config.title) {
+              document.title = config.title;
+            }
+          }
+        } catch (error) {
+          console.warn("title init failed", error);
+        }
+      })();
+    </script>
+    <script>
+      (function () {
+        try {
           var storageKey = "skyimage-theme";
           var stored = localStorage.getItem(storageKey);
           var systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;

@@ -180,9 +180,21 @@ export function AppShell() {
   const clear = useAuthStore((state) => state.clear);
   const isAdmin = user?.isAdmin;
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
+  
+  const getCachedConfig = () => {
+    try {
+      const cached = localStorage.getItem("skyimage-site-config");
+      return cached ? JSON.parse(cached) : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  
   const { data: siteConfig } = useQuery({
     queryKey: ["site-config"],
-    queryFn: fetchSiteConfig
+    queryFn: fetchSiteConfig,
+    initialData: getCachedConfig,
+    staleTime: 5 * 60 * 1000
   });
 
   useEffect(() => {

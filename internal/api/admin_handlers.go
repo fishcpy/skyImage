@@ -482,6 +482,10 @@ type systemSettingsPayload struct {
 	HomeFeature3Title       string `json:"homeFeature3Title"`
 	HomeFeature3Desc        string `json:"homeFeature3Desc"`
 	About                   string `json:"about"`
+	NotFoundMode            string `json:"notFoundMode"`
+	NotFoundHeading         string `json:"notFoundHeading"`
+	NotFoundText            string `json:"notFoundText"`
+	NotFoundHtml            string `json:"notFoundHtml"`
 	EnableGallery           bool   `json:"enableGallery"`
 	EnableHome              bool   `json:"enableHome"`
 	EnableApi               bool   `json:"enableApi"`
@@ -535,6 +539,10 @@ func (s *Server) handleAdminSystemSettings(c *gin.Context) {
 			HomeFeature3Title:       settings["home.feature3_title"],
 			HomeFeature3Desc:        settings["home.feature3_desc"],
 			About:                   settings["site.about"],
+			NotFoundMode:            settings["site.notfound_mode"],
+			NotFoundHeading:         settings["site.notfound_heading"],
+			NotFoundText:            settings["site.notfound_text"],
+			NotFoundHtml:            settings["site.notfound_html"],
 			EnableGallery:           settings["features.gallery"] != "false",
 			EnableHome:              settings["features.home"] != "false",
 			EnableApi:               settings["features.api"] != "false",
@@ -614,6 +622,10 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 		"home.feature3_title":         payload.HomeFeature3Title,
 		"home.feature3_desc":          payload.HomeFeature3Desc,
 		"site.about":                  payload.About,
+		"site.notfound_mode":          payload.NotFoundMode,
+		"site.notfound_heading":       payload.NotFoundHeading,
+		"site.notfound_text":          payload.NotFoundText,
+		"site.notfound_html":          payload.NotFoundHtml,
 		"features.gallery":            strconv.FormatBool(payload.EnableGallery),
 		"features.home":               strconv.FormatBool(payload.EnableHome),
 		"features.api":                strconv.FormatBool(payload.EnableApi),
