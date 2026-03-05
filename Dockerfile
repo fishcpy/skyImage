@@ -74,10 +74,8 @@ ENV HTTP_ADDR=:8080 \
     DATABASE_TYPE=sqlite \
     DATABASE_PATH=storage/data/skyimage.db \
     ALLOW_REGISTRATION=true \
+    CORS_ALLOWED_ORIGINS= \
     TZ=Asia/Shanghai
-
-# 注意: JWT_SECRET 必须在运行时通过环境变量设置
-# 示例: docker run -e JWT_SECRET=your-secret-key ...
 
 # 启动应用
 CMD ["./docker-entrypoint.sh"]

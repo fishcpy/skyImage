@@ -11,10 +11,11 @@ services:
       - HTTP_ADDR=:8080
       - STORAGE_PATH=storage/uploads
       - PUBLIC_BASE_URL=http://localhost:8080
-      - JWT_SECRET=skyImage(可换为任意文本)
       - ALLOW_REGISTRATION=true
       - FRONTEND_DIST=dist
       - TZ=Asia/Shanghai
+      # CORS 配置（生产环境请修改为实际域名）
+      - CORS_ALLOWED_ORIGINS=http://localhost:8080
     volumes:
       - ./storage/data:/app/storage/data
       - ./storage/uploads:/app/storage/uploads

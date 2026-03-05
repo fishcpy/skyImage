@@ -50,14 +50,17 @@ type Server struct {
 func NewServer(cfg config.Config, db *gorm.DB) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
+	
+	// 构建 CORS 允许的源列表
+	allowedOrigins := []string{cfg.PublicBaseURL}
+	if len(cfg.CORSAllowedOrigins) > 0 {
+		allowedOrigins = append(allowedOrigins, cfg.CORSAllowedOrigins...)
+	}
+	
 	engine.Use(
 		gin.Logger(),
 		gin.Recovery(),
-		middleware.CORS(
-			cfg.PublicBaseURL,
-			"http://localhost:5173",
-			"http://127.0.0.1:5173",
-		),
+		middleware.CORS(allowedOrigins...),
 	)
 	engine.RedirectTrailingSlash = false
 

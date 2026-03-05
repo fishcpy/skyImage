@@ -5,12 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"regexp"
+	"strings"
+	"unicode"
+
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"os"
 	"strconv"
-	"strings"
 
 	"skyimage/internal/data"
 )
@@ -21,7 +24,12 @@ type Service struct {
 
 var (
 	ErrSuperAdminImmutable = errors.New("cannot modify super admin")
+	ErrInvalidEmail        = errors.New("invalid email format")
+	ErrWeakPassword        = errors.New("password must be at least 8 characters and contain uppercase, lowercase, and numbers")
 )
+
+// 邮箱验证正则表达式
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 func New(db *gorm.DB) *Service {
 	return &Service{
@@ -56,7 +64,62 @@ type ProfileUpdateInput struct {
 	ThemePreference   string `json:"theme"`
 }
 
+// validateEmail 验证邮箱格式
+func validateEmail(email string) error {
+	email = strings.TrimSpace(email)
+	if email == "" || len(email) > 255 {
+		return ErrInvalidEmail
+	}
+	if !emailRegex.MatchString(email) {
+		return ErrInvalidEmail
+	}
+	return nil
+}
+
+// validatePassword 验证密码强度
+func validatePassword(password string) error {
+	if len(password) < 8 {
+		return ErrWeakPassword
+	}
+	
+	var (
+		hasUpper   bool
+		hasLower   bool
+		hasNumber  bool
+	)
+	
+	for _, char := range password {
+		switch {
+		case unicode.IsUpper(char):
+			hasUpper = true
+		case unicode.IsLower(char):
+			hasLower = true
+		case unicode.IsNumber(char):
+			hasNumber = true
+		}
+	}
+	
+	if !hasUpper || !hasLower || !hasNumber {
+		return ErrWeakPassword
+	}
+	
+	return nil
+}
+
 func (s *Service) Register(ctx context.Context, in RegisterInput) (data.User, error) {
+	// 验证邮箱格式
+	if err := validateEmail(in.Email); err != nil {
+		return data.User{}, err
+	}
+	
+	// 验证密码强度
+	if err := validatePassword(in.Password); err != nil {
+		return data.User{}, err
+	}
+	
+	// 标准化邮箱（转小写）
+	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
+	
 	hashed, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return data.User{}, err
@@ -80,8 +143,17 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (data.User, er
 }
 
 func (s *Service) Login(ctx context.Context, in LoginInput) (data.User, error) {
+	// 验证邮箱格式
+	if err := validateEmail(in.Email); err != nil {
+		return data.User{}, errors.New("invalid credentials")
+	}
+	
+	// 标准化邮箱（转小写）
+	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
+	
 	var user data.User
-	if err := s.db.WithContext(ctx).Preload("Group").Where("email = ?", in.Email).First(&user).Error; err != nil {
+	// 使用参数化查询防止 SQL 注入
+	if err := s.db.WithContext(ctx).Preload("Group").Where("LOWER(email) = ?", in.Email).First(&user).Error; err != nil {
 		// 统一返回"邮箱/密码不正确"，不暴露用户是否存在
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return data.User{}, errors.New("invalid credentials")
@@ -173,6 +245,20 @@ func (s *Service) CreateUser(ctx context.Context, actor data.User, input CreateU
 	if !actor.IsAdmin {
 		return data.User{}, errors.New("admin required")
 	}
+	
+	// 验证邮箱格式
+	if err := validateEmail(input.Email); err != nil {
+		return data.User{}, err
+	}
+	
+	// 验证密码强度
+	if err := validatePassword(input.Password); err != nil {
+		return data.User{}, err
+	}
+	
+	// 标准化邮箱（转小写）
+	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
+	
 	role := strings.ToLower(strings.TrimSpace(input.Role))
 	if role != "admin" && role != "user" {
 		return data.User{}, errors.New("role must be admin or user")
@@ -241,6 +327,10 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint, input ProfileU
 		"url":  input.URL,
 	}
 	if strings.TrimSpace(input.Password) != "" {
+		// 验证新密码强度
+		if err := validatePassword(input.Password); err != nil {
+			return data.User{}, err
+		}
 		hashed, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 		if err != nil {
 			return data.User{}, err

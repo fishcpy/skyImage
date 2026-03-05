@@ -3,6 +3,8 @@ import { fetchSiteConfig } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
+import DOMPurify from "dompurify";
+import { useMemo } from "react";
 
 export function PrivacyPage() {
   const { data: siteConfig, isLoading } = useQuery({
@@ -10,7 +12,14 @@ export function PrivacyPage() {
     queryFn: fetchSiteConfig,
   });
 
-  const privacyContent = siteConfig?.privacyPolicy || "";
+  const privacyContent = useMemo(() => {
+    const content = siteConfig?.privacyPolicy || "";
+    return DOMPurify.sanitize(content, {
+      ALLOWED_TAGS: ['p', 'div', 'section', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'strong', 'em', 'br', 'a', 'span'],
+      ALLOWED_ATTR: ['class', 'href', 'target', 'rel'],
+      ALLOW_DATA_ATTR: false,
+    });
+  }, [siteConfig?.privacyPolicy]);
 
   if (isLoading) {
     return (

@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchSiteConfig } from "@/lib/api";
+import DOMPurify from "dompurify";
 
 export function NotFoundPage() {
   // 从 localStorage 获取缓存的配置
@@ -24,7 +25,15 @@ export function NotFoundPage() {
   const siteTitle = siteConfig?.title || "skyImage";
   const notFoundHeading = siteConfig?.notFoundHeading?.trim() || "404";
   const notFoundText = siteConfig?.notFoundText?.trim();
-  const notFoundHtml = siteConfig?.notFoundHtml?.trim();
+  
+  const sanitizedNotFoundHtml = useMemo(() => {
+    const html = siteConfig?.notFoundHtml?.trim() || "";
+    return DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ['p', 'div', 'section', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'strong', 'em', 'br', 'a', 'span'],
+      ALLOWED_ATTR: ['class', 'href', 'target', 'rel'],
+      ALLOW_DATA_ATTR: false,
+    });
+  }, [siteConfig?.notFoundHtml]);
 
   // 设置页面标题为站点标题
   useEffect(() => {
@@ -36,10 +45,10 @@ export function NotFoundPage() {
   }, [siteTitle]);
 
   // 如果选择自定义 HTML 模式
-  if (notFoundMode === "html" && notFoundHtml) {
+  if (notFoundMode === "html" && sanitizedNotFoundHtml) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 text-center">
-        <div dangerouslySetInnerHTML={{ __html: notFoundHtml }} />
+        <div dangerouslySetInnerHTML={{ __html: sanitizedNotFoundHtml }} />
       </div>
     );
   }

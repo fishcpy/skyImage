@@ -4,25 +4,27 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/viper"
 )
 
 // Config stores the runtime settings for the Go backend.
 type Config struct {
-	HTTPAddr          string `mapstructure:"HTTP_ADDR"`
-	DatabasePath      string `mapstructure:"DATABASE_PATH"`
-	DatabaseType      string `mapstructure:"DATABASE_TYPE"` // sqlite, mysql, postgres
-	DatabaseHost      string `mapstructure:"DATABASE_HOST"`
-	DatabasePort      string `mapstructure:"DATABASE_PORT"`
-	DatabaseName      string `mapstructure:"DATABASE_NAME"`
-	DatabaseUser      string `mapstructure:"DATABASE_USER"`
-	DatabasePassword  string `mapstructure:"DATABASE_PASSWORD"`
-	StoragePath       string `mapstructure:"STORAGE_PATH"`
-	PublicBaseURL     string `mapstructure:"PUBLIC_BASE_URL"`
-	LegacyDSN         string `mapstructure:"LEGACY_DSN"`
-	FrontendDist      string `mapstructure:"FRONTEND_DIST"`
-	AllowRegistration bool   `mapstructure:"ALLOW_REGISTRATION"`
+	HTTPAddr           string   `mapstructure:"HTTP_ADDR"`
+	DatabasePath       string   `mapstructure:"DATABASE_PATH"`
+	DatabaseType       string   `mapstructure:"DATABASE_TYPE"` // sqlite, mysql, postgres
+	DatabaseHost       string   `mapstructure:"DATABASE_HOST"`
+	DatabasePort       string   `mapstructure:"DATABASE_PORT"`
+	DatabaseName       string   `mapstructure:"DATABASE_NAME"`
+	DatabaseUser       string   `mapstructure:"DATABASE_USER"`
+	DatabasePassword   string   `mapstructure:"DATABASE_PASSWORD"`
+	StoragePath        string   `mapstructure:"STORAGE_PATH"`
+	PublicBaseURL      string   `mapstructure:"PUBLIC_BASE_URL"`
+	LegacyDSN          string   `mapstructure:"LEGACY_DSN"`
+	FrontendDist       string   `mapstructure:"FRONTEND_DIST"`
+	AllowRegistration  bool     `mapstructure:"ALLOW_REGISTRATION"`
+	CORSAllowedOrigins []string `mapstructure:"CORS_ALLOWED_ORIGINS"`
 }
 
 // Load reads configuration from env variables and optional .env/.yaml files.
@@ -51,12 +53,24 @@ func Load() (Config, error) {
 	viper.BindEnv("LEGACY_DSN")
 	viper.BindEnv("FRONTEND_DIST")
 	viper.BindEnv("ALLOW_REGISTRATION")
+	viper.BindEnv("CORS_ALLOWED_ORIGINS")
 
 	_ = viper.ReadInConfig() // best-effort optional .env
 
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return Config{}, fmt.Errorf("unmarshal config: %w", err)
+	}
+
+	// 解析 CORS_ALLOWED_ORIGINS（支持逗号分隔）
+	if corsStr := viper.GetString("CORS_ALLOWED_ORIGINS"); corsStr != "" {
+		origins := strings.Split(corsStr, ",")
+		cfg.CORSAllowedOrigins = make([]string, 0, len(origins))
+		for _, origin := range origins {
+			if trimmed := strings.TrimSpace(origin); trimmed != "" {
+				cfg.CORSAllowedOrigins = append(cfg.CORSAllowedOrigins, trimmed)
+			}
+		}
 	}
 
 	if err := ensurePaths(&cfg); err != nil {
@@ -86,6 +100,7 @@ func setDefaults() {
 	viper.SetDefault("STORAGE_PATH", filepath.Join("storage", "uploads"))
 	viper.SetDefault("PUBLIC_BASE_URL", "http://localhost:8080")
 	viper.SetDefault("ALLOW_REGISTRATION", true)
+	viper.SetDefault("CORS_ALLOWED_ORIGINS", "")
 }
 
 func ensurePaths(cfg *Config) error {

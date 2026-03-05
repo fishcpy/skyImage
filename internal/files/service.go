@@ -174,11 +174,24 @@ func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.Fi
 	if headSize == 0 {
 		return data.FileAsset{}, errors.New("empty file")
 	}
+	
+	// 获取文件扩展名
+	originalExt := strings.TrimPrefix(strings.ToLower(filepath.Ext(file.Filename)), ".")
+	
+	// 检测 MIME 类型
 	contentType := normalizeContentType(http.DetectContentType(head[:headSize]))
+	
+	// 双重验证：MIME 类型和文件扩展名必须都匹配
 	if !isAllowedMediaType(contentType) {
 		return data.FileAsset{}, fmt.Errorf("不支持的文件类型: %s", contentType)
 	}
-	originalExt := strings.TrimPrefix(strings.ToLower(filepath.Ext(file.Filename)), ".")
+	
+	// 验证文件扩展名与 MIME 类型是否匹配
+	if !validateMimeExtensionMatch(contentType, originalExt) {
+		return data.FileAsset{}, fmt.Errorf("文件扩展名与内容类型不匹配")
+	}
+	
+	// 如果策略配置了允许的扩展名，进行额外检查
 	if len(cfg.Exts) > 0 {
 		if originalExt == "" || !extAllowed(cfg.Exts, originalExt) {
 			return data.FileAsset{}, fmt.Errorf("不允许的文件后缀: %s", originalExt)
@@ -1223,6 +1236,44 @@ func isAllowedMediaType(contentType string) bool {
 		"video/mpeg":
 		return true
 	}
+	return false
+}
+
+// validateMimeExtensionMatch 验证 MIME 类型与文件扩展名是否匹配
+func validateMimeExtensionMatch(mimeType string, ext string) bool {
+	ext = strings.ToLower(strings.TrimSpace(ext))
+	mimeType = strings.ToLower(strings.TrimSpace(mimeType))
+	
+	// 定义 MIME 类型与扩展名的映射关系
+	validMappings := map[string][]string{
+		"image/jpeg":        {"jpg", "jpeg"},
+		"image/png":         {"png"},
+		"image/gif":         {"gif"},
+		"image/webp":        {"webp"},
+		"image/bmp":         {"bmp"},
+		"image/tiff":        {"tiff", "tif"},
+		"image/avif":        {"avif"},
+		"image/x-icon":      {"ico"},
+		"video/mp4":         {"mp4"},
+		"video/webm":        {"webm"},
+		"video/ogg":         {"ogg", "ogv"},
+		"video/quicktime":   {"mov"},
+		"video/x-msvideo":   {"avi"},
+		"video/x-matroska":  {"mkv"},
+		"video/mpeg":        {"mpeg", "mpg"},
+	}
+	
+	allowedExts, exists := validMappings[mimeType]
+	if !exists {
+		return false
+	}
+	
+	for _, allowedExt := range allowedExts {
+		if ext == allowedExt {
+			return true
+		}
+	}
+	
 	return false
 }
 

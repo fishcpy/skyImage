@@ -282,7 +282,7 @@ func (s *Server) writeSessionCookie(c *gin.Context, sessionID string) {
 		MaxAge:   int(s.session.TTL().Seconds()),
 		HttpOnly: true,
 		Secure:   isSecureRequest(c),
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode, // 修改为 Strict 模式以增强安全性
 	})
 }
 
@@ -294,7 +294,7 @@ func (s *Server) clearSessionCookie(c *gin.Context) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   isSecureRequest(c),
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode, // 修改为 Strict 模式以增强安全性
 	})
 }
 
