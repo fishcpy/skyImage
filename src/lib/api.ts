@@ -169,6 +169,8 @@ export type SiteConfig = {
   notFoundHeading?: string;
   notFoundText?: string;
   notFoundHtml?: string;
+  termsOfService?: string;
+  privacyPolicy?: string;
   enableGallery: boolean;
   enableHome?: boolean;
   enableApi: boolean;
@@ -485,6 +487,8 @@ export type SystemSettingsInput = {
   notFoundHeading: string;
   notFoundText: string;
   notFoundHtml: string;
+  termsOfService: string;
+  privacyPolicy: string;
   enableGallery: boolean;
   enableHome: boolean;
   enableApi: boolean;
@@ -557,5 +561,15 @@ export async function testTurnstileConfig(payload: TestTurnstilePayload) {
     "/admin/system/test-turnstile",
     payload
   );
+  return res.data.data;
+}
+
+export type LegalDefaults = {
+  termsOfService: string;
+  privacyPolicy: string;
+};
+
+export async function fetchLegalDefaults() {
+  const res = await apiClient.get<{ data: LegalDefaults }>("/installer/defaults");
   return res.data.data;
 }

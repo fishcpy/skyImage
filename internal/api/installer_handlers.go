@@ -12,6 +12,7 @@ func (s *Server) registerInstallerRoutes(r *gin.RouterGroup) {
 	group := r.Group("/installer")
 	group.GET("/status", s.getInstallerStatus)
 	group.POST("/run", s.postInstallerRun)
+	group.GET("/defaults", s.getInstallerDefaults)
 }
 
 func (s *Server) getInstallerStatus(c *gin.Context) {
@@ -35,4 +36,13 @@ func (s *Server) postInstallerRun(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": status})
+}
+
+func (s *Server) getInstallerDefaults(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"termsOfService": installer.DefaultTermsOfService,
+			"privacyPolicy":  installer.DefaultPrivacyPolicy,
+		},
+	})
 }

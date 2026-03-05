@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { RotateCcw } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ import {
 import {
   fetchSystemSettings,
   updateSystemSettings,
+  fetchLegalDefaults,
   type SystemSettingsInput,
   type SystemSettingsResponse
 } from "@/lib/api";
@@ -44,6 +46,8 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
   notFoundHeading: "",
   notFoundText: "",
   notFoundHtml: "",
+  termsOfService: "",
+  privacyPolicy: "",
   enableGallery: true,
   enableHome: true,
   enableApi: true,
@@ -82,6 +86,8 @@ const siteFields: (keyof SystemSettingsInput)[] = [
   "notFoundHeading",
   "notFoundText",
   "notFoundHtml",
+  "termsOfService",
+  "privacyPolicy",
   "enableGallery",
   "enableHome",
   "enableApi",
@@ -291,6 +297,70 @@ export function AdminSiteSettingsPage() {
               value={form.about}
               onChange={(e) => handleChange("about", e.target.value)}
             />
+          </div>
+          
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>服务条款（HTML）</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const defaults = await fetchLegalDefaults();
+                    handleChange("termsOfService", defaults.termsOfService);
+                    toast.success("已重置为默认服务条款");
+                  } catch (error) {
+                    toast.error("获取默认内容失败");
+                  }
+                }}
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                重置为默认
+              </Button>
+            </div>
+            <Textarea
+              rows={6}
+              value={form.termsOfService}
+              onChange={(e) => handleChange("termsOfService", e.target.value)}
+              placeholder="系统初始化时的默认服务条款"
+            />
+            <p className="text-xs text-muted-foreground">
+              支持 HTML 格式，可使用 Tailwind CSS 类名
+            </p>
+          </div>
+          
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>隐私政策（HTML）</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const defaults = await fetchLegalDefaults();
+                    handleChange("privacyPolicy", defaults.privacyPolicy);
+                    toast.success("已重置为默认隐私政策");
+                  } catch (error) {
+                    toast.error("获取默认内容失败");
+                  }
+                }}
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                重置为默认
+              </Button>
+            </div>
+            <Textarea
+              rows={6}
+              value={form.privacyPolicy}
+              onChange={(e) => handleChange("privacyPolicy", e.target.value)}
+              placeholder="系统初始化时的默认隐私政策"
+            />
+            <p className="text-xs text-muted-foreground">
+              支持 HTML 格式，可使用 Tailwind CSS 类名
+            </p>
           </div>
           
           <div className="space-y-4 rounded-lg border p-4">

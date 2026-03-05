@@ -27,6 +27,8 @@ import { AdminStrategyEditorPage } from "@/features/admin/AdminStrategyEditorPag
 import { AdminUserCreatePage } from "@/features/users/AdminUserCreatePage";
 import { AdminUserDetailPage } from "@/features/users/AdminUserDetailPage";
 import { AboutPage } from "@/features/about/AboutPage";
+import { TermsPage } from "@/features/legal/TermsPage";
+import { PrivacyPage } from "@/features/legal/PrivacyPage";
 import { AdminRoute } from "@/components/AdminRoute";
 import { SiteMetaWatcher } from "@/components/SiteMetaWatcher";
 import { Button } from "@/components/ui/button";
@@ -95,6 +97,8 @@ export default function App() {
         {!installed && <Route path="/installer" element={<InstallerPage />} />}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         {installed && <Route path="/" element={<HomeEntry />} />}
         {installed && (
           <Route element={<ProtectedRoute />}>

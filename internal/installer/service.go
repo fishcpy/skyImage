@@ -169,6 +169,8 @@ func (s *Service) Run(ctx context.Context, in RunInput) (Status, error) {
 			"home.feature2_desc":      "支持角色组、注册策略和登录验证配置。",
 			"home.feature3_title":     "可配置品牌信息",
 			"home.feature3_desc":      "站点标题、描述和首页标语均可在系统设置中管理。",
+			"site.terms_of_service":   DefaultTermsOfService,
+			"site.privacy_policy":     DefaultPrivacyPolicy,
 			"storage.root":            s.cfg.StoragePath,
 			"features.gallery":        "true",
 			"features.home":           "true",

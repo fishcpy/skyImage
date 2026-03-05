@@ -61,6 +61,8 @@ func (s *Server) handleSiteConfig(c *gin.Context) {
 		"notFoundHeading":       settings["site.notfound_heading"],
 		"notFoundText":          settings["site.notfound_text"],
 		"notFoundHtml":          settings["site.notfound_html"],
+		"termsOfService":        settings["site.terms_of_service"],
+		"privacyPolicy":         settings["site.privacy_policy"],
 		"enableGallery":         enableGallery,
 		"enableHome":            enableHome,
 		"enableApi":             enableAPI,

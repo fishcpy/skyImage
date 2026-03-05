@@ -504,6 +504,8 @@ type systemSettingsPayload struct {
 	NotFoundHeading         string `json:"notFoundHeading"`
 	NotFoundText            string `json:"notFoundText"`
 	NotFoundHtml            string `json:"notFoundHtml"`
+	TermsOfService          string `json:"termsOfService"`
+	PrivacyPolicy           string `json:"privacyPolicy"`
 	EnableGallery           bool   `json:"enableGallery"`
 	EnableHome              bool   `json:"enableHome"`
 	EnableApi               bool   `json:"enableApi"`
@@ -562,6 +564,8 @@ func (s *Server) handleAdminSystemSettings(c *gin.Context) {
 			NotFoundHeading:         settings["site.notfound_heading"],
 			NotFoundText:            settings["site.notfound_text"],
 			NotFoundHtml:            settings["site.notfound_html"],
+			TermsOfService:          settings["site.terms_of_service"],
+			PrivacyPolicy:           settings["site.privacy_policy"],
 			EnableGallery:           settings["features.gallery"] != "false",
 			EnableHome:              settings["features.home"] != "false",
 			EnableApi:               settings["features.api"] != "false",
@@ -646,6 +650,8 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 		"site.notfound_heading":       payload.NotFoundHeading,
 		"site.notfound_text":          payload.NotFoundText,
 		"site.notfound_html":          payload.NotFoundHtml,
+		"site.terms_of_service":       payload.TermsOfService,
+		"site.privacy_policy":         payload.PrivacyPolicy,
 		"features.gallery":            strconv.FormatBool(payload.EnableGallery),
 		"features.home":               strconv.FormatBool(payload.EnableHome),
 		"features.api":                strconv.FormatBool(payload.EnableApi),
