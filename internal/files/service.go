@@ -372,6 +372,64 @@ func (s *Service) List(ctx context.Context, userID uint, limit int, offset int) 
 	return files, err
 }
 
+type UserTrendData struct {
+	Date    string `json:"date"`
+	Uploads int64  `json:"uploads"`
+}
+
+func (s *Service) GetUserTrends(ctx context.Context, userID uint, days int) ([]UserTrendData, error) {
+	if days <= 0 {
+		days = 90
+	}
+	if days > 365 {
+		days = 365
+	}
+
+	startDate := time.Now().AddDate(0, 0, -days).Format("2006-01-02")
+	
+	// 生成日期序列
+	trends := make([]UserTrendData, 0, days)
+	now := time.Now()
+	for i := days - 1; i >= 0; i-- {
+		date := now.AddDate(0, 0, -i).Format("2006-01-02")
+		trends = append(trends, UserTrendData{
+			Date:    date,
+			Uploads: 0,
+		})
+	}
+
+	// 查询用户上传数据
+	type DailyCount struct {
+		Date  string
+		Count int64
+	}
+	
+	var uploadCounts []DailyCount
+	err := s.db.WithContext(ctx).
+		Model(&data.FileAsset{}).
+		Select("DATE(created_at) as date, COUNT(*) as count").
+		Where("user_id = ? AND DATE(created_at) >= ?", userID, startDate).
+		Group("DATE(created_at)").
+		Scan(&uploadCounts).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 填充数据
+	uploadMap := make(map[string]int64)
+	for _, uc := range uploadCounts {
+		uploadMap[uc.Date] = uc.Count
+	}
+
+	for i := range trends {
+		if count, ok := uploadMap[trends[i].Date]; ok {
+			trends[i].Uploads = count
+		}
+	}
+
+	return trends, nil
+}
+
 func (s *Service) FindByID(ctx context.Context, id uint) (data.FileAsset, error) {
 	var file data.FileAsset
 	err := s.db.WithContext(ctx).

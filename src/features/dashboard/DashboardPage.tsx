@@ -1,5 +1,8 @@
+import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/state/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { fetchUserTrends } from "@/lib/api";
+import { UserTrendChart } from "./components/UserTrendChart";
 
 export function DashboardPage() {
   const user = useAuthStore((state) => state.user);
@@ -8,6 +11,12 @@ export function DashboardPage() {
   const hasCapacity = capacity > 0;
   const remaining = hasCapacity ? Math.max(capacity - used, 0) : 0;
   const usagePercent = hasCapacity ? Math.min((used / capacity) * 100, 100) : 0;
+
+  const { data: trendsData } = useQuery({
+    queryKey: ["user-trends"],
+    queryFn: () => fetchUserTrends(90),
+    staleTime: 5 * 60 * 1000
+  });
 
   const formatBytes = (bytes: number) => {
     if (bytes <= 0) return "0 B";
@@ -138,6 +147,9 @@ export function DashboardPage() {
           )}
         </CardContent>
       </Card>
+      {trendsData && trendsData.length > 0 && (
+        <UserTrendChart data={trendsData} />
+      )}
     </div>
   );
 }

@@ -138,6 +138,16 @@ export async function fetchAdminTrends(days: number = 90): Promise<TrendData[]> 
   return res.data.data;
 }
 
+export type UserTrendData = {
+  date: string;
+  uploads: number;
+};
+
+export async function fetchUserTrends(days: number = 90): Promise<UserTrendData[]> {
+  const res = await apiClient.get<{ data: UserTrendData[] }>(`/files/trends?days=${days}`);
+  return res.data.data;
+}
+
 export type SiteConfig = {
   title: string;
   description: string;

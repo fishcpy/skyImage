@@ -15,6 +15,7 @@ func (s *Server) registerFileRoutes(r *gin.RouterGroup) {
 	fileGroup := r.Group("/files")
 	fileGroup.Use(s.authMiddleware())
 	fileGroup.GET("", s.handleListFiles)
+	fileGroup.GET("/trends", s.handleUserFileTrends)
 	fileGroup.GET("/strategies", s.handleListAvailableStrategies)
 	fileGroup.POST("", s.handleUploadFile)
 	fileGroup.GET("/:id", s.handleGetFile)
@@ -47,6 +48,27 @@ func (s *Server) handleListFiles(c *gin.Context) {
 		dtos = append(dtos, dto)
 	}
 	c.JSON(http.StatusOK, gin.H{"data": dtos})
+}
+
+func (s *Server) handleUserFileTrends(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	days := 90
+	if daysParam := c.Query("days"); daysParam != "" {
+		if parsedDays, err := strconv.Atoi(daysParam); err == nil && parsedDays > 0 {
+			days = parsedDays
+		}
+	}
+
+	trends, err := s.files.GetUserTrends(c.Request.Context(), user.ID, days)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": trends})
 }
 
 func (s *Server) handleUploadFile(c *gin.Context) {
