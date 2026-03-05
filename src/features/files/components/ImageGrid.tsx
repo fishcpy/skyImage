@@ -239,6 +239,12 @@ export function ImageGrid({
     });
   };
 
+  const selectAll = () => {
+    setSelectedIds(new Set(items.map((item) => item.id)));
+  };
+
+  const isAllSelected = items.length > 0 && selectedIds.size === items.length;
+
   return (
     <div className="relative">
       {hasSelection && (
@@ -249,11 +255,19 @@ export function ImageGrid({
           <button
             type="button"
             className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted"
+            onClick={selectAll}
+            disabled={isAllSelected}
+          >
+            全选
+          </button>
+          <button
+            type="button"
+            className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted"
             onClick={() => setSelectedIds(new Set())}
           >
             清空
           </button>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="ml-auto flex flex-wrap items-center gap-2">
             <button
               type="button"
               className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted"
