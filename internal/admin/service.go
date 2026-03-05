@@ -32,6 +32,12 @@ type DashboardMetrics struct {
 	Settings      map[string]string `json:"settings"`
 }
 
+type TrendData struct {
+	Date          string `json:"date"`
+	Uploads       int64  `json:"uploads"`
+	Registrations int64  `json:"registrations"`
+}
+
 func (s *Service) Dashboard(ctx context.Context) (DashboardMetrics, error) {
 	var metrics DashboardMetrics
 	if err := s.db.WithContext(ctx).Model(&data.User{}).Count(&metrics.UserCount).Error; err != nil {
@@ -56,6 +62,80 @@ func (s *Service) Dashboard(ctx context.Context) (DashboardMetrics, error) {
 	}
 	metrics.Settings = settings
 	return metrics, nil
+}
+
+func (s *Service) GetTrends(ctx context.Context, days int) ([]TrendData, error) {
+	if days <= 0 {
+		days = 90
+	}
+	if days > 365 {
+		days = 365
+	}
+
+	startDate := time.Now().AddDate(0, 0, -days).Format("2006-01-02")
+	
+	// 生成日期序列
+	trends := make([]TrendData, 0, days)
+	now := time.Now()
+	for i := days - 1; i >= 0; i-- {
+		date := now.AddDate(0, 0, -i).Format("2006-01-02")
+		trends = append(trends, TrendData{
+			Date:          date,
+			Uploads:       0,
+			Registrations: 0,
+		})
+	}
+
+	// 查询上传数据
+	type DailyCount struct {
+		Date  string
+		Count int64
+	}
+	
+	var uploadCounts []DailyCount
+	err := s.db.WithContext(ctx).
+		Model(&data.FileAsset{}).
+		Select("DATE(created_at) as date, COUNT(*) as count").
+		Where("DATE(created_at) >= ?", startDate).
+		Group("DATE(created_at)").
+		Scan(&uploadCounts).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 查询注册数据
+	var registrationCounts []DailyCount
+	err = s.db.WithContext(ctx).
+		Model(&data.User{}).
+		Select("DATE(created_at) as date, COUNT(*) as count").
+		Where("DATE(created_at) >= ?", startDate).
+		Group("DATE(created_at)").
+		Scan(&registrationCounts).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 填充数据
+	uploadMap := make(map[string]int64)
+	for _, uc := range uploadCounts {
+		uploadMap[uc.Date] = uc.Count
+	}
+
+	registrationMap := make(map[string]int64)
+	for _, rc := range registrationCounts {
+		registrationMap[rc.Date] = rc.Count
+	}
+
+	for i := range trends {
+		if count, ok := uploadMap[trends[i].Date]; ok {
+			trends[i].Uploads = count
+		}
+		if count, ok := registrationMap[trends[i].Date]; ok {
+			trends[i].Registrations = count
+		}
+	}
+
+	return trends, nil
 }
 
 func (s *Service) GetSettings(ctx context.Context) (map[string]string, error) {

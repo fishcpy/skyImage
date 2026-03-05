@@ -21,6 +21,7 @@ func (s *Server) registerAdminRoutes(r *gin.RouterGroup) {
 	adminGroup := r.Group("/admin")
 	adminGroup.Use(s.authMiddleware(), middleware.RequireAdmin())
 	adminGroup.GET("/metrics", s.handleAdminMetrics)
+	adminGroup.GET("/trends", s.handleAdminTrends)
 	adminGroup.GET("/settings", s.handleAdminSettings)
 	adminGroup.PUT("/settings", s.handleAdminUpdateSettings)
 	adminGroup.GET("/users", s.handleAdminUsers)
@@ -89,6 +90,22 @@ func (s *Server) handleAdminMetrics(c *gin.Context) {
 	}
 	metrics.Settings = redactSettings(metrics.Settings)
 	c.JSON(http.StatusOK, gin.H{"data": metrics})
+}
+
+func (s *Server) handleAdminTrends(c *gin.Context) {
+	days := 90
+	if daysParam := c.Query("days"); daysParam != "" {
+		if parsedDays, err := strconv.Atoi(daysParam); err == nil && parsedDays > 0 {
+			days = parsedDays
+		}
+	}
+
+	trends, err := s.admin.GetTrends(c.Request.Context(), days)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": trends})
 }
 
 func (s *Server) handleAdminUsers(c *gin.Context) {

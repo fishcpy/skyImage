@@ -1,13 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { Activity, HardDrive, Users } from "lucide-react";
 
-import { fetchAdminMetrics } from "@/lib/api";
+import { fetchAdminMetrics, fetchAdminTrends } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TrendChart } from "./components/TrendChart";
 
 export function AdminConsolePage() {
   const { data, isLoading } = useQuery({
     queryKey: ["admin-metrics"],
     queryFn: fetchAdminMetrics
+  });
+
+  const { data: trendsData } = useQuery({
+    queryKey: ["admin-trends"],
+    queryFn: () => fetchAdminTrends(90),
+    staleTime: 5 * 60 * 1000
   });
 
   const formatBytes = (bytes: number) => {
@@ -50,6 +57,9 @@ export function AdminConsolePage() {
           icon={<HardDrive className="h-4 w-4 text-muted-foreground" />}
         />
       </div>
+      {trendsData && trendsData.length > 0 && (
+        <TrendChart data={trendsData} />
+      )}
     </div>
   );
 }

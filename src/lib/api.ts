@@ -127,6 +127,17 @@ export async function fetchAdminMetrics() {
   return res.data.data;
 }
 
+export type TrendData = {
+  date: string;
+  uploads: number;
+  registrations: number;
+};
+
+export async function fetchAdminTrends(days: number = 90): Promise<TrendData[]> {
+  const res = await apiClient.get<{ data: TrendData[] }>(`/admin/trends?days=${days}`);
+  return res.data.data;
+}
+
 export type SiteConfig = {
   title: string;
   description: string;
