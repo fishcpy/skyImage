@@ -7,6 +7,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
+import {
   assignUserGroup,
   deleteUserAccount,
   fetchGroups,
@@ -116,12 +127,6 @@ export function AdminUserDetailPage() {
     const next = value === "none" ? null : Number(value);
     setGroupId(value === "none" ? "none" : Number(value));
     groupMutation.mutate(next);
-  };
-
-  const handleDelete = () => {
-    if (window.confirm("删除后该用户及其文件将被清理，确定继续吗？")) {
-      deleteMutation.mutate();
-    }
   };
 
   if (!user) {
@@ -290,13 +295,30 @@ export function AdminUserDetailPage() {
                     删除后该用户及其所有文件将被永久清理，此操作不可恢复
                   </p>
                 </div>
-                <Button
-                  variant="destructive"
-                  onClick={handleDelete}
-                  disabled={deleteMutation.isPending}
-                >
-                  删除
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={deleteMutation.isPending}>
+                      删除
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>确认删除用户？</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        删除后该用户及其所有文件将被永久清理，此操作不可恢复。
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>取消</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => deleteMutation.mutate()}
+                      >
+                        确认删除
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             )}
           </div>

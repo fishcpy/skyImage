@@ -4,6 +4,17 @@ import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
 import { fetchStrategies, deleteStrategy, type StrategyRecord } from "@/lib/api";
 
 export function AdminStrategiesPage() {
@@ -69,14 +80,30 @@ export function AdminStrategiesPage() {
                 <Button asChild size="sm">
                   <Link to={`/dashboard/admin/strategies/${strategy.id}`}>编辑</Link>
                 </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={deleteMutation.isPending}
-                  onClick={() => deleteMutation.mutate(strategy.id)}
-                >
-                  删除
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="secondary" size="sm" disabled={deleteMutation.isPending}>
+                      删除
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>确认删除策略？</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        删除后相关上传策略配置将失效，此操作不可恢复。
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>取消</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => deleteMutation.mutate(strategy.id)}
+                      >
+                        确认删除
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
           ))}

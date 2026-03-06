@@ -3,6 +3,16 @@ import { toast } from "sonner";
 
 import type { FileRecord } from "@/lib/api";
 import { normalizeFileUrl } from "@/lib/file-url";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 
 type Props = {
   files?: FileRecord[];
@@ -45,6 +55,8 @@ export function ImageGrid({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [batchBusy, setBatchBusy] = useState(false);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<number[] | null>(null);
+  const [pendingDeleteLabel, setPendingDeleteLabel] = useState("");
 
   useEffect(() => {
     if (!menu) {
@@ -118,6 +130,32 @@ export function ImageGrid({
     }
   }, []);
 
+  const executeDelete = useCallback(
+    async (ids: number[]) => {
+      if (batchBusy) return;
+      if (ids.length > 1) {
+        if (!onBatchDelete) return;
+      } else if (!onDelete) {
+        return;
+      }
+
+      setBatchBusy(true);
+      try {
+        if (ids.length > 1 && onBatchDelete) {
+          await onBatchDelete(ids);
+        } else if (onDelete) {
+          await onDelete(ids[0]);
+        }
+      } finally {
+        setBatchBusy(false);
+        setSelectedIds(new Set());
+        setPendingDeleteIds(null);
+        setPendingDeleteLabel("");
+      }
+    },
+    [batchBusy, onBatchDelete, onDelete]
+  );
+
   const menuItems = useMemo(() => {
     if (!menu) {
       return [];
@@ -187,24 +225,9 @@ export function ImageGrid({
       },
       {
         label: `删除${selectionLabelSuffix}`,
-        action: async () => {
-          if (batchBusy) return;
-          if (useSelection) {
-            if (!onBatchDelete) return;
-          } else {
-            if (!onDelete) return;
-          }
-          setBatchBusy(true);
-          try {
-            if (useSelection && onBatchDelete) {
-              await onBatchDelete(activeIds);
-            } else if (onDelete) {
-              await onDelete(activeIds[0]);
-            }
-          } finally {
-            setBatchBusy(false);
-            setSelectedIds(new Set());
-          }
+        action: () => {
+          setPendingDeleteIds(activeIds);
+          setPendingDeleteLabel(isMulti ? `选中的 ${activeIds.length} 项` : `「${file.originalName}」`);
         },
         enabled: useSelection ? Boolean(onBatchDelete) : Boolean(onDelete),
         danger: true
@@ -215,7 +238,17 @@ export function ImageGrid({
         enabled: selectedIds.size > 0 && menu.scope === "selection"
       }
     ].filter((item) => item.enabled);
-  }, [batchBusy, handleCopy, menu, onDelete, onPreview, onVisibilityChange, selectedIds]);
+  }, [
+    batchBusy,
+    handleCopy,
+    menu,
+    onBatchVisibilityChange,
+    onBatchDelete,
+    onDelete,
+    onPreview,
+    onVisibilityChange,
+    selectedIds
+  ]);
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">加载中...</p>;
@@ -307,15 +340,11 @@ export function ImageGrid({
             <button
               type="button"
               className="rounded-md border px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10"
-              onClick={async () => {
-                if (!onBatchDelete || batchBusy) return;
-                setBatchBusy(true);
-                try {
-                  await onBatchDelete(Array.from(selectedIds));
-                } finally {
-                  setBatchBusy(false);
-                  setSelectedIds(new Set());
-                }
+              onClick={() => {
+                const ids = Array.from(selectedIds);
+                if (!ids.length) return;
+                setPendingDeleteIds(ids);
+                setPendingDeleteLabel(`选中的 ${ids.length} 项`);
               }}
             >
               批量删除
@@ -453,6 +482,29 @@ export function ImageGrid({
           </div>
         </div>
       )}
+
+      <AlertDialog open={Boolean(pendingDeleteIds)} onOpenChange={(open) => !open && setPendingDeleteIds(null)}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除？</AlertDialogTitle>
+            <AlertDialogDescription>
+              即将删除 {pendingDeleteLabel || "所选内容"}，此操作不可恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (!pendingDeleteIds?.length) return;
+                void executeDelete(pendingDeleteIds);
+              }}
+            >
+              确认删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

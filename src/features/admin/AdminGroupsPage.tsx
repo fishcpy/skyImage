@@ -4,6 +4,17 @@ import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
 import { fetchGroups, deleteGroup, type GroupRecord } from "@/lib/api";
 
 export function AdminGroupsPage() {
@@ -59,14 +70,30 @@ export function AdminGroupsPage() {
                 <Button asChild size="sm">
                   <Link to={`/dashboard/admin/groups/${group.id}`}>编辑</Link>
                 </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={removeMutation.isPending}
-                  onClick={() => removeMutation.mutate(group.id)}
-                >
-                  删除
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="secondary" size="sm" disabled={removeMutation.isPending}>
+                      删除
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>确认删除角色组？</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        删除后将移除该角色组的配置，可能影响成员权限。
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>取消</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => removeMutation.mutate(group.id)}
+                      >
+                        确认删除
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
           ))}
