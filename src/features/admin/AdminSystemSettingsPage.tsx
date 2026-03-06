@@ -273,7 +273,7 @@ export function AdminSystemSettingsPage() {
           <div className="space-y-2">
             <Label>密码 / 授权码</Label>
             <Input
-              type="password"
+              type="text"
               value={form.smtpPassword}
               onChange={(e) => handleChange("smtpPassword", e.target.value)}
             />

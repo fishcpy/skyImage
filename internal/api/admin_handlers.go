@@ -730,6 +730,7 @@ type testSMTPPayload struct {
 	SMTPPort     string `json:"smtpPort" binding:"required"`
 	SMTPUsername string `json:"smtpUsername" binding:"required"`
 	SMTPPassword string `json:"smtpPassword"`
+	SMTPFrom     string `json:"smtpFrom"`
 	SMTPSecure   bool   `json:"smtpSecure"`
 }
 
@@ -744,7 +745,10 @@ func (s *Server) handleAdminTestSMTP(c *gin.Context) {
 	}
 
 	// 构建邮件内容
-	from := payload.SMTPUsername
+	from := payload.SMTPFrom
+	if from == "" {
+		from = payload.SMTPUsername
+	}
 	to := []string{payload.TestEmail}
 	subject := "skyImage邮件测试"
 	body := "如果你看到这条消息代表邮件已正常可用"

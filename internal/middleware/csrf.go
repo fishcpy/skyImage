@@ -38,9 +38,12 @@ func RequireCSRF() gin.HandlerFunc {
 		}
 
 		origin := strings.TrimSpace(c.GetHeader("Origin"))
-		if origin != "" && !sameOrigin(origin, c.Request.Host) {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "invalid origin"})
-			return
+		if origin != "" {
+			// 在开发环境中，允许 localhost 的不同端口之间的请求
+			if !sameOrigin(origin, c.Request.Host) && !isLocalhostCrossPort(origin, c.Request.Host) {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "invalid origin"})
+				return
+			}
 		}
 
 		c.Next()
@@ -62,4 +65,20 @@ func sameOrigin(origin, requestHost string) bool {
 		return false
 	}
 	return strings.EqualFold(strings.TrimSpace(parsed.Host), strings.TrimSpace(requestHost))
+}
+
+func isLocalhostCrossPort(origin, requestHost string) bool {
+	parsed, err := url.Parse(origin)
+	if err != nil || parsed.Host == "" {
+		return false
+	}
+
+	originHost := strings.ToLower(strings.Split(parsed.Host, ":")[0])
+	requestHostName := strings.ToLower(strings.Split(requestHost, ":")[0])
+
+	// 检查是否都是 localhost 或 127.0.0.1
+	isOriginLocal := originHost == "localhost" || originHost == "127.0.0.1"
+	isRequestLocal := requestHostName == "localhost" || requestHostName == "127.0.0.1"
+
+	return isOriginLocal && isRequestLocal
 }
