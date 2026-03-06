@@ -50,6 +50,13 @@ type Server struct {
 func NewServer(cfg config.Config, db *gorm.DB) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
+	trustedProxies := cfg.TrustedProxies
+	if len(trustedProxies) == 0 {
+		trustedProxies = nil
+	}
+	if err := engine.SetTrustedProxies(trustedProxies); err != nil {
+		log.Printf("set trusted proxies failed: %v", err)
+	}
 	
 	// 构建 CORS 允许的源列表
 	allowedOrigins := []string{cfg.PublicBaseURL}

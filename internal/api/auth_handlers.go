@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"log"
 	"net/http"
 	"strings"
@@ -20,7 +22,7 @@ func (s *Server) registerAuthRoutes(r *gin.RouterGroup) {
 	auth.POST("/login", s.handleLogin)
 	auth.POST("/register", s.handleRegister)
 	auth.POST("/send-verification-code", s.handleSendVerificationCode)
-	auth.POST("/logout", s.handleLogout)
+	auth.POST("/logout", s.authMiddleware(), middleware.RequireCSRF(), s.handleLogout)
 	auth.GET("/needs-setup", s.handleNeedsSetup)
 	auth.GET("/registration-status", s.handleRegistrationStatus)
 
@@ -185,6 +187,7 @@ func (s *Server) handleRegister(c *gin.Context) {
 		return
 	}
 	s.writeSessionCookie(c, sessionID)
+	s.writeCSRFCookie(c)
 
 	// 发送注册成功邮件（异步，不阻塞响应）
 	go func() {
@@ -251,6 +254,7 @@ func (s *Server) handleLogin(c *gin.Context) {
 		return
 	}
 	s.writeSessionCookie(c, sessionID)
+	s.writeCSRFCookie(c)
 
 	// 发送登录提醒邮件（异步，不阻塞响应）
 	go func() {
@@ -286,6 +290,22 @@ func (s *Server) writeSessionCookie(c *gin.Context, sessionID string) {
 	})
 }
 
+func (s *Server) writeCSRFCookie(c *gin.Context) {
+	token := make([]byte, 32)
+	if _, err := rand.Read(token); err != nil {
+		return
+	}
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     middleware.CSRFCookieName,
+		Value:    hex.EncodeToString(token),
+		Path:     "/",
+		MaxAge:   int(s.session.TTL().Seconds()),
+		HttpOnly: false,
+		Secure:   isSecureRequest(c),
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
 func (s *Server) clearSessionCookie(c *gin.Context) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     session.CookieName,
@@ -295,6 +315,15 @@ func (s *Server) clearSessionCookie(c *gin.Context) {
 		HttpOnly: true,
 		Secure:   isSecureRequest(c),
 		SameSite: http.SameSiteStrictMode, // 修改为 Strict 模式以增强安全性
+	})
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     middleware.CSRFCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: false,
+		Secure:   isSecureRequest(c),
+		SameSite: http.SameSiteStrictMode,
 	})
 }
 
@@ -310,6 +339,9 @@ func (s *Server) handleMe(c *gin.Context) {
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
+	}
+	if _, err := c.Cookie(middleware.CSRFCookieName); err != nil {
+		s.writeCSRFCookie(c)
 	}
 	c.JSON(http.StatusOK, gin.H{"data": user})
 }

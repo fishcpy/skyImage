@@ -19,7 +19,7 @@ import (
 
 func (s *Server) registerAdminRoutes(r *gin.RouterGroup) {
 	adminGroup := r.Group("/admin")
-	adminGroup.Use(s.authMiddleware(), middleware.RequireAdmin())
+	adminGroup.Use(s.authMiddleware(), middleware.RequireAdmin(), middleware.RequireCSRF())
 	adminGroup.GET("/metrics", s.handleAdminMetrics)
 	adminGroup.GET("/trends", s.handleAdminTrends)
 	adminGroup.GET("/settings", s.handleAdminSettings)

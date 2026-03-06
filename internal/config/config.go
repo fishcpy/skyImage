@@ -25,6 +25,7 @@ type Config struct {
 	FrontendDist       string   `mapstructure:"FRONTEND_DIST"`
 	AllowRegistration  bool     `mapstructure:"ALLOW_REGISTRATION"`
 	CORSAllowedOrigins []string `mapstructure:"CORS_ALLOWED_ORIGINS"`
+	TrustedProxies     []string `mapstructure:"TRUSTED_PROXIES"`
 }
 
 // Load reads configuration from env variables and optional .env/.yaml files.
@@ -54,6 +55,7 @@ func Load() (Config, error) {
 	viper.BindEnv("FRONTEND_DIST")
 	viper.BindEnv("ALLOW_REGISTRATION")
 	viper.BindEnv("CORS_ALLOWED_ORIGINS")
+	viper.BindEnv("TRUSTED_PROXIES")
 
 	_ = viper.ReadInConfig() // best-effort optional .env
 
@@ -62,16 +64,8 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("unmarshal config: %w", err)
 	}
 
-	// 解析 CORS_ALLOWED_ORIGINS（支持逗号分隔）
-	if corsStr := viper.GetString("CORS_ALLOWED_ORIGINS"); corsStr != "" {
-		origins := strings.Split(corsStr, ",")
-		cfg.CORSAllowedOrigins = make([]string, 0, len(origins))
-		for _, origin := range origins {
-			if trimmed := strings.TrimSpace(origin); trimmed != "" {
-				cfg.CORSAllowedOrigins = append(cfg.CORSAllowedOrigins, trimmed)
-			}
-		}
-	}
+	cfg.CORSAllowedOrigins = parseCSVEnv(viper.GetString("CORS_ALLOWED_ORIGINS"))
+	cfg.TrustedProxies = parseCSVEnv(viper.GetString("TRUSTED_PROXIES"))
 
 	if err := ensurePaths(&cfg); err != nil {
 		return Config{}, err
@@ -101,6 +95,22 @@ func setDefaults() {
 	viper.SetDefault("PUBLIC_BASE_URL", "http://localhost:8080")
 	viper.SetDefault("ALLOW_REGISTRATION", true)
 	viper.SetDefault("CORS_ALLOWED_ORIGINS", "")
+	viper.SetDefault("TRUSTED_PROXIES", "")
+}
+
+func parseCSVEnv(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	items := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			items = append(items, trimmed)
+		}
+	}
+	return items
 }
 
 func ensurePaths(cfg *Config) error {

@@ -13,7 +13,7 @@ import (
 
 func (s *Server) registerFileRoutes(r *gin.RouterGroup) {
 	fileGroup := r.Group("/files")
-	fileGroup.Use(s.authMiddleware())
+	fileGroup.Use(s.authMiddleware(), middleware.RequireCSRF())
 	fileGroup.GET("", s.handleListFiles)
 	fileGroup.GET("/trends", s.handleUserFileTrends)
 	fileGroup.GET("/strategies", s.handleListAvailableStrategies)

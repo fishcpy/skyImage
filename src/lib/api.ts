@@ -9,6 +9,33 @@ export const apiClient = axios.create({
   withCredentials: true
 });
 
+function getCookie(name: string): string {
+  if (typeof document === "undefined") {
+    return "";
+  }
+  const encoded = encodeURIComponent(name) + "=";
+  const parts = document.cookie.split(";");
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(encoded)) {
+      return decodeURIComponent(trimmed.slice(encoded.length));
+    }
+  }
+  return "";
+}
+
+apiClient.interceptors.request.use((config) => {
+  const method = (config.method || "get").toLowerCase();
+  if (method === "post" || method === "put" || method === "patch" || method === "delete") {
+    const csrf = getCookie("skyimage_csrf");
+    if (csrf) {
+      config.headers = config.headers || {};
+      config.headers["X-CSRF-Token"] = csrf;
+    }
+  }
+  return config;
+});
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {

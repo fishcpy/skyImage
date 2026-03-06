@@ -11,7 +11,7 @@ import (
 
 func (s *Server) registerAccountRoutes(r *gin.RouterGroup) {
 	account := r.Group("/account")
-	account.Use(s.authMiddleware())
+	account.Use(s.authMiddleware(), middleware.RequireCSRF())
 	account.GET("/profile", s.handleAccountProfile)
 	account.PUT("/profile", s.handleAccountUpdateProfile)
 }
