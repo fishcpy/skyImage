@@ -36,11 +36,20 @@ import { NotFoundPage } from "@/features/misc/NotFoundPage";
 import { HomePage } from "@/features/home/HomePage";
 
 function HomeEntry() {
+  const getCachedConfig = () => {
+    try {
+      const cached = localStorage.getItem("skyimage-site-config");
+      return cached ? JSON.parse(cached) : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
   const { data: siteConfig, isLoading } = useQuery({
     queryKey: ["site-config"],
     queryFn: fetchSiteConfig,
-    staleTime: 0,
-    refetchOnMount: true
+    initialData: getCachedConfig,
+    staleTime: 5 * 60 * 1000
   });
 
   useEffect(() => {
