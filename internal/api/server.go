@@ -57,13 +57,13 @@ func NewServer(cfg config.Config, db *gorm.DB) *Server {
 	if err := engine.SetTrustedProxies(trustedProxies); err != nil {
 		log.Printf("set trusted proxies failed: %v", err)
 	}
-	
+
 	// 构建 CORS 允许的源列表
 	allowedOrigins := []string{cfg.PublicBaseURL}
 	if len(cfg.CORSAllowedOrigins) > 0 {
 		allowedOrigins = append(allowedOrigins, cfg.CORSAllowedOrigins...)
 	}
-	
+
 	engine.Use(
 		gin.Logger(),
 		gin.Recovery(),
@@ -179,8 +179,7 @@ func (s *Server) registerFrontend() {
 		if s.tryServeLocalFile(c) {
 			return
 		}
-		indexPath := filepath.Join(distPath, "index.html")
-		c.File(indexPath)
+		s.serveIndexHTML(c, distPath)
 	})
 }
 
@@ -338,7 +337,7 @@ func (s *Server) serveLocalFileByRelative(c *gin.Context, rel string) bool {
 	if err != nil || info.IsDir() {
 		return false
 	}
-	
+
 	// 优先使用数据库中存储的 MimeType，但如果是 application/octet-stream 则重新检测
 	mimeType := strings.TrimSpace(file.MimeType)
 	if mimeType == "" || mimeType == "application/octet-stream" {
@@ -349,19 +348,19 @@ func (s *Server) serveLocalFileByRelative(c *gin.Context, rel string) bool {
 			mimeType = "application/octet-stream"
 		}
 	}
-	
+
 	// 设置 Content-Type
 	c.Writer.Header().Set("Content-Type", mimeType)
-	
+
 	// 对于图片、视频、音频、PDF 等可预览的文件，设置为 inline
-	if strings.HasPrefix(mimeType, "image/") || 
-	   strings.HasPrefix(mimeType, "video/") || 
-	   strings.HasPrefix(mimeType, "audio/") ||
-	   mimeType == "application/pdf" ||
-	   strings.HasPrefix(mimeType, "text/") {
+	if strings.HasPrefix(mimeType, "image/") ||
+		strings.HasPrefix(mimeType, "video/") ||
+		strings.HasPrefix(mimeType, "audio/") ||
+		mimeType == "application/pdf" ||
+		strings.HasPrefix(mimeType, "text/") {
 		c.Writer.Header().Set("Content-Disposition", "inline")
 	}
-	
+
 	c.File(file.Path)
 	return true
 }
@@ -452,7 +451,7 @@ func (s *Server) serveWebDAVFile(c *gin.Context, file data.FileAsset) bool {
 	copyHeaderIfPresent(c.Writer.Header(), resp.Header, "Last-Modified")
 	// 不复制 Content-Disposition 头，让浏览器根据 Content-Type 决定是预览还是下载
 	// 对于图片等媒体文件，浏览器会自动预览而不是下载
-	
+
 	// 获取或检测正确的 MIME 类型
 	mimeType := c.Writer.Header().Get("Content-Type")
 	if mimeType == "" || mimeType == "application/octet-stream" {
@@ -474,13 +473,13 @@ func (s *Server) serveWebDAVFile(c *gin.Context, file data.FileAsset) bool {
 		}
 		c.Writer.Header().Set("Content-Type", mimeType)
 	}
-	
+
 	// 确保图片、视频、音频、PDF 等可预览的文件设置为 inline 显示
-	if strings.HasPrefix(mimeType, "image/") || 
-	   strings.HasPrefix(mimeType, "video/") || 
-	   strings.HasPrefix(mimeType, "audio/") ||
-	   mimeType == "application/pdf" ||
-	   strings.HasPrefix(mimeType, "text/") {
+	if strings.HasPrefix(mimeType, "image/") ||
+		strings.HasPrefix(mimeType, "video/") ||
+		strings.HasPrefix(mimeType, "audio/") ||
+		mimeType == "application/pdf" ||
+		strings.HasPrefix(mimeType, "text/") {
 		c.Writer.Header().Set("Content-Disposition", "inline")
 	}
 
@@ -557,7 +556,7 @@ func getMimeTypeByExtension(ext string) string {
 		"heic": "image/heic",
 		"heif": "image/heif",
 	}
-	
+
 	// 常见视频格式
 	videoTypes := map[string]string{
 		"mp4":  "video/mp4",
@@ -569,7 +568,7 @@ func getMimeTypeByExtension(ext string) string {
 		"flv":  "video/x-flv",
 		"mkv":  "video/x-matroska",
 	}
-	
+
 	// 常见音频格式
 	audioTypes := map[string]string{
 		"mp3":  "audio/mpeg",
@@ -579,7 +578,7 @@ func getMimeTypeByExtension(ext string) string {
 		"flac": "audio/flac",
 		"aac":  "audio/aac",
 	}
-	
+
 	// 其他常见格式
 	otherTypes := map[string]string{
 		"pdf":  "application/pdf",
@@ -594,9 +593,9 @@ func getMimeTypeByExtension(ext string) string {
 		"rar":  "application/x-rar-compressed",
 		"7z":   "application/x-7z-compressed",
 	}
-	
+
 	ext = strings.ToLower(strings.TrimSpace(ext))
-	
+
 	if mime, ok := imageTypes[ext]; ok {
 		return mime
 	}
@@ -609,7 +608,7 @@ func getMimeTypeByExtension(ext string) string {
 	if mime, ok := otherTypes[ext]; ok {
 		return mime
 	}
-	
+
 	return ""
 }
 
@@ -623,6 +622,52 @@ func splitFirstSegment(path string) (string, string) {
 		return path, ""
 	}
 	return path[:idx], path[idx+1:]
+}
+
+func (s *Server) serveIndexHTML(c *gin.Context, distPath string) {
+	indexPath := filepath.Join(distPath, "index.html")
+
+	// 读取 index.html 内容
+	content, err := os.ReadFile(indexPath)
+	if err != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	// 获取站点配置
+	settings, err := s.admin.GetSettings(c.Request.Context())
+	if err != nil {
+		// 如果获取配置失败，直接返回原始 HTML
+		c.Data(http.StatusOK, "text/html; charset=utf-8", content)
+		return
+	}
+
+	title := strings.TrimSpace(settings["site.title"])
+	logo := strings.TrimSpace(settings["site.logo"])
+
+	// 替换 HTML 中的标题
+	html := string(content)
+	if title != "" {
+		html = strings.Replace(html, "<title>skyImage</title>", "<title>"+title+"</title>", 1)
+	}
+
+	// 替换 favicon
+	if logo != "" {
+		// 处理 logo URL
+		logoURL := logo
+		if !strings.HasPrefix(logo, "http://") && !strings.HasPrefix(logo, "https://") && !strings.HasPrefix(logo, "data:") {
+			if !strings.HasPrefix(logo, "/") {
+				logoURL = "/" + logo
+			}
+		}
+
+		// 替换 favicon link
+		oldFavicon := `<link rel="icon" type="image/x-icon" href="/favicon.ico" />`
+		newFavicon := `<link rel="icon" type="image/x-icon" href="` + logoURL + `" />`
+		html = strings.Replace(html, oldFavicon, newFavicon, 1)
+	}
+
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 }
 
 func (s *Server) authMiddleware() gin.HandlerFunc {
