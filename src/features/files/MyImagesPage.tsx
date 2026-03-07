@@ -1,7 +1,4 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { createPortal } from "react-dom";
-
 import { toast } from "sonner";
 
 import {
@@ -9,18 +6,15 @@ import {
   deleteFilesBatch,
   fetchFiles,
   fetchSiteConfig,
-  type FileRecord,
   updateFileVisibility,
   updateFilesVisibilityBatch
 } from "@/lib/api";
-import { normalizeFileUrl } from "@/lib/file-url";
 import { useAuthStore } from "@/state/auth";
 import { ImageGrid } from "./components/ImageGrid";
 
 export function MyImagesPage() {
   const pageSize = 60;
   const queryClient = useQueryClient();
-  const [preview, setPreview] = useState<FileRecord | null>(null);
   const { data: siteConfig } = useQuery({
     queryKey: ["site-config"],
     queryFn: fetchSiteConfig,
@@ -102,31 +96,6 @@ export function MyImagesPage() {
       ? deleteMutation.variables
       : undefined;
 
-  const previewModal =
-    preview && typeof document !== "undefined"
-      ? createPortal(
-          <div
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4"
-            onClick={() => setPreview(null)}
-          >
-            <div
-              className="space-y-4 rounded-lg bg-background p-4 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <img
-                src={normalizeFileUrl(preview.viewUrl || preview.directUrl)}
-                alt={preview.originalName}
-                className="max-h-[70vh] max-w-[80vw] rounded-md object-contain"
-              />
-              <p className="text-center text-sm text-muted-foreground">
-                {preview.originalName} · {(preview.size / 1024).toFixed(1)} KB
-              </p>
-            </div>
-          </div>,
-          document.body
-        )
-      : null;
-
   return (
     <div className="space-y-6">
       <div>
@@ -144,7 +113,6 @@ export function MyImagesPage() {
         loadRowsPerBatch={siteConfig?.imageLoadRows ?? 4}
         onDelete={(id) => deleteMutation.mutateAsync(id)}
         deletingId={deletingId}
-        onPreview={(file) => setPreview(file)}
         onVisibilityChange={(id, visibility) => {
           void visibilityMutation.mutateAsync({ id, visibility });
         }}
@@ -155,7 +123,6 @@ export function MyImagesPage() {
           void batchDeleteMutation.mutateAsync(ids);
         }}
       />
-      {previewModal}
     </div>
   );
 }

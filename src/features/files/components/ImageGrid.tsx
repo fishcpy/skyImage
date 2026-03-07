@@ -420,8 +420,15 @@ export function ImageGrid({
     return [
       {
         label: "预览",
-        action: () => onPreview?.(file),
-        enabled: Boolean(onPreview) && !isMulti
+        action: () => {
+          if (onPreview) {
+            onPreview(file);
+          } else {
+            // 使用 Fancybox 预览
+            Fancybox.show([{ src: viewUrl, caption: file.originalName }]);
+          }
+        },
+        enabled: !isMulti
       },
       {
         label: "在新标签打开",

@@ -1,4 +1,7 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Fancybox } from "@fancyapps/ui";
+import "@fancyapps/ui/dist/fancybox/fancybox.css";
 
 import { fetchGalleryPublic, type FileRecord } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,11 +14,20 @@ export function GalleryPage() {
     queryFn: () => fetchGalleryPublic({ limit: 60 })
   });
 
+  const files = data ?? [];
+
+  // 初始化 Fancybox
+  useEffect(() => {
+    Fancybox.bind("[data-fancybox='gallery']", {} as any);
+
+    return () => {
+      Fancybox.destroy();
+    };
+  }, [files]);
+
   if (isLoading) {
     return <SplashScreen message="正在加载画廊..." />;
   }
-
-  const files = data ?? [];
 
   return (
     <div className="space-y-6">
@@ -34,29 +46,32 @@ export function GalleryPage() {
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {files.map((file: FileRecord) => (
-            <a
-              key={file.id}
-              href={normalizeFileUrl(file.viewUrl || file.directUrl)}
-              target="_blank"
-              rel="noreferrer"
-              className="group rounded-lg border bg-card transition hover:shadow-md"
-            >
-              <img
-                src={normalizeFileUrl(file.viewUrl || file.directUrl)}
-                alt={file.originalName}
-                className="h-48 w-full rounded-t-lg object-cover"
-              />
-              <div className="p-3">
-                <p className="truncate text-sm font-medium group-hover:text-primary">
-                  {file.originalName}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {(file.size / 1024).toFixed(1)} KB
-                </p>
-              </div>
-            </a>
-          ))}
+          {files.map((file: FileRecord) => {
+            const imageUrl = normalizeFileUrl(file.viewUrl || file.directUrl);
+            return (
+              <a
+                key={file.id}
+                href={imageUrl}
+                data-fancybox="gallery"
+                data-caption={file.originalName}
+                className="group rounded-lg border bg-card transition hover:shadow-md"
+              >
+                <img
+                  src={imageUrl}
+                  alt={file.originalName}
+                  className="h-48 w-full rounded-t-lg object-cover"
+                />
+                <div className="p-3">
+                  <p className="truncate text-sm font-medium group-hover:text-primary">
+                    {file.originalName}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {(file.size / 1024).toFixed(1)} KB
+                  </p>
+                </div>
+              </a>
+            );
+          })}
         </div>
       )}
     </div>
