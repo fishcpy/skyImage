@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"regexp"
 	"strings"
 	"unicode"
@@ -450,6 +451,23 @@ func (s *Service) hydrateUser(ctx context.Context, user *data.User) error {
 	if user == nil {
 		return nil
 	}
+	previousUsed := user.UsedCapacity
+	var usedBytes float64
+	if err := s.db.WithContext(ctx).
+		Model(&data.FileAsset{}).
+		Select("COALESCE(SUM(size),0)").
+		Where("user_id = ?", user.ID).
+		Scan(&usedBytes).Error; err != nil {
+		return err
+	}
+	user.UsedCapacity = usedBytes
+	if math.Abs(previousUsed-usedBytes) > 0.5 {
+		_ = s.db.WithContext(ctx).
+			Model(&data.User{}).
+			Where("id = ?", user.ID).
+			UpdateColumn("use_capacity", usedBytes).Error
+	}
+
 	if user.GroupID != nil && user.Group.ID == 0 {
 		if err := s.db.WithContext(ctx).First(&user.Group, *user.GroupID).Error; err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
