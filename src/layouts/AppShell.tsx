@@ -177,6 +177,7 @@ function SidebarNavSections({ sections }: { sections: NavSection[] }) {
 
 export function AppShell() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const clear = useAuthStore((state) => state.clear);
   const isAdmin = user?.isAdmin;
@@ -345,7 +346,9 @@ export function AppShell() {
           </div>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 lg:p-8">
-          <Outlet />
+          <div key={location.pathname} className="animate-route-switch">
+            <Outlet />
+          </div>
         </main>
       </SidebarInset>
     </SidebarProvider>

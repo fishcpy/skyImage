@@ -132,6 +132,96 @@ body {
   .safe-right {
     padding-right: env(safe-area-inset-right);
   }
+
+  .animate-enter {
+    animation: sky-enter 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--enter-delay, 0ms);
+  }
+
+  .animate-enter-1 {
+    --enter-delay: 80ms;
+  }
+
+  .animate-enter-2 {
+    --enter-delay: 160ms;
+  }
+
+  .animate-enter-3 {
+    --enter-delay: 240ms;
+  }
+
+  .animate-enter-4 {
+    --enter-delay: 320ms;
+  }
+
+  .animate-float-slow {
+    animation: sky-float 7s ease-in-out infinite;
+  }
+
+  .animate-gentle-pulse {
+    animation: sky-gentle-pulse 2.6s ease-in-out infinite;
+  }
+
+  .animate-route-switch {
+    animation: sky-route-switch 0.28s ease-out both;
+  }
+}
+
+@keyframes sky-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes sky-float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes sky-gentle-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+
+@keyframes sky-route-switch {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-enter,
+  .animate-float-slow,
+  .animate-gentle-pulse,
+  .animate-route-switch {
+    animation: none !important;
+  }
 }
 
 /* Sonner Toast 自定义样式 */
