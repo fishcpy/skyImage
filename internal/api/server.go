@@ -187,16 +187,46 @@ func (s *Server) registerFrontend() {
 			})
 			return
 		}
-		cleanPath := strings.Trim(strings.TrimSpace(c.Request.URL.Path), "/")
-		if strings.EqualFold(cleanPath, "reset-password") || strings.EqualFold(cleanPath, "forgot-password") {
-			s.serveIndexHTML(c, distPath)
-			return
-		}
 		if s.tryServeLocalFile(c) {
 			return
 		}
-		s.serveIndexHTML(c, distPath)
+		if s.isKnownFrontendRoute(c.Request.URL.Path) {
+			s.serveIndexHTML(c, distPath, http.StatusOK)
+			return
+		}
+		s.serveIndexHTML(c, distPath, http.StatusNotFound)
 	})
+}
+
+func (s *Server) isKnownFrontendRoute(rawPath string) bool {
+	cleanPath := "/" + strings.Trim(strings.TrimSpace(rawPath), "/")
+	if cleanPath == "/" {
+		return true
+	}
+
+	exactRoutes := map[string]struct{}{
+		"/installer":       {},
+		"/login":           {},
+		"/register":        {},
+		"/forgot-password": {},
+		"/reset-password":  {},
+		"/terms":           {},
+		"/privacy":         {},
+	}
+	if _, ok := exactRoutes[cleanPath]; ok {
+		return true
+	}
+
+	prefixRoutes := []string{
+		"/dashboard",
+	}
+	for _, prefix := range prefixRoutes {
+		if cleanPath == prefix || strings.HasPrefix(cleanPath, prefix+"/") {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (s *Server) registerStaticAssets() {
@@ -657,7 +687,7 @@ func splitFirstSegment(path string) (string, string) {
 	return path[:idx], path[idx+1:]
 }
 
-func (s *Server) serveIndexHTML(c *gin.Context, distPath string) {
+func (s *Server) serveIndexHTML(c *gin.Context, distPath string, statusCode int) {
 	indexPath := filepath.Join(distPath, "index.html")
 
 	// 读取 index.html 内容
@@ -671,7 +701,7 @@ func (s *Server) serveIndexHTML(c *gin.Context, distPath string) {
 	settings, err := s.admin.GetSettings(c.Request.Context())
 	if err != nil {
 		// 如果获取配置失败，直接返回原始 HTML
-		c.Data(http.StatusOK, "text/html; charset=utf-8", content)
+		c.Data(statusCode, "text/html; charset=utf-8", content)
 		return
 	}
 
@@ -695,7 +725,7 @@ func (s *Server) serveIndexHTML(c *gin.Context, distPath string) {
 		}
 	}
 
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+	c.Data(statusCode, "text/html; charset=utf-8", []byte(html))
 }
 
 func sanitizeFaviconURL(raw string) string {
