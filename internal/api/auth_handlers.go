@@ -4,12 +4,15 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"skyimage/internal/data"
 	"skyimage/internal/middleware"
@@ -22,6 +25,9 @@ func (s *Server) registerAuthRoutes(r *gin.RouterGroup) {
 	auth.POST("/login", s.handleLogin)
 	auth.POST("/register", s.handleRegister)
 	auth.POST("/send-verification-code", s.handleSendVerificationCode)
+	auth.POST("/forgot-password", s.handleForgotPassword)
+	auth.POST("/reset-password", s.handleResetPassword)
+	auth.GET("/reset-password-status", s.handleResetPasswordStatus)
 	auth.POST("/logout", s.authMiddleware(), middleware.RequireCSRF(), s.handleLogout)
 	auth.GET("/needs-setup", s.handleNeedsSetup)
 	auth.GET("/registration-status", s.handleRegistrationStatus)
@@ -374,7 +380,178 @@ func (s *Server) handleRegistrationStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
-		"allowed":            allowed,
-		"emailVerifyEnabled": emailVerifyEnabled,
+		"allowed":               allowed,
+		"emailVerifyEnabled":    emailVerifyEnabled,
+		"forgotPasswordEnabled": settings["mail.forgot_password.enabled"] == "true",
+	}})
+}
+
+func (s *Server) handleForgotPassword(c *gin.Context) {
+	settings, err := s.admin.GetSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "系统错误"})
+		return
+	}
+	if settings["mail.forgot_password.enabled"] != "true" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "忘记密码功能未启用"})
+		return
+	}
+
+	var input struct {
+		Email          string `json:"email" binding:"required,email"`
+		TurnstileToken string `json:"turnstileToken"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请输入有效的邮箱地址"})
+		return
+	}
+	clientIP := c.ClientIP()
+	emailKey := strings.ToLower(strings.TrimSpace(input.Email))
+	if ok, retry := s.authLimiter.Allow("forgot:ip:"+clientIP, 10, time.Minute); !ok {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "请求过于频繁，请稍后再试", "retryAfterSeconds": int(retry.Seconds()) + 1})
+		return
+	}
+	if ok, retry := s.authLimiter.Allow("forgot:email:"+emailKey, 3, time.Minute); !ok {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "该邮箱请求过于频繁，请稍后再试", "retryAfterSeconds": int(retry.Seconds()) + 1})
+		return
+	}
+	if settings["mail.forgot_password.turnstile_request"] == "true" {
+		enabled, verifyErr := s.turnstile.IsEnabled(c.Request.Context())
+		if verifyErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check turnstile status"})
+			return
+		}
+		if !enabled {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Turnstile 未启用，无法校验"})
+			return
+		}
+		if strings.TrimSpace(input.TurnstileToken) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "请完成人机验证"})
+			return
+		}
+		valid, verifyErr := s.turnstile.Verify(c.Request.Context(), input.TurnstileToken, c.ClientIP())
+		if verifyErr != nil || !valid {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "人机验证失败，请重试"})
+			return
+		}
+	}
+
+	user, err := s.users.FindByEmail(c.Request.Context(), input.Email)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"data": gin.H{"message": "如果邮箱存在，重置邮件已发送"}})
+		return
+	}
+	tokenBytes := make([]byte, 24)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成重置请求失败"})
+		return
+	}
+	token := hex.EncodeToString(tokenBytes)
+	code := s.verification.GenerateCode()
+	normalizedEmail := strings.ToLower(strings.TrimSpace(user.Email))
+	s.verification.StorePasswordReset(normalizedEmail, token, code)
+	resetLink := buildPasswordResetLink(c, s.cfg.PublicBaseURL, token)
+
+	go func(email string, verifyCode string, link string) {
+		ctx := context.Background()
+		if err := s.mail.SendPasswordResetEmail(ctx, email, verifyCode, link); err != nil {
+			log.Printf("[邮件] 发送重置密码邮件失败: %v", err)
+		}
+	}(normalizedEmail, code, resetLink)
+
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"message": "如果邮箱存在，重置邮件已发送"}})
+}
+
+func (s *Server) handleResetPassword(c *gin.Context) {
+	settings, err := s.admin.GetSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "系统错误"})
+		return
+	}
+	if settings["mail.forgot_password.enabled"] != "true" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "忘记密码功能未启用"})
+		return
+	}
+
+	var input struct {
+		Token          string `json:"token" binding:"required"`
+		Code           string `json:"code" binding:"required"`
+		Password       string `json:"password" binding:"required"`
+		TurnstileToken string `json:"turnstileToken"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写完整信息"})
+		return
+	}
+
+	if settings["mail.forgot_password.turnstile_reset"] == "true" {
+		enabled, verifyErr := s.turnstile.IsEnabled(c.Request.Context())
+		if verifyErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check turnstile status"})
+			return
+		}
+		if !enabled {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Turnstile 未启用，无法校验"})
+			return
+		}
+		if strings.TrimSpace(input.TurnstileToken) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "请完成人机验证"})
+			return
+		}
+		valid, verifyErr := s.turnstile.Verify(c.Request.Context(), input.TurnstileToken, c.ClientIP())
+		if verifyErr != nil || !valid {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "人机验证失败，请重试"})
+			return
+		}
+	}
+
+	email, verifyErr := s.verification.VerifyPasswordReset(strings.TrimSpace(input.Token), strings.TrimSpace(input.Code))
+	if verifyErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": verifyErr.Error()})
+		return
+	}
+
+	if err := s.users.ResetPasswordByEmail(c.Request.Context(), email, input.Password); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "用户不存在"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"message": "密码重置成功"}})
+}
+
+func buildPasswordResetLink(c *gin.Context, configuredBaseURL, token string) string {
+	baseURL := strings.TrimSpace(configuredBaseURL)
+	if baseURL == "" {
+		scheme := "http"
+		if isSecureRequest(c) {
+			scheme = "https"
+		}
+		baseURL = scheme + "://" + c.Request.Host
+	}
+	baseURL = strings.TrimRight(baseURL, "/")
+	return baseURL + "/reset-password?token=" + url.QueryEscape(token)
+}
+
+func (s *Server) handleResetPasswordStatus(c *gin.Context) {
+	token := strings.TrimSpace(c.Query("token"))
+	settings, err := s.admin.GetSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "系统错误"})
+		return
+	}
+	if token == "" || settings["mail.forgot_password.enabled"] != "true" {
+		c.JSON(http.StatusOK, gin.H{"data": gin.H{
+			"valid":             false,
+			"requiresTurnstile": false,
+		}})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{
+		"valid":             s.verification.IsPasswordResetTokenValid(token),
+		"requiresTurnstile": settings["mail.forgot_password.turnstile_reset"] == "true",
 	}})
 }

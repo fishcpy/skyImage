@@ -10,11 +10,20 @@ import (
 )
 
 type Service struct {
-	codes sync.Map // key: email, value: *CodeEntry
+	codes          sync.Map // key: email, value: *CodeEntry
+	passwordResets sync.Map // key: token, value: *PasswordResetEntry
 }
 
 type CodeEntry struct {
 	Code      string
+	ExpiresAt time.Time
+	Attempts  int
+}
+
+type PasswordResetEntry struct {
+	Email     string
+	Code      string
+	Token     string
 	ExpiresAt time.Time
 	Attempts  int
 }
@@ -75,6 +84,58 @@ func (s *Service) VerifyCode(email, code string) (bool, error) {
 	return true, nil
 }
 
+// StorePasswordReset stores one password-reset token and code pair.
+func (s *Service) StorePasswordReset(email, token, code string) {
+	s.passwordResets.Store(token, &PasswordResetEntry{
+		Email:     email,
+		Code:      code,
+		Token:     token,
+		ExpiresAt: time.Now().Add(15 * time.Minute),
+		Attempts:  0,
+	})
+}
+
+// IsPasswordResetTokenValid checks whether the token exists and is not expired.
+func (s *Service) IsPasswordResetTokenValid(token string) bool {
+	value, ok := s.passwordResets.Load(token)
+	if !ok {
+		return false
+	}
+	entry := value.(*PasswordResetEntry)
+	if time.Now().After(entry.ExpiresAt) {
+		s.passwordResets.Delete(token)
+		return false
+	}
+	return true
+}
+
+// VerifyPasswordReset validates token/code, consumes it on success, and returns bound email.
+func (s *Service) VerifyPasswordReset(token, code string) (string, error) {
+	value, ok := s.passwordResets.Load(token)
+	if !ok {
+		return "", fmt.Errorf("重置链接无效或已过期")
+	}
+	entry := value.(*PasswordResetEntry)
+	if time.Now().After(entry.ExpiresAt) {
+		s.passwordResets.Delete(token)
+		return "", fmt.Errorf("重置链接已过期")
+	}
+	if entry.Attempts >= 5 {
+		s.passwordResets.Delete(token)
+		return "", fmt.Errorf("验证码尝试次数过多")
+	}
+	if entry.Token != token {
+		s.passwordResets.Delete(token)
+		return "", fmt.Errorf("重置请求不匹配")
+	}
+	entry.Attempts++
+	if entry.Code != code {
+		return "", fmt.Errorf("验证码错误")
+	}
+	s.passwordResets.Delete(token)
+	return entry.Email, nil
+}
+
 // CleanExpired 清理过期的验证码（定期调用）
 func (s *Service) CleanExpired(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Minute)
@@ -90,6 +151,13 @@ func (s *Service) CleanExpired(ctx context.Context) {
 				entry := value.(*CodeEntry)
 				if now.After(entry.ExpiresAt) {
 					s.codes.Delete(key)
+				}
+				return true
+			})
+			s.passwordResets.Range(func(key, value interface{}) bool {
+				entry := value.(*PasswordResetEntry)
+				if now.After(entry.ExpiresAt) {
+					s.passwordResets.Delete(key)
 				}
 				return true
 			})

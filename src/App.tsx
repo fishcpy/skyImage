@@ -7,6 +7,8 @@ import { UploadPage } from "@/features/files/UploadPage";
 import { UserManagementPage } from "@/features/users/UserManagementPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { RegisterPage } from "@/features/auth/RegisterPage";
+import { ForgotPasswordPage } from "@/features/auth/ForgotPasswordPage";
+import { ResetPasswordPage } from "@/features/auth/ResetPasswordPage";
 import { fetchInstallerStatus, fetchSiteConfig } from "@/lib/api";
 import { SplashScreen } from "@/components/SplashScreen";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -108,6 +110,8 @@ export default function App() {
         {!installed && <Route path="/installer" element={<InstallerPage />} />}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         {installed && <Route path="/" element={<HomeEntry />} />}

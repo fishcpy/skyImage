@@ -187,6 +187,11 @@ func (s *Server) registerFrontend() {
 			})
 			return
 		}
+		cleanPath := strings.Trim(strings.TrimSpace(c.Request.URL.Path), "/")
+		if strings.EqualFold(cleanPath, "reset-password") || strings.EqualFold(cleanPath, "forgot-password") {
+			s.serveIndexHTML(c, distPath)
+			return
+		}
 		if s.tryServeLocalFile(c) {
 			return
 		}
@@ -196,9 +201,14 @@ func (s *Server) registerFrontend() {
 
 func (s *Server) registerStaticAssets() {
 	mounted := make(map[string]struct{})
+	reserved := reservedPublicPathSegments()
 	registerPath := func(prefix string) {
 		prefix = strings.Trim(prefix, "/")
-		if prefix == "" || prefix == "api" || prefix == "assets" {
+		lowerPrefix := strings.ToLower(prefix)
+		if prefix == "" {
+			return
+		}
+		if _, banned := reserved[lowerPrefix]; banned {
 			return
 		}
 		path := "/" + prefix
@@ -301,7 +311,19 @@ func (s *Server) defaultLocalPublicSegment() string {
 	if segment == "" || segment == "." {
 		return "uploads"
 	}
+	if _, banned := reservedPublicPathSegments()[strings.ToLower(segment)]; banned {
+		return "uploads"
+	}
 	return segment
+}
+
+func reservedPublicPathSegments() map[string]struct{} {
+	return map[string]struct{}{
+		"api":             {},
+		"assets":          {},
+		"forgot-password": {},
+		"reset-password":  {},
+	}
 }
 
 func (s *Server) tryServeLocalFile(c *gin.Context) bool {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,9 +25,10 @@ import { useAuthStore } from "@/state/auth";
 import { Turnstile, type TurnstileRef } from "@/components/Turnstile";
 
 export function LoginForm({
+  forgotPasswordEnabled = false,
   className,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<"div"> & { forgotPasswordEnabled?: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
   const setAuth = useAuthStore((state) => state.setAuth);
@@ -125,12 +126,11 @@ export function LoginForm({
               <Field>
                 <div className="flex items-center">
                   <FieldLabel htmlFor="password">密码</FieldLabel>
-                  <a
-                    href="#"
-                    className="ml-auto text-sm underline-offset-4 hover:underline"
-                  >
-                    忘记密码？
-                  </a>
+                  {forgotPasswordEnabled && (
+                    <Link to="/forgot-password" className="ml-auto text-sm underline-offset-4 hover:underline">
+                      忘记密码？
+                    </Link>
+                  )}
                 </div>
                 <Input
                   id="password"

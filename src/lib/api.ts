@@ -133,7 +133,34 @@ export async function logout() {
 }
 
 export async function fetchRegistrationStatus() {
-  const res = await apiClient.get<{ data: { allowed: boolean; emailVerifyEnabled: boolean } }>("/auth/registration-status");
+  const res = await apiClient.get<{ data: { allowed: boolean; emailVerifyEnabled: boolean; forgotPasswordEnabled: boolean } }>("/auth/registration-status");
+  return res.data.data;
+}
+
+export async function requestPasswordReset(payload: { email: string; turnstileToken?: string }) {
+  const res = await apiClient.post<{ data: { message: string } }>("/auth/forgot-password", payload);
+  return res.data.data;
+}
+
+export async function resetPasswordByEmail(payload: {
+  token: string;
+  code: string;
+  password: string;
+  turnstileToken?: string;
+}) {
+  const res = await apiClient.post<{ data: { message: string } }>("/auth/reset-password", payload);
+  return res.data.data;
+}
+
+export type ResetPasswordStatus = {
+  valid: boolean;
+  requiresTurnstile: boolean;
+};
+
+export async function fetchResetPasswordStatus(token: string) {
+  const res = await apiClient.get<{ data: ResetPasswordStatus }>("/auth/reset-password-status", {
+    params: { token }
+  });
   return res.data.data;
 }
 
@@ -202,6 +229,9 @@ export type SiteConfig = {
   enableGallery: boolean;
   enableHome?: boolean;
   enableApi: boolean;
+  forgotPasswordEnabled?: boolean;
+  forgotPasswordTurnstileRequest?: boolean;
+  forgotPasswordTurnstileReset?: boolean;
   imageLoadRows?: number;
   version?: string;
   accountDisabledNotice?: string;
@@ -536,6 +566,9 @@ export type SystemSettingsInput = {
   smtpSecure: boolean;
   enableRegisterVerify: boolean;
   enableLoginNotification: boolean;
+  enableForgotPassword: boolean;
+  enableForgotPasswordTurnstileRequest: boolean;
+  enableForgotPasswordTurnstileReset: boolean;
   turnstileSiteKey: string;
   turnstileSecretKey: string;
   enableTurnstile: boolean;

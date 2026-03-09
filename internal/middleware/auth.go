@@ -72,19 +72,29 @@ func authenticateByToken(c *gin.Context, userService *users.Service, token strin
 	}
 
 	var apiToken data.ApiToken
-	hashed := data.HashAPIToken(token)
-	if err := userService.DB().
-		Where("expires_at > ?", time.Now()).
-		Where("(token = ? OR token = ?)", hashed, token).
-		First(&apiToken).Error; err != nil {
-		return data.User{}, false
-	}
 	now := time.Now()
+	hashed := data.HashAPIToken(token)
+	db := userService.DB()
+
+	// 仅允许哈希值匹配，避免“数据库中的哈希值可直接当 Bearer Token 使用”
+	if err := db.
+		Where("expires_at > ?", now).
+		Where("token = ?", hashed).
+		First(&apiToken).Error; err != nil {
+		// 兼容极少量旧版明文 token（格式包含 "|"），命中后会立即迁移为哈希
+		if err := db.
+			Where("expires_at > ?", now).
+			Where("token = ?", token).
+			First(&apiToken).Error; err != nil || !data.IsLegacyPlainAPIToken(apiToken.Token) {
+			return data.User{}, false
+		}
+	}
+
 	updates := map[string]interface{}{"last_used_at": now}
 	if data.IsLegacyPlainAPIToken(apiToken.Token) {
 		updates["token"] = hashed
 	}
-	_ = userService.DB().
+	_ = db.
 		Model(&data.ApiToken{}).
 		Where("id = ?", apiToken.ID).
 		Updates(updates).Error

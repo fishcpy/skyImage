@@ -483,46 +483,49 @@ func (s *Server) handleAdminUpdateSettings(c *gin.Context) {
 }
 
 type systemSettingsPayload struct {
-	SiteTitle               string `json:"siteTitle"`
-	SiteDescription         string `json:"siteDescription"`
-	SiteSlogan              string `json:"siteSlogan"`
-	SiteLogo                string `json:"siteLogo"`
-	HomeBadgeText           string `json:"homeBadgeText"`
-	HomeIntroText           string `json:"homeIntroText"`
-	HomePrimaryCtaText      string `json:"homePrimaryCtaText"`
-	HomeDashboardCtaText    string `json:"homeDashboardCtaText"`
-	HomeSecondaryCtaText    string `json:"homeSecondaryCtaText"`
-	HomeFeature1Title       string `json:"homeFeature1Title"`
-	HomeFeature1Desc        string `json:"homeFeature1Desc"`
-	HomeFeature2Title       string `json:"homeFeature2Title"`
-	HomeFeature2Desc        string `json:"homeFeature2Desc"`
-	HomeFeature3Title       string `json:"homeFeature3Title"`
-	HomeFeature3Desc        string `json:"homeFeature3Desc"`
-	About                   string `json:"about"`
-	AboutTitle              string `json:"aboutTitle"`
-	NotFoundMode            string `json:"notFoundMode"`
-	NotFoundHeading         string `json:"notFoundHeading"`
-	NotFoundText            string `json:"notFoundText"`
-	NotFoundHtml            string `json:"notFoundHtml"`
-	TermsOfService          string `json:"termsOfService"`
-	PrivacyPolicy           string `json:"privacyPolicy"`
-	EnableGallery           bool   `json:"enableGallery"`
-	EnableHome              bool   `json:"enableHome"`
-	EnableApi               bool   `json:"enableApi"`
-	ImageLoadRows           int    `json:"imageLoadRows"`
-	AllowRegistration       bool   `json:"allowRegistration"`
-	SMTPHost                string `json:"smtpHost"`
-	SMTPPort                string `json:"smtpPort"`
-	SMTPUsername            string `json:"smtpUsername"`
-	SMTPPassword            string `json:"smtpPassword"`
-	SMTPFrom                string `json:"smtpFrom"`
-	SMTPSecure              bool   `json:"smtpSecure"`
-	EnableRegisterVerify    bool   `json:"enableRegisterVerify"`
-	EnableLoginNotification bool   `json:"enableLoginNotification"`
-	TurnstileSiteKey        string `json:"turnstileSiteKey"`
-	TurnstileSecretKey      string `json:"turnstileSecretKey"`
-	EnableTurnstile         bool   `json:"enableTurnstile"`
-	AccountDisabledNotice   string `json:"accountDisabledNotice"`
+	SiteTitle                            string `json:"siteTitle"`
+	SiteDescription                      string `json:"siteDescription"`
+	SiteSlogan                           string `json:"siteSlogan"`
+	SiteLogo                             string `json:"siteLogo"`
+	HomeBadgeText                        string `json:"homeBadgeText"`
+	HomeIntroText                        string `json:"homeIntroText"`
+	HomePrimaryCtaText                   string `json:"homePrimaryCtaText"`
+	HomeDashboardCtaText                 string `json:"homeDashboardCtaText"`
+	HomeSecondaryCtaText                 string `json:"homeSecondaryCtaText"`
+	HomeFeature1Title                    string `json:"homeFeature1Title"`
+	HomeFeature1Desc                     string `json:"homeFeature1Desc"`
+	HomeFeature2Title                    string `json:"homeFeature2Title"`
+	HomeFeature2Desc                     string `json:"homeFeature2Desc"`
+	HomeFeature3Title                    string `json:"homeFeature3Title"`
+	HomeFeature3Desc                     string `json:"homeFeature3Desc"`
+	About                                string `json:"about"`
+	AboutTitle                           string `json:"aboutTitle"`
+	NotFoundMode                         string `json:"notFoundMode"`
+	NotFoundHeading                      string `json:"notFoundHeading"`
+	NotFoundText                         string `json:"notFoundText"`
+	NotFoundHtml                         string `json:"notFoundHtml"`
+	TermsOfService                       string `json:"termsOfService"`
+	PrivacyPolicy                        string `json:"privacyPolicy"`
+	EnableGallery                        bool   `json:"enableGallery"`
+	EnableHome                           bool   `json:"enableHome"`
+	EnableApi                            bool   `json:"enableApi"`
+	ImageLoadRows                        int    `json:"imageLoadRows"`
+	AllowRegistration                    bool   `json:"allowRegistration"`
+	SMTPHost                             string `json:"smtpHost"`
+	SMTPPort                             string `json:"smtpPort"`
+	SMTPUsername                         string `json:"smtpUsername"`
+	SMTPPassword                         string `json:"smtpPassword"`
+	SMTPFrom                             string `json:"smtpFrom"`
+	SMTPSecure                           bool   `json:"smtpSecure"`
+	EnableRegisterVerify                 bool   `json:"enableRegisterVerify"`
+	EnableLoginNotification              bool   `json:"enableLoginNotification"`
+	EnableForgotPassword                 bool   `json:"enableForgotPassword"`
+	EnableForgotPasswordTurnstileRequest bool   `json:"enableForgotPasswordTurnstileRequest"`
+	EnableForgotPasswordTurnstileReset   bool   `json:"enableForgotPasswordTurnstileReset"`
+	TurnstileSiteKey                     string `json:"turnstileSiteKey"`
+	TurnstileSecretKey                   string `json:"turnstileSecretKey"`
+	EnableTurnstile                      bool   `json:"enableTurnstile"`
+	AccountDisabledNotice                string `json:"accountDisabledNotice"`
 }
 
 type systemSettingsResponse struct {
@@ -564,46 +567,49 @@ func (s *Server) handleAdminSystemSettings(c *gin.Context) {
 	}
 	payload := systemSettingsResponse{
 		systemSettingsPayload: systemSettingsPayload{
-			SiteTitle:               settings["site.title"],
-			SiteDescription:         settings["site.description"],
-			SiteSlogan:              settings["site.slogan"],
-			SiteLogo:                settings["site.logo"],
-			HomeBadgeText:           settings["home.badge_text"],
-			HomeIntroText:           settings["home.intro_text"],
-			HomePrimaryCtaText:      settings["home.primary_cta_text"],
-			HomeDashboardCtaText:    settings["home.dashboard_cta_text"],
-			HomeSecondaryCtaText:    settings["home.secondary_cta_text"],
-			HomeFeature1Title:       settings["home.feature1_title"],
-			HomeFeature1Desc:        settings["home.feature1_desc"],
-			HomeFeature2Title:       settings["home.feature2_title"],
-			HomeFeature2Desc:        settings["home.feature2_desc"],
-			HomeFeature3Title:       settings["home.feature3_title"],
-			HomeFeature3Desc:        settings["home.feature3_desc"],
-			About:                   settings["site.about"],
-			AboutTitle:              settings["site.about_title"],
-			NotFoundMode:            settings["site.notfound_mode"],
-			NotFoundHeading:         settings["site.notfound_heading"],
-			NotFoundText:            settings["site.notfound_text"],
-			NotFoundHtml:            settings["site.notfound_html"],
-			TermsOfService:          settings["site.terms_of_service"],
-			PrivacyPolicy:           settings["site.privacy_policy"],
-			EnableGallery:           settings["features.gallery"] != "false",
-			EnableHome:              settings["features.home"] != "false",
-			EnableApi:               settings["features.api"] != "false",
-			ImageLoadRows:           normalizeImageLoadRows(settings["images.load_rows"]),
-			AllowRegistration:       settings["features.allow_registration"] != "false",
-			SMTPHost:                settings["mail.smtp.host"],
-			SMTPPort:                settings["mail.smtp.port"],
-			SMTPUsername:            settings["mail.smtp.username"],
-			SMTPPassword:            settings["mail.smtp.password"],
-			SMTPFrom:                settings["mail.smtp.from"],
-			SMTPSecure:              settings["mail.smtp.secure"] == "true",
-			EnableRegisterVerify:    settings["mail.register.verify"] == "true",
-			EnableLoginNotification: settings["mail.login.notification"] == "true",
-			TurnstileSiteKey:        settings["turnstile.site_key"],
-			TurnstileSecretKey:      settings["turnstile.secret_key"],
-			EnableTurnstile:         settings["turnstile.enabled"] == "true",
-			AccountDisabledNotice:   disabledNotice,
+			SiteTitle:                            settings["site.title"],
+			SiteDescription:                      settings["site.description"],
+			SiteSlogan:                           settings["site.slogan"],
+			SiteLogo:                             settings["site.logo"],
+			HomeBadgeText:                        settings["home.badge_text"],
+			HomeIntroText:                        settings["home.intro_text"],
+			HomePrimaryCtaText:                   settings["home.primary_cta_text"],
+			HomeDashboardCtaText:                 settings["home.dashboard_cta_text"],
+			HomeSecondaryCtaText:                 settings["home.secondary_cta_text"],
+			HomeFeature1Title:                    settings["home.feature1_title"],
+			HomeFeature1Desc:                     settings["home.feature1_desc"],
+			HomeFeature2Title:                    settings["home.feature2_title"],
+			HomeFeature2Desc:                     settings["home.feature2_desc"],
+			HomeFeature3Title:                    settings["home.feature3_title"],
+			HomeFeature3Desc:                     settings["home.feature3_desc"],
+			About:                                settings["site.about"],
+			AboutTitle:                           settings["site.about_title"],
+			NotFoundMode:                         settings["site.notfound_mode"],
+			NotFoundHeading:                      settings["site.notfound_heading"],
+			NotFoundText:                         settings["site.notfound_text"],
+			NotFoundHtml:                         settings["site.notfound_html"],
+			TermsOfService:                       settings["site.terms_of_service"],
+			PrivacyPolicy:                        settings["site.privacy_policy"],
+			EnableGallery:                        settings["features.gallery"] != "false",
+			EnableHome:                           settings["features.home"] != "false",
+			EnableApi:                            settings["features.api"] != "false",
+			ImageLoadRows:                        normalizeImageLoadRows(settings["images.load_rows"]),
+			AllowRegistration:                    settings["features.allow_registration"] != "false",
+			SMTPHost:                             settings["mail.smtp.host"],
+			SMTPPort:                             settings["mail.smtp.port"],
+			SMTPUsername:                         settings["mail.smtp.username"],
+			SMTPPassword:                         settings["mail.smtp.password"],
+			SMTPFrom:                             settings["mail.smtp.from"],
+			SMTPSecure:                           settings["mail.smtp.secure"] == "true",
+			EnableRegisterVerify:                 settings["mail.register.verify"] == "true",
+			EnableLoginNotification:              settings["mail.login.notification"] == "true",
+			EnableForgotPassword:                 settings["mail.forgot_password.enabled"] == "true",
+			EnableForgotPasswordTurnstileRequest: settings["mail.forgot_password.turnstile_request"] == "true",
+			EnableForgotPasswordTurnstileReset:   settings["mail.forgot_password.turnstile_reset"] == "true",
+			TurnstileSiteKey:                     settings["turnstile.site_key"],
+			TurnstileSecretKey:                   settings["turnstile.secret_key"],
+			EnableTurnstile:                      settings["turnstile.enabled"] == "true",
+			AccountDisabledNotice:                disabledNotice,
 		},
 		TurnstileLastVerifiedAt: settings["turnstile.last_verified_at"],
 	}
@@ -653,46 +659,49 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 		notice = defaultAccountDisabledNotice
 	}
 	values := map[string]string{
-		"site.title":                  payload.SiteTitle,
-		"site.description":            payload.SiteDescription,
-		"site.slogan":                 payload.SiteSlogan,
-		"site.logo":                   payload.SiteLogo,
-		"home.badge_text":             payload.HomeBadgeText,
-		"home.intro_text":             payload.HomeIntroText,
-		"home.primary_cta_text":       payload.HomePrimaryCtaText,
-		"home.dashboard_cta_text":     payload.HomeDashboardCtaText,
-		"home.secondary_cta_text":     payload.HomeSecondaryCtaText,
-		"home.feature1_title":         payload.HomeFeature1Title,
-		"home.feature1_desc":          payload.HomeFeature1Desc,
-		"home.feature2_title":         payload.HomeFeature2Title,
-		"home.feature2_desc":          payload.HomeFeature2Desc,
-		"home.feature3_title":         payload.HomeFeature3Title,
-		"home.feature3_desc":          payload.HomeFeature3Desc,
-		"site.about":                  payload.About,
-		"site.about_title":            payload.AboutTitle,
-		"site.notfound_mode":          payload.NotFoundMode,
-		"site.notfound_heading":       payload.NotFoundHeading,
-		"site.notfound_text":          payload.NotFoundText,
-		"site.notfound_html":          payload.NotFoundHtml,
-		"site.terms_of_service":       payload.TermsOfService,
-		"site.privacy_policy":         payload.PrivacyPolicy,
-		"features.gallery":            strconv.FormatBool(payload.EnableGallery),
-		"features.home":               strconv.FormatBool(payload.EnableHome),
-		"features.api":                strconv.FormatBool(payload.EnableApi),
-		"images.load_rows":            strconv.Itoa(normalizeImageLoadRowsValue(payload.ImageLoadRows)),
-		"features.allow_registration": strconv.FormatBool(payload.AllowRegistration),
-		"mail.smtp.host":              payload.SMTPHost,
-		"mail.smtp.port":              payload.SMTPPort,
-		"mail.smtp.username":          payload.SMTPUsername,
-		"mail.smtp.password":          smtpPassword,
-		"mail.smtp.from":              payload.SMTPFrom,
-		"mail.smtp.secure":            strconv.FormatBool(payload.SMTPSecure),
-		"mail.register.verify":        strconv.FormatBool(payload.EnableRegisterVerify),
-		"mail.login.notification":     strconv.FormatBool(payload.EnableLoginNotification),
-		"turnstile.site_key":          payload.TurnstileSiteKey,
-		"turnstile.secret_key":        turnstileSecretKey,
-		"turnstile.enabled":           strconv.FormatBool(payload.EnableTurnstile),
-		"account.disabled_notice":     notice,
+		"site.title":                             payload.SiteTitle,
+		"site.description":                       payload.SiteDescription,
+		"site.slogan":                            payload.SiteSlogan,
+		"site.logo":                              payload.SiteLogo,
+		"home.badge_text":                        payload.HomeBadgeText,
+		"home.intro_text":                        payload.HomeIntroText,
+		"home.primary_cta_text":                  payload.HomePrimaryCtaText,
+		"home.dashboard_cta_text":                payload.HomeDashboardCtaText,
+		"home.secondary_cta_text":                payload.HomeSecondaryCtaText,
+		"home.feature1_title":                    payload.HomeFeature1Title,
+		"home.feature1_desc":                     payload.HomeFeature1Desc,
+		"home.feature2_title":                    payload.HomeFeature2Title,
+		"home.feature2_desc":                     payload.HomeFeature2Desc,
+		"home.feature3_title":                    payload.HomeFeature3Title,
+		"home.feature3_desc":                     payload.HomeFeature3Desc,
+		"site.about":                             payload.About,
+		"site.about_title":                       payload.AboutTitle,
+		"site.notfound_mode":                     payload.NotFoundMode,
+		"site.notfound_heading":                  payload.NotFoundHeading,
+		"site.notfound_text":                     payload.NotFoundText,
+		"site.notfound_html":                     payload.NotFoundHtml,
+		"site.terms_of_service":                  payload.TermsOfService,
+		"site.privacy_policy":                    payload.PrivacyPolicy,
+		"features.gallery":                       strconv.FormatBool(payload.EnableGallery),
+		"features.home":                          strconv.FormatBool(payload.EnableHome),
+		"features.api":                           strconv.FormatBool(payload.EnableApi),
+		"images.load_rows":                       strconv.Itoa(normalizeImageLoadRowsValue(payload.ImageLoadRows)),
+		"features.allow_registration":            strconv.FormatBool(payload.AllowRegistration),
+		"mail.smtp.host":                         payload.SMTPHost,
+		"mail.smtp.port":                         payload.SMTPPort,
+		"mail.smtp.username":                     payload.SMTPUsername,
+		"mail.smtp.password":                     smtpPassword,
+		"mail.smtp.from":                         payload.SMTPFrom,
+		"mail.smtp.secure":                       strconv.FormatBool(payload.SMTPSecure),
+		"mail.register.verify":                   strconv.FormatBool(payload.EnableRegisterVerify),
+		"mail.login.notification":                strconv.FormatBool(payload.EnableLoginNotification),
+		"mail.forgot_password.enabled":           strconv.FormatBool(payload.EnableForgotPassword),
+		"mail.forgot_password.turnstile_request": strconv.FormatBool(payload.EnableForgotPasswordTurnstileRequest),
+		"mail.forgot_password.turnstile_reset":   strconv.FormatBool(payload.EnableForgotPasswordTurnstileReset),
+		"turnstile.site_key":                     payload.TurnstileSiteKey,
+		"turnstile.secret_key":                   turnstileSecretKey,
+		"turnstile.enabled":                      strconv.FormatBool(payload.EnableTurnstile),
+		"account.disabled_notice":                notice,
 	}
 	if settings["turnstile.last_verified_signature"] != newSignature {
 		values["turnstile.last_verified_signature"] = ""

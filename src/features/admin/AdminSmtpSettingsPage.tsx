@@ -54,6 +54,9 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
   smtpSecure: false,
   enableRegisterVerify: false,
   enableLoginNotification: false,
+  enableForgotPassword: false,
+  enableForgotPasswordTurnstileRequest: false,
+  enableForgotPasswordTurnstileReset: false,
   turnstileSiteKey: "",
   turnstileSecretKey: "",
   enableTurnstile: false,
@@ -68,7 +71,8 @@ const smtpFields: (keyof SystemSettingsInput)[] = [
   "smtpFrom",
   "smtpSecure",
   "enableRegisterVerify",
-  "enableLoginNotification"
+  "enableLoginNotification",
+  "enableForgotPassword"
 ];
 
 export function AdminSmtpSettingsPage() {
@@ -103,6 +107,8 @@ export function AdminSmtpSettingsPage() {
     mutationFn: updateSystemSettings,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "system-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["site-config"] });
+      queryClient.invalidateQueries({ queryKey: ["site-meta"] });
       toast.success("SMTP 配置已更新");
     },
     onError: (mutationError) => toast.error(mutationError.message)
@@ -222,22 +228,6 @@ export function AdminSmtpSettingsPage() {
               />
               <Label htmlFor="smtpSecure">启用 TLS/SSL</Label>
             </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="enableRegisterVerify"
-                checked={form.enableRegisterVerify}
-                onCheckedChange={(checked) => handleChange("enableRegisterVerify", checked)}
-              />
-              <Label htmlFor="enableRegisterVerify">启用注册邮件验证</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="enableLoginNotification"
-                checked={form.enableLoginNotification}
-                onCheckedChange={(checked) => handleChange("enableLoginNotification", checked)}
-              />
-              <Label htmlFor="enableLoginNotification">登录邮件提醒</Label>
-            </div>
           </div>
           <div className="md:col-span-2 mt-4 border-t pt-4">
             <div className="space-y-2">
@@ -264,6 +254,37 @@ export function AdminSmtpSettingsPage() {
                 </Button>
               </div>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>邮件通知设置</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="enableRegisterVerify"
+              checked={form.enableRegisterVerify}
+              onCheckedChange={(checked) => handleChange("enableRegisterVerify", checked)}
+            />
+            <Label htmlFor="enableRegisterVerify">启用注册邮件验证</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="enableLoginNotification"
+              checked={form.enableLoginNotification}
+              onCheckedChange={(checked) => handleChange("enableLoginNotification", checked)}
+            />
+            <Label htmlFor="enableLoginNotification">启用登录邮件提醒</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="enableForgotPassword"
+              checked={form.enableForgotPassword}
+              onCheckedChange={(checked) => handleChange("enableForgotPassword", checked)}
+            />
+            <Label htmlFor="enableForgotPassword">启用忘记密码</Label>
           </div>
         </CardContent>
       </Card>

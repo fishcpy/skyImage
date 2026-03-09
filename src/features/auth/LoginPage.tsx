@@ -57,7 +57,7 @@ export function LoginPage() {
             正在检测系统状态...
           </div>
         ) : (
-          <LoginForm />
+          <LoginForm forgotPasswordEnabled={siteConfig?.forgotPasswordEnabled === true} />
         )}
       </div>
     </div>

@@ -170,6 +170,14 @@ func (s *Service) IsRegisterVerifyEnabled(ctx context.Context) bool {
 	return settings["mail.register.verify"] == "true"
 }
 
+func (s *Service) IsForgotPasswordEnabled(ctx context.Context) bool {
+	settings, err := s.admin.GetSettings(ctx)
+	if err != nil {
+		return false
+	}
+	return settings["mail.forgot_password.enabled"] == "true"
+}
+
 func (s *Service) SendLoginNotification(ctx context.Context, email, userName, ip string) error {
 	// 检查是否启用登录通知
 	enabled := s.IsLoginNotificationEnabled(ctx)
@@ -321,5 +329,32 @@ func (s *Service) SendRegistrationSuccessEmail(ctx context.Context, email, userN
 
 此邮件由系统自动发送，请勿回复。`, userName, siteTitle)
 
+	return s.SendMail(ctx, email, subject, body)
+}
+
+func (s *Service) SendPasswordResetEmail(ctx context.Context, email, code, resetLink string) error {
+	if !s.IsEnabled(ctx) {
+		return fmt.Errorf("SMTP 配置不完整或未配置")
+	}
+	settings, err := s.admin.GetSettings(ctx)
+	if err != nil {
+		return fmt.Errorf("获取站点设置失败: %w", err)
+	}
+	siteTitle := settings["site.title"]
+	if siteTitle == "" {
+		siteTitle = "skyImage"
+	}
+	subject := siteTitle + " 密码重置验证码"
+	body := fmt.Sprintf(`您好，
+
+您正在重置 %s 的登录密码。
+
+验证码：%s
+重置链接：%s
+
+验证码和链接有效期为 15 分钟。
+如果这不是您本人的操作，请忽略此邮件。
+
+此邮件由系统自动发送，请勿回复。`, siteTitle, code, resetLink)
 	return s.SendMail(ctx, email, subject, body)
 }

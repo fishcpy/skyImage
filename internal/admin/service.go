@@ -456,6 +456,11 @@ func validateStrategyConfigs(configs map[string]interface{}) error {
 		if err := validateExternalDomain(rawURL); err != nil {
 			return err
 		}
+		if segment := extractPathPrefix(rawURL); segment != "" {
+			if _, blocked := reservedStrategyPathSegments()[strings.ToLower(segment)]; blocked {
+				return fmt.Errorf("路径前缀 %q 为系统保留路径，不能用于存储策略", segment)
+			}
+		}
 	}
 	if driver == "webdav" {
 		if err := validateWebDAVConfigs(configs); err != nil {
@@ -470,6 +475,41 @@ func validateStrategyConfigs(configs map[string]interface{}) error {
 		return fmt.Errorf("路径模板必须包含 {uuid} 以确保唯一性")
 	}
 	return nil
+}
+
+func reservedStrategyPathSegments() map[string]struct{} {
+	return map[string]struct{}{
+		"api":             {},
+		"assets":          {},
+		"forgot-password": {},
+		"reset-password":  {},
+	}
+}
+
+func extractPathPrefix(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if strings.HasPrefix(raw, "//") {
+		raw = "http:" + raw
+	}
+	if strings.HasPrefix(raw, "/") {
+		return strings.Trim(strings.Trim(raw, "/"), "/")
+	}
+	if strings.Contains(raw, "://") {
+		u, err := url.Parse(raw)
+		if err == nil {
+			return strings.Trim(strings.Trim(u.Path, "/"), "/")
+		}
+	}
+	if looksLikeHost(raw) {
+		u, err := url.Parse("http://" + raw)
+		if err == nil {
+			return strings.Trim(strings.Trim(u.Path, "/"), "/")
+		}
+	}
+	return strings.Trim(strings.Trim(raw, "/"), "/")
 }
 
 func validateExternalDomain(raw string) error {

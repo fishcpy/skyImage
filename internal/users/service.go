@@ -176,6 +176,40 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (data.User, error) {
 	return user, nil
 }
 
+func (s *Service) FindByEmail(ctx context.Context, email string) (data.User, error) {
+	if err := validateEmail(email); err != nil {
+		return data.User{}, ErrInvalidEmail
+	}
+	normalized := strings.ToLower(strings.TrimSpace(email))
+	var user data.User
+	if err := s.db.WithContext(ctx).Where("LOWER(email) = ?", normalized).First(&user).Error; err != nil {
+		return data.User{}, err
+	}
+	return user, nil
+}
+
+func (s *Service) ResetPasswordByEmail(ctx context.Context, email, password string) error {
+	if err := validateEmail(email); err != nil {
+		return ErrInvalidEmail
+	}
+	if err := validatePassword(password); err != nil {
+		return err
+	}
+	normalized := strings.ToLower(strings.TrimSpace(email))
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	result := s.db.WithContext(ctx).Model(&data.User{}).Where("LOWER(email) = ?", normalized).Update("password", string(hashed))
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
 func (s *Service) List(ctx context.Context) ([]data.User, error) {
 	var users []data.User
 	err := s.db.WithContext(ctx).

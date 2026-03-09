@@ -56,6 +56,9 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
   smtpSecure: false,
   enableRegisterVerify: false,
   enableLoginNotification: false,
+  enableForgotPassword: false,
+  enableForgotPasswordTurnstileRequest: false,
+  enableForgotPasswordTurnstileReset: false,
   turnstileSiteKey: "",
   turnstileSecretKey: "",
   enableTurnstile: false,
@@ -279,6 +282,29 @@ export function AdminSystemSettingsPage() {
               <p className="text-xs text-muted-foreground mt-1">
                 开启后登录与注册流程会强制进行 Turnstile 校验
               </p>
+            </div>
+          </div>
+          <div className="space-y-3 rounded-md border p-3">
+            <p className="text-sm font-medium">忘记密码流程验证</p>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="enableForgotPasswordTurnstileRequest"
+                checked={form.enableForgotPasswordTurnstileRequest}
+                onCheckedChange={(checked) => handleChange("enableForgotPasswordTurnstileRequest", checked)}
+              />
+              <Label htmlFor="enableForgotPasswordTurnstileRequest">
+                重置密码发邮件需 Cloudflare 验证
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="enableForgotPasswordTurnstileReset"
+                checked={form.enableForgotPasswordTurnstileReset}
+                onCheckedChange={(checked) => handleChange("enableForgotPasswordTurnstileReset", checked)}
+              />
+              <Label htmlFor="enableForgotPasswordTurnstileReset">
+                最终重置密码需 Cloudflare 验证
+              </Label>
             </div>
           </div>
           <div className="rounded-md border border-dashed p-4 space-y-3">
