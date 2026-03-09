@@ -267,6 +267,7 @@ export function AppShell() {
             icon: ServerCog,
             children: [
               { to: "/dashboard/admin/settings/site", label: "站点信息" },
+              { to: "/dashboard/admin/settings/smtp", label: "SMTP 配置" },
               { to: "/dashboard/admin/settings/system", label: "系统设置" }
             ]
           }

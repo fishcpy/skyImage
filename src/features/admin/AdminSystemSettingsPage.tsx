@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Mail, Send, Shield, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { Shield, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   fetchSystemSettings,
   updateSystemSettings,
-  testSmtpEmail,
   testTurnstileConfig,
   type SystemSettingsInput,
   type SystemSettingsResponse
@@ -75,7 +74,6 @@ export function AdminSystemSettingsPage() {
   const [showTurnstileTester, setShowTurnstileTester] = useState(false);
   const [turnstileReady, setTurnstileReady] = useState(false);
   const [turnstileScriptError, setTurnstileScriptError] = useState<string | null>(null);
-  const [testEmail, setTestEmail] = useState("");
   const [initialForm, setInitialForm] = useState<SystemSettingsInput | null>(null);
 
   // Calculate if form is dirty - must be before any conditional returns
@@ -115,19 +113,6 @@ export function AdminSystemSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["site-meta"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "system-settings"] });
       toast.success("设置已更新");
-    },
-    onError: (error) => toast.error(error.message)
-  });
-
-  const testEmailMutation = useMutation({
-    mutationFn: testSmtpEmail,
-    onSuccess: (data) => {
-      if (data.success) {
-        toast.success("测试邮件发送成功！请检查收件箱");
-        setTestEmail(""); // 清空测试邮箱输入
-      } else {
-        toast.error(data.message || "测试邮件发送失败");
-      }
     },
     onError: (error) => toast.error(error.message)
   });
@@ -214,26 +199,6 @@ export function AdminSystemSettingsPage() {
     });
   };
 
-  const handleTestEmail = () => {
-    if (!testEmail) {
-      toast.error("请输入测试邮箱地址");
-      return;
-    }
-    if (!form.smtpHost || !form.smtpPort || !form.smtpUsername) {
-      toast.error("请先填写完整的 SMTP 配置");
-      return;
-    }
-    testEmailMutation.mutate({
-      testEmail,
-      smtpHost: form.smtpHost,
-      smtpPort: form.smtpPort,
-      smtpUsername: form.smtpUsername,
-      smtpPassword: form.smtpPassword,
-      smtpFrom: form.smtpFrom,
-      smtpSecure: form.smtpSecure
-    });
-  };
-
   const lastVerifiedText = turnstileLastVerifiedAt
     ? new Date(turnstileLastVerifiedAt).toLocaleString()
     : "尚未验证";
@@ -244,7 +209,7 @@ export function AdminSystemSettingsPage() {
     <div className="space-y-6">
       <div className="space-y-3">
         <h1 className="text-2xl font-semibold">系统设置</h1>
-        <p className="text-muted-foreground">管理邮件服务和人机验证相关配置。</p>
+        <p className="text-muted-foreground">管理图片加载与人机验证相关配置。</p>
       </div>
       <Card>
         <CardHeader>
@@ -265,121 +230,6 @@ export function AdminSystemSettingsPage() {
           <p className="text-xs text-muted-foreground">
             图片列表每次滚动触发时追加的行数（首屏自动填充不计入该值）。
           </p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>SMTP 配置</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Host</Label>
-            <Input
-              value={form.smtpHost}
-              onChange={(e) => handleChange("smtpHost", e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Port</Label>
-            <Input
-              value={form.smtpPort}
-              onChange={(e) => handleChange("smtpPort", e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>用户名</Label>
-            <Input
-              value={form.smtpUsername}
-              onChange={(e) => handleChange("smtpUsername", e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>密码 / 授权码</Label>
-            <Input
-              type="password"
-              value={form.smtpPassword}
-              onChange={(e) => handleChange("smtpPassword", e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>发信邮箱</Label>
-            <Input
-              type="email"
-              placeholder="noreply@yourdomain.com"
-              value={form.smtpFrom}
-              onChange={(e) => handleChange("smtpFrom", e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              邮件的发件人地址（如使用 Resend 等服务需要配置）
-            </p>
-          </div>
-          <div className="md:col-span-2 space-y-4">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="smtpSecure"
-                checked={form.smtpSecure}
-                onCheckedChange={(checked) => handleChange("smtpSecure", checked)}
-              />
-              <Label
-                htmlFor="smtpSecure"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                启用 TLS/SSL
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="enableRegisterVerify"
-                checked={form.enableRegisterVerify}
-                onCheckedChange={(checked) => handleChange("enableRegisterVerify", checked)}
-              />
-              <Label
-                htmlFor="enableRegisterVerify"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                启用注册邮件验证
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="enableLoginNotification"
-                checked={form.enableLoginNotification}
-                onCheckedChange={(checked) => handleChange("enableLoginNotification", checked)}
-              />
-              <Label
-                htmlFor="enableLoginNotification"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                登录邮件提醒
-              </Label>
-            </div>
-          </div>
-          <div className="md:col-span-2 mt-4 border-t pt-4">
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Mail className="h-4 w-4" />
-                测试邮件发送
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  type="email"
-                  placeholder="输入测试邮箱地址"
-                  value={testEmail}
-                  onChange={(e) => setTestEmail(e.target.value)}
-                  className="flex-1"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleTestEmail}
-                  disabled={testEmailMutation.isPending}
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  {testEmailMutation.isPending ? "发送中..." : "发送测试邮件"}
-                </Button>
-              </div>
-            </div>
-          </div>
         </CardContent>
       </Card>
       <Card>
