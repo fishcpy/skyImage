@@ -19,6 +19,7 @@ import { SplashScreen } from "@/components/SplashScreen";
 
 const defaultSystemSettingsForm: SystemSettingsInput = {
   siteTitle: "",
+  consoleUrl: "http://localhost:8080",
   siteDescription: "",
   siteSlogan: "",
   siteLogo: "",

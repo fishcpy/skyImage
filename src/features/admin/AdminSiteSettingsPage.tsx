@@ -27,6 +27,7 @@ import { SplashScreen } from "@/components/SplashScreen";
 
 const defaultSystemSettingsForm: SystemSettingsInput = {
   siteTitle: "",
+  consoleUrl: "http://localhost:8080",
   siteDescription: "",
   siteSlogan: "",
   siteLogo: "",
@@ -73,6 +74,7 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
 
 const siteFields: (keyof SystemSettingsInput)[] = [
   "siteTitle",
+  "consoleUrl",
   "siteDescription",
   "siteSlogan",
   "siteLogo",
@@ -190,6 +192,17 @@ export function AdminSiteSettingsPage() {
               value={form.siteDescription}
               onChange={(e) => handleChange("siteDescription", e.target.value)}
             />
+          </div>
+          <div className="space-y-2">
+            <Label>控制台地址</Label>
+            <Input
+              value={form.consoleUrl}
+              onChange={(e) => handleChange("consoleUrl", e.target.value)}
+              placeholder="http://localhost:8080"
+            />
+            <p className="text-xs text-muted-foreground">
+              用于重置密码邮件中的链接地址。
+            </p>
           </div>
           <div className="space-y-2">
             <Label>首页标语</Label>

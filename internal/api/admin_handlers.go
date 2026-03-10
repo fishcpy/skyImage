@@ -17,6 +17,8 @@ import (
 	"skyimage/internal/users"
 )
 
+const defaultConsoleURL = "http://localhost:8080"
+
 func (s *Server) registerAdminRoutes(r *gin.RouterGroup) {
 	adminGroup := r.Group("/admin")
 	adminGroup.Use(s.authMiddleware(), middleware.RequireAdmin(), middleware.RequireCSRF())
@@ -484,6 +486,7 @@ func (s *Server) handleAdminUpdateSettings(c *gin.Context) {
 
 type systemSettingsPayload struct {
 	SiteTitle                            string `json:"siteTitle"`
+	ConsoleURL                           string `json:"consoleUrl"`
 	SiteDescription                      string `json:"siteDescription"`
 	SiteSlogan                           string `json:"siteSlogan"`
 	SiteLogo                             string `json:"siteLogo"`
@@ -561,6 +564,10 @@ func (s *Server) handleAdminSystemSettings(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	consoleURL := strings.TrimSpace(settings["site.console_url"])
+	if consoleURL == "" {
+		consoleURL = defaultConsoleURL
+	}
 	disabledNotice := settings["account.disabled_notice"]
 	if strings.TrimSpace(disabledNotice) == "" {
 		disabledNotice = defaultAccountDisabledNotice
@@ -568,6 +575,7 @@ func (s *Server) handleAdminSystemSettings(c *gin.Context) {
 	payload := systemSettingsResponse{
 		systemSettingsPayload: systemSettingsPayload{
 			SiteTitle:                            settings["site.title"],
+			ConsoleURL:                           consoleURL,
 			SiteDescription:                      settings["site.description"],
 			SiteSlogan:                           settings["site.slogan"],
 			SiteLogo:                             settings["site.logo"],
@@ -660,6 +668,7 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 	}
 	values := map[string]string{
 		"site.title":                             payload.SiteTitle,
+		"site.console_url":                       payload.ConsoleURL,
 		"site.description":                       payload.SiteDescription,
 		"site.slogan":                            payload.SiteSlogan,
 		"site.logo":                              payload.SiteLogo,

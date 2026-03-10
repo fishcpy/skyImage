@@ -20,6 +20,8 @@ import (
 	"skyimage/internal/users"
 )
 
+const defaultConsoleBaseURL = "http://localhost:8080"
+
 func (s *Server) registerAuthRoutes(r *gin.RouterGroup) {
 	auth := r.Group("/auth")
 	auth.POST("/login", s.handleLogin)
@@ -450,7 +452,7 @@ func (s *Server) handleForgotPassword(c *gin.Context) {
 	code := s.verification.GenerateCode()
 	normalizedEmail := strings.ToLower(strings.TrimSpace(user.Email))
 	s.verification.StorePasswordReset(normalizedEmail, token, code)
-	resetLink := buildPasswordResetLink(c, s.cfg.PublicBaseURL, token)
+	resetLink := buildPasswordResetLink(settings["site.console_url"], token)
 
 	go func(email string, verifyCode string, link string) {
 		ctx := context.Background()
@@ -523,14 +525,10 @@ func (s *Server) handleResetPassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"message": "密码重置成功"}})
 }
 
-func buildPasswordResetLink(c *gin.Context, configuredBaseURL, token string) string {
+func buildPasswordResetLink(configuredBaseURL, token string) string {
 	baseURL := strings.TrimSpace(configuredBaseURL)
 	if baseURL == "" {
-		scheme := "http"
-		if isSecureRequest(c) {
-			scheme = "https"
-		}
-		baseURL = scheme + "://" + c.Request.Host
+		baseURL = defaultConsoleBaseURL
 	}
 	baseURL = strings.TrimRight(baseURL, "/")
 	return baseURL + "/reset-password?token=" + url.QueryEscape(token)

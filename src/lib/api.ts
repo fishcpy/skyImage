@@ -531,6 +531,7 @@ export async function deleteAdminImagesBatch(ids: number[]) {
 
 export type SystemSettingsInput = {
   siteTitle: string;
+  consoleUrl: string;
   siteDescription: string;
   siteSlogan: string;
   siteLogo: string;

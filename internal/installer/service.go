@@ -156,6 +156,7 @@ func (s *Service) Run(ctx context.Context, in RunInput) (Status, error) {
 		defaultSettings := map[string]string{
 			"site.name":                              in.SiteName,
 			"site.title":                             in.SiteName,
+			"site.console_url":                       "http://localhost:8080",
 			"site.description":                       "云端图床",
 			"site.slogan":                            "简单、稳定、可扩展的图像托管平台",
 			"home.badge_text":                        "新首页",
