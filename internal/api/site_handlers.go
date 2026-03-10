@@ -11,7 +11,7 @@ import (
 
 func (s *Server) registerSiteRoutes(r *gin.RouterGroup) {
 	r.GET("/site/config", s.handleSiteConfig)
-	r.GET("/site/turnstile", s.handleTurnstileConfig)
+	r.GET("/site/turnstile/:scenario", s.handleTurnstileConfig)
 	r.GET("/gallery/public", s.handleGalleryPublic)
 	s.engine.GET("/favicon.ico", s.handleFavicon)
 }
@@ -97,23 +97,37 @@ func (s *Server) handleGalleryPublic(c *gin.Context) {
 }
 
 func (s *Server) handleTurnstileConfig(c *gin.Context) {
-	enabled, err := s.turnstile.IsEnabled(c.Request.Context())
+	scenario := c.Param("scenario")
+	settings, err := s.admin.GetSettings(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	var configKey string
+	switch scenario {
+	case "login":
+		configKey = "turnstile.login"
+	case "register":
+		configKey = "turnstile.register"
+	case "register_verify":
+		configKey = "turnstile.register_verify"
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scenario"})
+		return
+	}
+
+	enabled := settings[configKey] == "true"
 
 	response := gin.H{
 		"enabled": enabled,
 	}
 
 	if enabled {
-		siteKey, err := s.turnstile.GetSiteKey(c.Request.Context())
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
+		siteKey := settings["turnstile.site_key"]
+		if siteKey != "" {
+			response["siteKey"] = siteKey
 		}
-		response["siteKey"] = siteKey
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": response})

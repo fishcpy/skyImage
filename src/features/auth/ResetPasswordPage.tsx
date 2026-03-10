@@ -27,14 +27,17 @@ export function ResetPasswordPage() {
     queryKey: ["site-config"],
     queryFn: fetchSiteConfig
   });
-  const { data: turnstileConfig } = useQuery({
-    queryKey: ["turnstile-config"],
-    queryFn: fetchTurnstileConfig
-  });
+
   const { data: resetStatus, isLoading: checkingToken } = useQuery({
     queryKey: ["reset-password-status", token],
     queryFn: () => fetchResetPasswordStatus(token),
     enabled: Boolean(token)
+  });
+
+  const { data: turnstileConfig } = useQuery({
+    queryKey: ["turnstile-config", "login"],
+    queryFn: () => fetchTurnstileConfig("login"),
+    enabled: !!resetStatus?.requiresTurnstile
   });
 
   useEffect(() => {

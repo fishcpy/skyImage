@@ -523,11 +523,15 @@ type systemSettingsPayload struct {
 	EnableRegisterVerify                 bool   `json:"enableRegisterVerify"`
 	EnableLoginNotification              bool   `json:"enableLoginNotification"`
 	EnableForgotPassword                 bool   `json:"enableForgotPassword"`
+	EnableForgotPasswordTurnstile        bool   `json:"enableForgotPasswordTurnstile"`
 	EnableForgotPasswordTurnstileRequest bool   `json:"enableForgotPasswordTurnstileRequest"`
 	EnableForgotPasswordTurnstileReset   bool   `json:"enableForgotPasswordTurnstileReset"`
 	TurnstileSiteKey                     string `json:"turnstileSiteKey"`
 	TurnstileSecretKey                   string `json:"turnstileSecretKey"`
 	EnableTurnstile                      bool   `json:"enableTurnstile"`
+	EnableLoginTurnstile                 bool   `json:"enableLoginTurnstile"`
+	EnableRegisterTurnstile              bool   `json:"enableRegisterTurnstile"`
+	EnableRegisterVerifyTurnstile        bool   `json:"enableRegisterVerifyTurnstile"`
 	AccountDisabledNotice                string `json:"accountDisabledNotice"`
 }
 
@@ -612,11 +616,15 @@ func (s *Server) handleAdminSystemSettings(c *gin.Context) {
 			EnableRegisterVerify:                 settings["mail.register.verify"] == "true",
 			EnableLoginNotification:              settings["mail.login.notification"] == "true",
 			EnableForgotPassword:                 settings["mail.forgot_password.enabled"] == "true",
+			EnableForgotPasswordTurnstile:        settings["mail.forgot_password.turnstile"] == "true",
 			EnableForgotPasswordTurnstileRequest: settings["mail.forgot_password.turnstile_request"] == "true",
 			EnableForgotPasswordTurnstileReset:   settings["mail.forgot_password.turnstile_reset"] == "true",
 			TurnstileSiteKey:                     settings["turnstile.site_key"],
 			TurnstileSecretKey:                   settings["turnstile.secret_key"],
 			EnableTurnstile:                      settings["turnstile.enabled"] == "true",
+			EnableLoginTurnstile:                 settings["turnstile.login"] == "true",
+			EnableRegisterTurnstile:              settings["turnstile.register"] == "true",
+			EnableRegisterVerifyTurnstile:        settings["turnstile.register_verify"] == "true",
 			AccountDisabledNotice:                disabledNotice,
 		},
 		TurnstileLastVerifiedAt: settings["turnstile.last_verified_at"],
@@ -705,11 +713,15 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 		"mail.register.verify":                   strconv.FormatBool(payload.EnableRegisterVerify),
 		"mail.login.notification":                strconv.FormatBool(payload.EnableLoginNotification),
 		"mail.forgot_password.enabled":           strconv.FormatBool(payload.EnableForgotPassword),
+		"mail.forgot_password.turnstile":         strconv.FormatBool(payload.EnableForgotPasswordTurnstile),
 		"mail.forgot_password.turnstile_request": strconv.FormatBool(payload.EnableForgotPasswordTurnstileRequest),
 		"mail.forgot_password.turnstile_reset":   strconv.FormatBool(payload.EnableForgotPasswordTurnstileReset),
 		"turnstile.site_key":                     payload.TurnstileSiteKey,
 		"turnstile.secret_key":                   turnstileSecretKey,
 		"turnstile.enabled":                      strconv.FormatBool(payload.EnableTurnstile),
+		"turnstile.login":                        strconv.FormatBool(payload.EnableLoginTurnstile),
+		"turnstile.register":                     strconv.FormatBool(payload.EnableRegisterTurnstile),
+		"turnstile.register_verify":              strconv.FormatBool(payload.EnableRegisterVerifyTurnstile),
 		"account.disabled_notice":                notice,
 	}
 	if settings["turnstile.last_verified_signature"] != newSignature {

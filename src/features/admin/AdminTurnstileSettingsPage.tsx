@@ -29,6 +29,10 @@ export function AdminTurnstileSettingsPage() {
     turnstileSiteKey: "",
     turnstileSecretKey: "",
     enableTurnstile: false,
+    enableLoginTurnstile: false,
+    enableRegisterTurnstile: false,
+    enableRegisterVerifyTurnstile: false,
+    enableForgotPasswordTurnstile: false,
     enableForgotPasswordTurnstileRequest: false,
     enableForgotPasswordTurnstileReset: false
   });
@@ -47,6 +51,10 @@ export function AdminTurnstileSettingsPage() {
         turnstileSiteKey,
         turnstileSecretKey,
         enableTurnstile,
+        enableLoginTurnstile,
+        enableRegisterTurnstile,
+        enableRegisterVerifyTurnstile,
+        enableForgotPasswordTurnstile,
         enableForgotPasswordTurnstileRequest,
         enableForgotPasswordTurnstileReset
       } = data;
@@ -54,6 +62,10 @@ export function AdminTurnstileSettingsPage() {
         turnstileSiteKey: turnstileSiteKey || "",
         turnstileSecretKey: turnstileSecretKey || "",
         enableTurnstile: enableTurnstile || false,
+        enableLoginTurnstile: enableLoginTurnstile || false,
+        enableRegisterTurnstile: enableRegisterTurnstile || false,
+        enableRegisterVerifyTurnstile: enableRegisterVerifyTurnstile || false,
+        enableForgotPasswordTurnstile: enableForgotPasswordTurnstile || false,
         enableForgotPasswordTurnstileRequest: enableForgotPasswordTurnstileRequest || false,
         enableForgotPasswordTurnstileReset: enableForgotPasswordTurnstileReset || false
       };
@@ -215,45 +227,79 @@ export function AdminTurnstileSettingsPage() {
               用于服务端验证，请妥善保管
             </p>
           </div>
-          <div className="flex items-start space-x-3">
-            <Checkbox
-              id="enableTurnstile"
-              checked={form.enableTurnstile}
-              onCheckedChange={(checked) => handleChange("enableTurnstile", checked)}
-            />
-            <div>
-              <Label
-                htmlFor="enableTurnstile"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                启用 Turnstile 人机验证
+          <div className="space-y-3 rounded-md border p-3">
+            <p className="text-sm font-medium">登录与注册验证</p>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="enableLoginTurnstile"
+                checked={form.enableLoginTurnstile}
+                onCheckedChange={(checked) => handleChange("enableLoginTurnstile", checked)}
+              />
+              <Label htmlFor="enableLoginTurnstile">
+                登录需 Cloudflare 验证
               </Label>
-              <p className="text-xs text-muted-foreground mt-1">
-                开启后登录与注册流程会强制进行 Turnstile 校验
-              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="enableRegisterTurnstile"
+                checked={form.enableRegisterTurnstile}
+                onCheckedChange={(checked) => handleChange("enableRegisterTurnstile", checked)}
+              />
+              <Label htmlFor="enableRegisterTurnstile">
+                注册需 Cloudflare 验证
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="enableRegisterVerifyTurnstile"
+                checked={form.enableRegisterVerifyTurnstile}
+                onCheckedChange={(checked) => handleChange("enableRegisterVerifyTurnstile", checked)}
+              />
+              <Label htmlFor="enableRegisterVerifyTurnstile">
+                注册验证码发送需 Cloudflare 验证
+              </Label>
             </div>
           </div>
           <div className="space-y-3 rounded-md border p-3">
-            <p className="text-sm font-medium">忘记密码流程验证</p>
             <div className="flex items-center space-x-2">
               <Checkbox
-                id="enableForgotPasswordTurnstileRequest"
-                checked={form.enableForgotPasswordTurnstileRequest}
-                onCheckedChange={(checked) => handleChange("enableForgotPasswordTurnstileRequest", checked)}
+                id="enableForgotPasswordTurnstile"
+                checked={form.enableForgotPasswordTurnstile}
+                onCheckedChange={(checked) => handleChange("enableForgotPasswordTurnstile", checked)}
               />
-              <Label htmlFor="enableForgotPasswordTurnstileRequest">
-                重置密码发邮件需 Cloudflare 验证
+              <Label htmlFor="enableForgotPasswordTurnstile" className="font-medium">
+                忘记密码流程需 Cloudflare 验证
               </Label>
             </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="enableForgotPasswordTurnstileReset"
-                checked={form.enableForgotPasswordTurnstileReset}
-                onCheckedChange={(checked) => handleChange("enableForgotPasswordTurnstileReset", checked)}
-              />
-              <Label htmlFor="enableForgotPasswordTurnstileReset">
-                最终重置密码需 Cloudflare 验证
-              </Label>
+            <div className="ml-6 space-y-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="enableForgotPasswordTurnstileRequest"
+                  checked={form.enableForgotPasswordTurnstileRequest}
+                  disabled={!form.enableForgotPasswordTurnstile}
+                  onCheckedChange={(checked) => handleChange("enableForgotPasswordTurnstileRequest", checked)}
+                />
+                <Label 
+                  htmlFor="enableForgotPasswordTurnstileRequest"
+                  className={!form.enableForgotPasswordTurnstile ? "text-muted-foreground" : ""}
+                >
+                  重置密码发邮件需验证
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="enableForgotPasswordTurnstileReset"
+                  checked={form.enableForgotPasswordTurnstileReset}
+                  disabled={!form.enableForgotPasswordTurnstile}
+                  onCheckedChange={(checked) => handleChange("enableForgotPasswordTurnstileReset", checked)}
+                />
+                <Label 
+                  htmlFor="enableForgotPasswordTurnstileReset"
+                  className={!form.enableForgotPasswordTurnstile ? "text-muted-foreground" : ""}
+                >
+                  最终重置密码需验证
+                </Label>
+              </div>
             </div>
           </div>
           <div className="rounded-md border border-dashed p-4 space-y-3">

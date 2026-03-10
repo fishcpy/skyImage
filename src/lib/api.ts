@@ -568,11 +568,15 @@ export type SystemSettingsInput = {
   enableRegisterVerify: boolean;
   enableLoginNotification: boolean;
   enableForgotPassword: boolean;
+  enableForgotPasswordTurnstile: boolean;
   enableForgotPasswordTurnstileRequest: boolean;
   enableForgotPasswordTurnstileReset: boolean;
   turnstileSiteKey: string;
   turnstileSecretKey: string;
   enableTurnstile: boolean;
+  enableLoginTurnstile: boolean;
+  enableRegisterTurnstile: boolean;
+  enableRegisterVerifyTurnstile: boolean;
   accountDisabledNotice: string;
 };
 

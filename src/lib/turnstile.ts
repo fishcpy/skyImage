@@ -5,8 +5,8 @@ export type TurnstileConfig = {
   siteKey?: string;
 };
 
-export async function fetchTurnstileConfig(): Promise<TurnstileConfig> {
-  const res = await apiClient.get<{ data: TurnstileConfig }>("/site/turnstile");
+export async function fetchTurnstileConfig(scenario: "login" | "register" | "register_verify" = "login"): Promise<TurnstileConfig> {
+  const res = await apiClient.get<{ data: TurnstileConfig }>(`/site/turnstile/${scenario}`);
   return res.data.data;
 }
 

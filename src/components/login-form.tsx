@@ -47,8 +47,8 @@ export function LoginForm({
   }, []);
 
   const { data: turnstileConfig } = useQuery({
-    queryKey: ["turnstile-config"],
-    queryFn: fetchTurnstileConfig,
+    queryKey: ["turnstile-config", "login"],
+    queryFn: () => fetchTurnstileConfig("login"),
   });
 
   useEffect(() => {

@@ -51,8 +51,13 @@ export function RegisterForm({
   const sendCodeTurnstileRef = useRef<TurnstileRef>(null);
 
   const { data: turnstileConfig } = useQuery({
-    queryKey: ["turnstile-config"],
-    queryFn: fetchTurnstileConfig,
+    queryKey: ["turnstile-config", "register"],
+    queryFn: () => fetchTurnstileConfig("register"),
+  });
+
+  const { data: sendCodeTurnstileConfig, refetch: refetchSendCodeConfig } = useQuery({
+    queryKey: ["turnstile-config", "register_verify"],
+    queryFn: () => fetchTurnstileConfig("register_verify"),
   });
 
   useEffect(() => {
@@ -111,7 +116,7 @@ export function RegisterForm({
     },
   });
 
-  const handleSendCode = () => {
+  const handleSendCode = async () => {
     if (!form.email) {
       toast.error("请先输入邮箱地址");
       return;
@@ -123,7 +128,10 @@ export function RegisterForm({
       return;
     }
 
-    if (turnstileConfig?.enabled && !sendCodeTurnstileToken) {
+    // 重新获取最新的 Turnstile 配置
+    const { data: latestConfig } = await refetchSendCodeConfig();
+
+    if (latestConfig?.enabled && !sendCodeTurnstileToken) {
       setShowSendCodeTurnstile(true);
       return;
     }
@@ -248,13 +256,13 @@ export function RegisterForm({
                       验证码已发送到您的邮箱，有效期5分钟
                     </FieldDescription>
                   )}
-                  {showSendCodeTurnstile && turnstileConfig?.enabled && turnstileConfig.siteKey && turnstileReady && (
+                  {showSendCodeTurnstile && sendCodeTurnstileConfig?.enabled && sendCodeTurnstileConfig.siteKey && turnstileReady && (
                     <div className="rounded-md border p-4 space-y-2">
-                      <p className="text-sm text-muted-foreground">请完成人机验证后发送验证码</p>
+              <p className="text-sm text-muted-foreground">请完成人机验证后发送验证码</p>
                       <div className="flex justify-center">
                         <Turnstile
                           ref={sendCodeTurnstileRef}
-                          siteKey={turnstileConfig.siteKey}
+                          siteKey={sendCodeTurnstileConfig.siteKey}
                           onVerify={handleSendCodeTurnstileVerify}
                           onExpire={() => setSendCodeTurnstileToken("")}
                           onError={() => {

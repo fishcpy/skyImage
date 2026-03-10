@@ -71,19 +71,21 @@ func (s *Server) handleSendVerificationCode(c *gin.Context) {
 		return
 	}
 
-	// Verify Turnstile token if enabled
-	enabled, err := s.turnstile.IsEnabled(c.Request.Context())
+	// Verify Turnstile token if enabled for register_verify
+	// 重新获取最新配置以确保实时性
+	latestSettings, err := s.admin.GetSettings(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check turnstile status"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "系统错误"})
 		return
 	}
-	if enabled {
+
+	if latestSettings["turnstile.register_verify.enabled"] == "true" {
 		if input.TurnstileToken == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "请完成人机验证"})
 			return
 		}
-		valid, err := s.turnstile.Verify(c.Request.Context(), input.TurnstileToken, c.ClientIP())
-		if err != nil || !valid {
+		valid, verifyErr := s.turnstile.Verify(c.Request.Context(), input.TurnstileToken, c.ClientIP())
+		if verifyErr != nil || !valid {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "人机验证失败，请重试"})
 			return
 		}
@@ -164,13 +166,8 @@ func (s *Server) handleRegister(c *gin.Context) {
 	// 设置注册IP
 	input.RegisterInput.RegisteredIP = c.ClientIP()
 
-	// Verify Turnstile token if enabled
-	enabled, err := s.turnstile.IsEnabled(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check turnstile status"})
-		return
-	}
-	if enabled {
+	// Verify Turnstile token if enabled for register
+	if settings["turnstile.register.enabled"] == "true" {
 		if input.TurnstileToken == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "turnstile token required"})
 			return
@@ -233,13 +230,15 @@ func (s *Server) handleLogin(c *gin.Context) {
 		}
 	}
 
-	// Verify Turnstile token if enabled
-	enabled, err := s.turnstile.IsEnabled(c.Request.Context())
+	// Get settings for Turnstile check
+	settings, err := s.admin.GetSettings(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check turnstile status"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "系统错误"})
 		return
 	}
-	if enabled {
+
+	// Verify Turnstile token if enabled for login
+	if settings["turnstile.login.enabled"] == "true" {
 		if input.TurnstileToken == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "turnstile token required"})
 			return
