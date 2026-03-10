@@ -26,6 +26,7 @@ import { AdminStrategiesPage } from "@/features/admin/AdminStrategiesPage";
 import { AdminSystemSettingsPage } from "@/features/admin/AdminSystemSettingsPage";
 import { AdminSiteSettingsPage } from "@/features/admin/AdminSiteSettingsPage";
 import { AdminSmtpSettingsPage } from "@/features/admin/AdminSmtpSettingsPage";
+import { AdminTurnstileSettingsPage } from "@/features/admin/AdminTurnstileSettingsPage";
 import { AdminGroupEditorPage } from "@/features/admin/AdminGroupEditorPage";
 import { AdminStrategyEditorPage } from "@/features/admin/AdminStrategyEditorPage";
 import { AdminUserCreatePage } from "@/features/users/AdminUserCreatePage";
@@ -144,6 +145,7 @@ export default function App() {
                 <Route path="admin/settings/site" element={<AdminSiteSettingsPage />} />
                 <Route path="admin/settings/smtp" element={<AdminSmtpSettingsPage />} />
                 <Route path="admin/settings/system" element={<AdminSystemSettingsPage />} />
+                <Route path="admin/settings/turnstile" element={<AdminTurnstileSettingsPage />} />
               </Route>
               <Route path="*" element={<NotFoundPage />} />
             </Route>
