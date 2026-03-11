@@ -56,11 +56,15 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
   enableRegisterVerify: false,
   enableLoginNotification: false,
   enableForgotPassword: false,
+  enableForgotPasswordTurnstile: false,
   enableForgotPasswordTurnstileRequest: false,
   enableForgotPasswordTurnstileReset: false,
   turnstileSiteKey: "",
   turnstileSecretKey: "",
   enableTurnstile: false,
+  enableLoginTurnstile: false,
+  enableRegisterTurnstile: false,
+  enableRegisterVerifyTurnstile: false,
   accountDisabledNotice: ""
 };
 
