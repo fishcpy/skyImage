@@ -707,8 +707,11 @@ function normalizeApiToken(value: unknown): ApiTokenRecord | null {
   };
 }
 
-export async function generateApiToken() {
-  const res = await apiClient.post<{ data: ApiTokenResponse }>("/account/api-token");
+export async function generateApiToken(input?: { expiresAt?: string }) {
+  const res = await apiClient.post<{ data: ApiTokenResponse }>(
+    "/account/api-token",
+    input
+  );
   return res.data.data;
 }
 
@@ -720,6 +723,10 @@ export async function fetchApiTokens() {
 
 export async function deleteApiToken(id: number) {
   await apiClient.delete(`/account/api-token/${id}`);
+}
+
+export async function updateApiToken(id: number, input: { expiresAt: string }) {
+  await apiClient.patch(`/account/api-token/${id}`, input);
 }
 
 export async function deleteApiTokens() {

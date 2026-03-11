@@ -138,7 +138,7 @@ func (h *LskyV1Handler) CreateToken(c *gin.Context) {
 	apiToken := data.ApiToken{
 		UserID:    user.ID,
 		Token:     data.HashAPIToken(tokenStr),
-		ExpiresAt: time.Now().AddDate(1, 0, 0),
+		ExpiresAt: data.NewNeverExpireTime(),
 	}
 	if err := h.db.Create(&apiToken).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{

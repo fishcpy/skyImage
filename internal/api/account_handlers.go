@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -11,6 +13,8 @@ import (
 	"skyimage/internal/middleware"
 	"skyimage/internal/users"
 )
+
+const apiTokenExpiryLayout = "2006-01-02 15:04"
 
 func (s *Server) registerAccountRoutes(r *gin.RouterGroup) {
 	account := r.Group("/account")
@@ -26,6 +30,7 @@ func (s *Server) registerAccountRoutes(r *gin.RouterGroup) {
 	accountWithCSRF.PUT("/profile", s.handleAccountUpdateProfile)
 	accountWithCSRF.DELETE("/profile", s.handleAccountDelete)
 	accountWithCSRF.POST("/api-token", s.handleGenerateApiToken)
+	accountWithCSRF.PATCH("/api-token/:id", s.handleUpdateApiToken)
 	accountWithCSRF.DELETE("/api-token/:id", s.handleDeleteApiToken)
 	accountWithCSRF.DELETE("/api-token", s.handleDeleteApiTokens)
 }
@@ -81,6 +86,20 @@ func (s *Server) handleGenerateApiToken(c *gin.Context) {
 		return
 	}
 
+	var req struct {
+		ExpiresAt string `json:"expiresAt"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil && err != io.EOF {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	expiry, err := parseApiTokenExpiry(req.ExpiresAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	tokenStr, err := data.GenerateAPIToken()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
@@ -94,7 +113,7 @@ func (s *Server) handleGenerateApiToken(c *gin.Context) {
 	apiToken := data.ApiToken{
 		UserID:    user.ID,
 		Token:     data.HashAPIToken(tokenStr),
-		ExpiresAt: time.Now().AddDate(1, 0, 0),
+		ExpiresAt: data.NormalizeApiTokenExpiry(expiry),
 	}
 	if err := db.Create(&apiToken).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create token"})
@@ -187,6 +206,52 @@ func (s *Server) handleDeleteApiToken(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "token deleted"})
 }
 
+func (s *Server) handleUpdateApiToken(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing token ID"})
+		return
+	}
+
+	var req struct {
+		ExpiresAt string `json:"expiresAt"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	expiry, err := parseApiTokenExpiry(req.ExpiresAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	s.mu.RLock()
+	db := s.db
+	s.mu.RUnlock()
+
+	result := db.Model(&data.ApiToken{}).
+		Where("id = ? AND user_id = ?", id, user.ID).
+		Update("expires_at", data.NormalizeApiTokenExpiry(expiry))
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update token"})
+		return
+	}
+	if result.RowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Token not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "token updated"})
+}
+
 func (s *Server) handleDeleteApiTokens(c *gin.Context) {
 	user, ok := middleware.CurrentUser(c)
 	if !ok {
@@ -204,4 +269,21 @@ func (s *Server) handleDeleteApiTokens(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "tokens deleted"})
+}
+
+func parseApiTokenExpiry(value string) (time.Time, error) {
+	trimmed := strings.TrimSpace(strings.ToLower(value))
+	if trimmed == "" || trimmed == "never" || trimmed == "permanent" || trimmed == "infinite" || trimmed == "永久" || trimmed == "无限" || trimmed == "0" {
+		return data.NewNeverExpireTime(), nil
+	}
+	if ts, err := time.Parse(time.RFC3339, value); err == nil {
+		return ts, nil
+	}
+	if ts, err := time.ParseInLocation(apiTokenExpiryLayout, value, time.Local); err == nil {
+		return ts, nil
+	}
+	if ts, err := time.ParseInLocation("2006-01-02 15:04:05", value, time.Local); err == nil {
+		return ts, nil
+	}
+	return time.Time{}, fmt.Errorf("Invalid expiresAt format")
 }
