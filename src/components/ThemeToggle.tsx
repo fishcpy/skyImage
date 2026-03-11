@@ -1,44 +1,57 @@
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, Monitor } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import { useTheme } from "@/components/ThemeProvider";
 import { useAuthStore } from "@/state/auth";
 import { updateAccountProfile } from "@/lib/api";
 
 export function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const user = useAuthStore((state) => state.user);
-  
-  const toggle = async () => {
-    const newTheme = resolvedTheme === "dark" ? "light" : "dark";
-    setTheme(newTheme);
-    
-    // 同时更新用户的主题偏好到服务器
+  const currentValue = theme ?? "system";
+
+  const handleThemeChange = async (value: "light" | "dark" | "system") => {
+    setTheme(value);
+
     if (user) {
       try {
         await updateAccountProfile({
           name: user.name,
           url: "",
-          theme: newTheme
+          theme: value
         });
-        // 刷新用户信息以同步主题偏好
         await useAuthStore.getState().refreshUser();
       } catch (error) {
-        console.error('[ThemeToggle] Failed to update theme preference:', error);
+        console.error("[ThemeToggle] Failed to update theme preference:", error);
       }
     }
   };
 
+  const icon =
+    currentValue === "system"
+      ? Monitor
+      : resolvedTheme === "dark"
+      ? Moon
+      : Sun;
+  const Icon = icon;
+
   return (
-    <Button
-      variant="outline"
-      size="icon"
-      className="relative h-9 w-9"
-      onClick={toggle}
-    >
-      <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-      <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-      <span className="sr-only">切换主题</span>
-    </Button>
+    <Select value={currentValue} onValueChange={handleThemeChange}>
+      <SelectTrigger className="h-9 w-[140px] gap-2 px-3">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+        <SelectValue placeholder="主题" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="system">跟随系统</SelectItem>
+        <SelectItem value="light">浅色</SelectItem>
+        <SelectItem value="dark">深色</SelectItem>
+      </SelectContent>
+    </Select>
   );
 }
