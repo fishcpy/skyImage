@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -389,6 +390,57 @@ func (s *Server) serveLocalFileByRelative(c *gin.Context, rel string) bool {
 	driver := strings.ToLower(strings.TrimSpace(file.StorageProvider))
 	if driver == "" {
 		driver = "local"
+	}
+	if driver == "s3" {
+		proxy, err := s.files.FetchProxyObject(c.Request.Context(), file)
+		if err != nil {
+			return false
+		}
+		defer proxy.Body.Close()
+
+		if proxy.CacheControl != "" {
+			c.Writer.Header().Set("Cache-Control", proxy.CacheControl)
+		}
+		if proxy.ETag != "" {
+			c.Writer.Header().Set("ETag", proxy.ETag)
+		}
+		if proxy.ContentLength > 0 {
+			c.Writer.Header().Set("Content-Length", strconv.FormatInt(proxy.ContentLength, 10))
+		}
+		if proxy.LastModified != nil {
+			c.Writer.Header().Set("Last-Modified", proxy.LastModified.UTC().Format(http.TimeFormat))
+		}
+
+		mimeType := strings.TrimSpace(proxy.ContentType)
+		if mimeType == "" || mimeType == "application/octet-stream" {
+			if strings.TrimSpace(file.MimeType) != "" && file.MimeType != "application/octet-stream" {
+				mimeType = file.MimeType
+			} else {
+				ext := strings.ToLower(strings.TrimPrefix(file.Extension, "."))
+				if ext == "" {
+					ext = strings.ToLower(strings.TrimPrefix(filepath.Ext(file.Name), "."))
+				}
+				mimeType = getMimeTypeByExtension(ext)
+				if mimeType == "" {
+					mimeType = "application/octet-stream"
+				}
+			}
+		}
+		c.Writer.Header().Set("Content-Type", mimeType)
+		if strings.HasPrefix(mimeType, "image/") ||
+			strings.HasPrefix(mimeType, "video/") ||
+			strings.HasPrefix(mimeType, "audio/") ||
+			mimeType == "application/pdf" ||
+			strings.HasPrefix(mimeType, "text/") {
+			c.Writer.Header().Set("Content-Disposition", "inline")
+		}
+
+		c.Status(http.StatusOK)
+		if c.Request.Method == http.MethodHead {
+			return true
+		}
+		_, _ = io.Copy(c.Writer, proxy.Body)
+		return true
 	}
 	if driver == "webdav" {
 		return s.serveWebDAVFile(c, file)

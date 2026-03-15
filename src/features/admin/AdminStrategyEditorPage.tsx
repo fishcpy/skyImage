@@ -19,7 +19,8 @@ import {
 
 const driverOptions = [
   { key: "local", label: "本地储存" },
-  { key: "webdav", label: "WebDAV" }
+  { key: "webdav", label: "WebDAV" },
+  { key: "s3", label: "S3 兼容存储" }
 ];
 
 export function AdminStrategyEditorPage() {
@@ -50,6 +51,14 @@ export function AdminStrategyEditorPage() {
       webdav_password: "",
       webdav_base_path: "",
       webdav_skip_tls_verify: false,
+      s3_endpoint: "",
+      s3_region: "",
+      s3_bucket: "",
+      s3_access_key: "",
+      s3_secret_key: "",
+      s3_session_token: "",
+      s3_force_path_style: false,
+      proxy: false,
       path_template: "{year}/{month}/{day}/{uuid}"
     }
   });
@@ -103,6 +112,14 @@ export function AdminStrategyEditorPage() {
               target.configs?.webdav_skip_tls_verify ||
               target.configs?.webdavSkipTLSVerify ||
               false,
+            s3_endpoint: target.configs?.s3_endpoint || "",
+            s3_region: target.configs?.s3_region || "",
+            s3_bucket: target.configs?.s3_bucket || "",
+            s3_access_key: target.configs?.s3_access_key || "",
+            s3_secret_key: target.configs?.s3_secret_key || "",
+            s3_session_token: target.configs?.s3_session_token || "",
+            s3_force_path_style: Boolean(target.configs?.s3_force_path_style || false),
+            proxy: Boolean(target.configs?.proxy || false),
             allowed_extensions: allowedExtensions,
             path_template: pathTemplate,
             enable_compression: target.configs?.enable_compression || false,
@@ -127,6 +144,14 @@ export function AdminStrategyEditorPage() {
           webdav_password: "",
           webdav_base_path: "",
           webdav_skip_tls_verify: false,
+          s3_endpoint: "",
+          s3_region: "",
+          s3_bucket: "",
+          s3_access_key: "",
+          s3_secret_key: "",
+          s3_session_token: "",
+          s3_force_path_style: false,
+          proxy: false,
           allowed_extensions: "",
           path_template: "{year}/{month}/{day}/{uuid}"
         }
@@ -189,6 +214,14 @@ export function AdminStrategyEditorPage() {
           "",
         webdav_skip_tls_verify:
           Boolean(form.configs?.webdav_skip_tls_verify || form.configs?.webdavSkipTLSVerify),
+        s3_endpoint: (form.configs as any)?.s3_endpoint || "",
+        s3_region: (form.configs as any)?.s3_region || "",
+        s3_bucket: (form.configs as any)?.s3_bucket || "",
+        s3_access_key: (form.configs as any)?.s3_access_key || "",
+        s3_secret_key: (form.configs as any)?.s3_secret_key || "",
+        s3_session_token: (form.configs as any)?.s3_session_token || "",
+        s3_force_path_style: Boolean((form.configs as any)?.s3_force_path_style || false),
+        proxy: Boolean((form.configs as any)?.proxy || false),
         allowed_extensions: form.configs?.allowed_extensions || "",
         path_template: form.configs?.path_template || "{year}/{month}/{day}/{uuid}",
         pattern: form.configs?.path_template || "{year}/{month}/{day}/{uuid}",
@@ -254,21 +287,7 @@ export function AdminStrategyEditorPage() {
             />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
-            {form.configs?.driver !== "webdav" ? (
-              <div className="space-y-2">
-                <Label>储存根路径</Label>
-                <Input
-                  value={form.configs?.root || ""}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      configs: { ...prev.configs, root: e.target.value }
-                    }))
-                  }
-                />
-                <p className="text-xs text-muted-foreground">确保该路径具有读写权限。</p>
-              </div>
-            ) : (
+            {form.configs?.driver === "webdav" ? (
               <div className="space-y-2">
                 <Label>WebDAV Endpoint</Label>
                 <Input
@@ -285,6 +304,25 @@ export function AdminStrategyEditorPage() {
                   仅用于上传/删除，外链仍由“外部访问域名”控制。
                 </p>
               </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>{form.configs?.driver === "s3" ? "对象前缀" : "储存根路径"}</Label>
+                <Input
+                  value={form.configs?.root || ""}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: { ...prev.configs, root: e.target.value }
+                    }))
+                  }
+                  placeholder={form.configs?.driver === "s3" ? "uploads" : ""}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {form.configs?.driver === "s3"
+                    ? "可选，用于作为对象 Key 的前缀。"
+                    : "确保该路径具有读写权限。"}
+                </p>
+              </div>
             )}
             <div className="space-y-2">
               <Label>外部访问域名</Label>
@@ -299,10 +337,129 @@ export function AdminStrategyEditorPage() {
                 placeholder="https://cdn.example.com"
               />
               <p className="text-xs text-muted-foreground">
-                仅允许填写域名（不含路径），路径由“路径模板”控制，可为空。
+                仅允许填写域名（不含路径），路径由“路径模板”控制。
               </p>
             </div>
           </div>
+          {form.configs?.driver === "s3" && (
+            <div className="space-y-4 rounded-lg border p-4">
+              <h3 className="text-sm font-medium">S3 配置</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>S3 Endpoint（可选）</Label>
+                  <Input
+                    value={(form.configs as any)?.s3_endpoint || ""}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, s3_endpoint: e.target.value }
+                      }))
+                    }
+                    placeholder="https://s3.amazonaws.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Region</Label>
+                  <Input
+                    value={(form.configs as any)?.s3_region || ""}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, s3_region: e.target.value }
+                      }))
+                    }
+                    placeholder="us-east-1"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Bucket</Label>
+                  <Input
+                    value={(form.configs as any)?.s3_bucket || ""}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, s3_bucket: e.target.value }
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Access Key</Label>
+                  <Input
+                    value={(form.configs as any)?.s3_access_key || ""}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, s3_access_key: e.target.value }
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Secret Key</Label>
+                  <Input
+                    type="password"
+                    value={(form.configs as any)?.s3_secret_key || ""}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, s3_secret_key: e.target.value }
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Session Token（可选）</Label>
+                  <Input
+                    value={(form.configs as any)?.s3_session_token || ""}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, s3_session_token: e.target.value }
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="s3-force-path-style"
+                    checked={Boolean((form.configs as any)?.s3_force_path_style)}
+                    onCheckedChange={(checked) => {
+                      const actualValue = checked === "indeterminate" ? false : checked;
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, s3_force_path_style: actualValue }
+                      }));
+                    }}
+                  />
+                  <Label htmlFor="s3-force-path-style" className="cursor-pointer">
+                    强制 Path-Style 访问
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="s3-proxy"
+                    checked={Boolean((form.configs as any)?.proxy)}
+                    onCheckedChange={(checked) => {
+                      const actualValue = checked === "indeterminate" ? false : checked;
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, proxy: actualValue }
+                      }));
+                    }}
+                  />
+                  <Label htmlFor="s3-proxy" className="cursor-pointer">
+                    启用服务端代理（无需公开桶）
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  关闭代理时，需要配置外部访问域名并确保桶或 CDN 可公网访问。
+                </p>
+              </div>
+            </div>
+          )}
           {form.configs?.driver === "webdav" && (
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">

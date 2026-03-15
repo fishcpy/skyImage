@@ -71,6 +71,18 @@ type FileDTO struct {
 	StorageDriver string    `json:"storageDriver"`
 }
 
+type ProxyObject struct {
+	Body          io.ReadCloser
+	ContentType   string
+	ContentLength int64
+	CacheControl  string
+	ETag          string
+	LastModified  *time.Time
+}
+
+var ErrProxyDisabled = errors.New("proxy disabled for this storage strategy")
+var ErrProxyUnsupported = errors.New("proxy not supported for this storage driver")
+
 type strategyConfig struct {
 	Driver             string
 	Root               string
@@ -83,6 +95,14 @@ type strategyConfig struct {
 	WebDAVPassword     string
 	WebDAVBasePath     string
 	WebDAVSkipTLSCert  bool
+	S3Endpoint         string
+	S3Region           string
+	S3Bucket           string
+	S3AccessKey        string
+	S3SecretKey        string
+	S3SessionToken     string
+	S3ForcePathStyle   bool
+	S3Proxy            bool
 	EnableCompression  bool
 	CompressionQuality int
 	TargetFormat       string
@@ -385,6 +405,26 @@ func (s *Service) PublicURL(ctx context.Context, file data.FileAsset) (string, e
 		Where(where, args...).
 		UpdateColumn("public_url", publicURL).Error
 	return publicURL, nil
+}
+
+func (s *Service) FetchProxyObject(ctx context.Context, file data.FileAsset) (*ProxyObject, error) {
+	if file.Strategy.ID == 0 && file.StrategyID != 0 {
+		if err := s.db.WithContext(ctx).First(&file.Strategy, file.StrategyID).Error; err != nil {
+			return nil, err
+		}
+	}
+	cfg := s.parseStrategyConfig(file.Strategy)
+	driver := strings.ToLower(strings.TrimSpace(cfg.Driver))
+	if driver == "" {
+		driver = "local"
+	}
+	if driver != "s3" {
+		return nil, ErrProxyUnsupported
+	}
+	if !cfg.S3Proxy {
+		return nil, ErrProxyDisabled
+	}
+	return s.fetchS3Object(ctx, cfg, file)
 }
 
 func (s *Service) buildPublicURL(file data.FileAsset) string {
@@ -909,6 +949,27 @@ func (s *Service) parseStrategyConfig(strategy data.Strategy) strategyConfig {
 			cfg.WebDAVSkipTLSCert = boolFromAny(raw["webdav_skip_tls_verify"]) ||
 				boolFromAny(raw["webdavSkipTLSVerify"])
 
+			if v := stringFromAny(raw["s3_endpoint"]); v != "" {
+				cfg.S3Endpoint = v
+			}
+			if v := stringFromAny(raw["s3_region"]); v != "" {
+				cfg.S3Region = v
+			}
+			if v := stringFromAny(raw["s3_bucket"]); v != "" {
+				cfg.S3Bucket = v
+			}
+			if v := stringFromAny(raw["s3_access_key"]); v != "" {
+				cfg.S3AccessKey = v
+			}
+			if v := stringFromAny(raw["s3_secret_key"]); v != "" {
+				cfg.S3SecretKey = v
+			}
+			if v := stringFromAny(raw["s3_session_token"]); v != "" {
+				cfg.S3SessionToken = v
+			}
+			cfg.S3ForcePathStyle = boolFromAny(raw["s3_force_path_style"])
+			cfg.S3Proxy = boolFromAny(raw["proxy"])
+
 			// 图片处理配置
 			cfg.EnableCompression = boolFromAny(raw["enable_compression"])
 			cfg.CompressionQuality = intFromAny(raw["compression_quality"])
@@ -925,12 +986,21 @@ func (s *Service) parseStrategyConfig(strategy data.Strategy) strategyConfig {
 	if !strings.Contains(cfg.Pattern, "{uuid}") {
 		cfg.Pattern = "{year}/{month}/{day}/{uuid}"
 	}
-	cfg.Base = s.normalizeExternalBase(cfg.Base, cfg.Driver, cfg.Root)
+	cfg.Base = s.normalizeExternalBase(cfg.Base, cfg.Driver, cfg.Root, cfg.S3Proxy)
 	cfg.Query = strings.TrimSpace(cfg.Query)
 	cfg.WebDAVEndpoint = strings.TrimRight(strings.TrimSpace(cfg.WebDAVEndpoint), "/")
 	cfg.WebDAVBasePath = sanitizeRelativePath(cfg.WebDAVBasePath)
 	cfg.WebDAVUsername = strings.TrimSpace(cfg.WebDAVUsername)
 	cfg.WebDAVPassword = strings.TrimSpace(cfg.WebDAVPassword)
+	cfg.S3Endpoint = strings.TrimSpace(cfg.S3Endpoint)
+	cfg.S3Region = strings.TrimSpace(cfg.S3Region)
+	if strings.ToLower(strings.TrimSpace(cfg.Driver)) == "s3" && cfg.S3Region == "" {
+		cfg.S3Region = "us-east-1"
+	}
+	cfg.S3Bucket = strings.TrimSpace(cfg.S3Bucket)
+	cfg.S3AccessKey = strings.TrimSpace(cfg.S3AccessKey)
+	cfg.S3SecretKey = strings.TrimSpace(cfg.S3SecretKey)
+	cfg.S3SessionToken = strings.TrimSpace(cfg.S3SessionToken)
 	return cfg
 }
 
@@ -1048,6 +1118,18 @@ func sanitizeRelativePath(value string) string {
 	return clean
 }
 
+func joinRelativePath(prefix string, rel string) string {
+	cleanPrefix := sanitizeRelativePath(prefix)
+	cleanRel := sanitizeRelativePath(rel)
+	if cleanPrefix == "" {
+		return cleanRel
+	}
+	if cleanRel == "" {
+		return cleanPrefix
+	}
+	return cleanPrefix + "/" + cleanRel
+}
+
 func randomDigits(length int) string {
 	if length <= 0 {
 		length = 6
@@ -1143,34 +1225,42 @@ func (s *Service) publicRelativePath(file data.FileAsset, cfg strategyConfig) st
 	return rel
 }
 
-func (s *Service) normalizeExternalBase(base string, driver string, root string) string {
+func (s *Service) normalizeExternalBase(base string, driver string, root string, proxy bool) string {
 	base = strings.TrimSpace(base)
-	if base == "" {
-		base = s.cfg.PublicBaseURL
-	}
-	lower := strings.ToLower(base)
-	switch {
-	case strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://"):
-		base = strings.TrimRight(base, "/")
-	case strings.HasPrefix(base, "//"):
-		base = "http:" + strings.TrimRight(base, "/")
-	case strings.HasPrefix(base, "/"):
-		segment := strings.Trim(base, "/")
-		if segment == "" {
-			segment = s.storageSegment(root)
+	if base != "" {
+		lower := strings.ToLower(base)
+		switch {
+		case strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://"):
+			base = strings.TrimRight(base, "/")
+		case strings.HasPrefix(base, "//"):
+			base = "http:" + strings.TrimRight(base, "/")
+		case strings.HasPrefix(base, "/"):
+			segment := strings.Trim(base, "/")
+			if segment == "" {
+				segment = s.storageSegment(root)
+			}
+			base = s.defaultBaseURL()
+			if segment != "" {
+				base = base + "/" + segment
+			}
+		default:
+			// 处理 example.com 或 example.com/path 格式
+			// 不要移除路径部分的斜杠
+			base = "http://" + strings.TrimRight(base, "/")
 		}
-		base = s.defaultBaseURL()
-		if segment != "" {
-			base = base + "/" + segment
-		}
-	default:
-		// 处理 example.com 或 example.com/path 格式
-		// 不要移除路径部分的斜杠
-		base = "http://" + strings.TrimRight(base, "/")
 	}
 
 	if driver == "" {
 		driver = "local"
+	}
+	if strings.ToLower(strings.TrimSpace(driver)) == "s3" {
+		if proxy {
+			base = strings.TrimRight(strings.TrimSpace(s.cfg.PublicBaseURL), "/")
+		}
+		return base
+	}
+	if base == "" {
+		base = strings.TrimRight(strings.TrimSpace(s.cfg.PublicBaseURL), "/")
 	}
 	return base
 }

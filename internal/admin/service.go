@@ -467,6 +467,17 @@ func validateStrategyConfigs(configs map[string]interface{}) error {
 			return err
 		}
 	}
+	if driver == "s3" {
+		if strings.TrimSpace(firstConfigString(configs, "s3_bucket")) == "" {
+			return fmt.Errorf("s3_bucket 不能为空")
+		}
+		if strings.TrimSpace(firstConfigString(configs, "s3_access_key")) == "" {
+			return fmt.Errorf("s3_access_key 不能为空")
+		}
+		if strings.TrimSpace(firstConfigString(configs, "s3_secret_key")) == "" {
+			return fmt.Errorf("s3_secret_key 不能为空")
+		}
+	}
 	template := ""
 	if values := configStrings(configs, "path_template", "pattern"); len(values) > 0 {
 		template = strings.TrimSpace(values[0])
