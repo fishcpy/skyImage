@@ -20,6 +20,7 @@ import {
 const driverOptions = [
   { key: "local", label: "本地储存" },
   { key: "webdav", label: "WebDAV" },
+  { key: "ftp", label: "FTP" },
   { key: "s3", label: "S3 兼容存储" }
 ];
 
@@ -42,19 +43,27 @@ export function AdminStrategyEditorPage() {
     key: 1,
     name: "",
     intro: "",
-    configs: {
-      driver: "local",
-      root: "storage/uploads",
-      url: "",
-      webdav_endpoint: "",
-      webdav_username: "",
-      webdav_password: "",
-      webdav_base_path: "",
-      webdav_skip_tls_verify: false,
-      s3_endpoint: "",
-      s3_region: "",
-      s3_bucket: "",
-      s3_access_key: "",
+      configs: {
+        driver: "local",
+        root: "storage/uploads",
+        url: "",
+        webdav_endpoint: "",
+        webdav_username: "",
+        webdav_password: "",
+        webdav_base_path: "",
+        webdav_skip_tls_verify: false,
+        ftp_host: "",
+        ftp_port: 21,
+        ftp_username: "",
+        ftp_password: "",
+        ftp_base_path: "",
+        ftp_tls: false,
+        ftp_skip_tls_verify: false,
+        ftp_timeout: 15,
+        s3_endpoint: "",
+        s3_region: "",
+        s3_bucket: "",
+        s3_access_key: "",
       s3_secret_key: "",
       s3_session_token: "",
       s3_force_path_style: false,
@@ -112,6 +121,28 @@ export function AdminStrategyEditorPage() {
               target.configs?.webdav_skip_tls_verify ||
               target.configs?.webdavSkipTLSVerify ||
               false,
+            ftp_host:
+              target.configs?.ftp_host ||
+              target.configs?.ftp_endpoint ||
+              "",
+            ftp_port: target.configs?.ftp_port || 21,
+            ftp_username:
+              target.configs?.ftp_username ||
+              target.configs?.ftp_user ||
+              "",
+            ftp_password:
+              target.configs?.ftp_password ||
+              target.configs?.ftp_pass ||
+              "",
+            ftp_base_path:
+              target.configs?.ftp_base_path ||
+              target.configs?.ftp_path ||
+              "",
+            ftp_tls: Boolean(target.configs?.ftp_tls || false),
+            ftp_skip_tls_verify: Boolean(
+              target.configs?.ftp_skip_tls_verify || target.configs?.ftpSkipTLSVerify || false
+            ),
+            ftp_timeout: target.configs?.ftp_timeout || 15,
             s3_endpoint: target.configs?.s3_endpoint || "",
             s3_region: target.configs?.s3_region || "",
             s3_bucket: target.configs?.s3_bucket || "",
@@ -144,6 +175,14 @@ export function AdminStrategyEditorPage() {
           webdav_password: "",
           webdav_base_path: "",
           webdav_skip_tls_verify: false,
+          ftp_host: "",
+          ftp_port: 21,
+          ftp_username: "",
+          ftp_password: "",
+          ftp_base_path: "",
+          ftp_tls: false,
+          ftp_skip_tls_verify: false,
+          ftp_timeout: 15,
           s3_endpoint: "",
           s3_region: "",
           s3_bucket: "",
@@ -214,6 +253,16 @@ export function AdminStrategyEditorPage() {
           "",
         webdav_skip_tls_verify:
           Boolean(form.configs?.webdav_skip_tls_verify || form.configs?.webdavSkipTLSVerify),
+        ftp_host: (form.configs as any)?.ftp_host || (form.configs as any)?.ftp_endpoint || "",
+        ftp_port: (form.configs as any)?.ftp_port || 21,
+        ftp_username: (form.configs as any)?.ftp_username || (form.configs as any)?.ftp_user || "",
+        ftp_password: (form.configs as any)?.ftp_password || (form.configs as any)?.ftp_pass || "",
+        ftp_base_path: (form.configs as any)?.ftp_base_path || (form.configs as any)?.ftp_path || "",
+        ftp_tls: Boolean((form.configs as any)?.ftp_tls || false),
+        ftp_skip_tls_verify: Boolean(
+          (form.configs as any)?.ftp_skip_tls_verify || (form.configs as any)?.ftpSkipTLSVerify
+        ),
+        ftp_timeout: (form.configs as any)?.ftp_timeout || 15,
         s3_endpoint: (form.configs as any)?.s3_endpoint || "",
         s3_region: (form.configs as any)?.s3_region || "",
         s3_bucket: (form.configs as any)?.s3_bucket || "",
@@ -302,6 +351,23 @@ export function AdminStrategyEditorPage() {
                 />
                 <p className="text-xs text-muted-foreground">
                   仅用于上传/删除，外链仍由“外部访问域名”控制。
+                </p>
+              </div>
+            ) : form.configs?.driver === "ftp" ? (
+              <div className="space-y-2">
+                <Label>FTP 主机</Label>
+                <Input
+                  value={(form.configs as any)?.ftp_host || ""}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: { ...prev.configs, ftp_host: e.target.value }
+                    }))
+                  }
+                  placeholder="ftp.example.com:21 或 ftp://user:pass@host:21"
+                />
+                <p className="text-xs text-muted-foreground">
+                  支持 ftp:// 或 ftps:// 形式，基础目录请在下方配置。
                 </p>
               </div>
             ) : (
@@ -457,6 +523,113 @@ export function AdminStrategyEditorPage() {
                 <p className="text-xs text-muted-foreground">
                   关闭代理时，需要配置外部访问域名并确保桶或 CDN 可公网访问。
                 </p>
+              </div>
+            </div>
+          )}
+          {form.configs?.driver === "ftp" && (
+            <div className="space-y-4 rounded-lg border p-4">
+              <h3 className="text-sm font-medium">FTP 配置</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>FTP 端口</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={(form.configs as any)?.ftp_port || 21}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, ftp_port: parseInt(e.target.value, 10) || 21 }
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>基础目录（可选）</Label>
+                  <Input
+                    value={(form.configs as any)?.ftp_base_path || ""}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, ftp_base_path: e.target.value }
+                      }))
+                    }
+                    placeholder="skyimage"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>用户名（可选）</Label>
+                  <Input
+                    value={(form.configs as any)?.ftp_username || ""}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, ftp_username: e.target.value }
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>密码（可选）</Label>
+                  <Input
+                    type="password"
+                    value={(form.configs as any)?.ftp_password || ""}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, ftp_password: e.target.value }
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="ftp-tls"
+                    checked={Boolean((form.configs as any)?.ftp_tls)}
+                    onCheckedChange={(checked) => {
+                      const actualValue = checked === "indeterminate" ? false : checked;
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, ftp_tls: actualValue }
+                      }));
+                    }}
+                  />
+                  <Label htmlFor="ftp-tls" className="cursor-pointer">
+                    启用 TLS（FTPS）
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="ftp-skip-tls-verify"
+                    checked={Boolean((form.configs as any)?.ftp_skip_tls_verify)}
+                    onCheckedChange={(checked) => {
+                      const actualValue = checked === "indeterminate" ? false : checked;
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, ftp_skip_tls_verify: actualValue }
+                      }));
+                    }}
+                  />
+                  <Label htmlFor="ftp-skip-tls-verify" className="cursor-pointer">
+                    跳过 TLS 证书验证（不推荐）
+                  </Label>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>超时（秒）</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={(form.configs as any)?.ftp_timeout || 15}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: { ...prev.configs, ftp_timeout: parseInt(e.target.value, 10) || 15 }
+                    }))
+                  }
+                />
               </div>
             </div>
           )}

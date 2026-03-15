@@ -95,6 +95,14 @@ type strategyConfig struct {
 	WebDAVPassword     string
 	WebDAVBasePath     string
 	WebDAVSkipTLSCert  bool
+	FTPHost            string
+	FTPPort            int
+	FTPUsername        string
+	FTPPassword        string
+	FTPBasePath        string
+	FTPTLS             bool
+	FTPSkipTLSVerify   bool
+	FTPTimeoutSeconds  int
 	S3Endpoint         string
 	S3Region           string
 	S3Bucket           string
@@ -949,6 +957,36 @@ func (s *Service) parseStrategyConfig(strategy data.Strategy) strategyConfig {
 			cfg.WebDAVSkipTLSCert = boolFromAny(raw["webdav_skip_tls_verify"]) ||
 				boolFromAny(raw["webdavSkipTLSVerify"])
 
+			if v := stringFromAny(raw["ftp_host"]); v != "" {
+				cfg.FTPHost = v
+			}
+			if v := stringFromAny(raw["ftp_endpoint"]); v != "" && cfg.FTPHost == "" {
+				cfg.FTPHost = v
+			}
+			if v := stringFromAny(raw["ftp_username"]); v != "" {
+				cfg.FTPUsername = v
+			}
+			if v := stringFromAny(raw["ftp_user"]); v != "" && cfg.FTPUsername == "" {
+				cfg.FTPUsername = v
+			}
+			if v := stringFromAny(raw["ftp_password"]); v != "" {
+				cfg.FTPPassword = v
+			}
+			if v := stringFromAny(raw["ftp_pass"]); v != "" && cfg.FTPPassword == "" {
+				cfg.FTPPassword = v
+			}
+			if v := stringFromAny(raw["ftp_base_path"]); v != "" {
+				cfg.FTPBasePath = v
+			}
+			if v := stringFromAny(raw["ftp_path"]); v != "" && cfg.FTPBasePath == "" {
+				cfg.FTPBasePath = v
+			}
+			cfg.FTPPort = intFromAny(raw["ftp_port"])
+			cfg.FTPTLS = boolFromAny(raw["ftp_tls"])
+			cfg.FTPSkipTLSVerify = boolFromAny(raw["ftp_skip_tls_verify"]) ||
+				boolFromAny(raw["ftpSkipTLSVerify"])
+			cfg.FTPTimeoutSeconds = intFromAny(raw["ftp_timeout"])
+
 			if v := stringFromAny(raw["s3_endpoint"]); v != "" {
 				cfg.S3Endpoint = v
 			}
@@ -992,6 +1030,16 @@ func (s *Service) parseStrategyConfig(strategy data.Strategy) strategyConfig {
 	cfg.WebDAVBasePath = sanitizeRelativePath(cfg.WebDAVBasePath)
 	cfg.WebDAVUsername = strings.TrimSpace(cfg.WebDAVUsername)
 	cfg.WebDAVPassword = strings.TrimSpace(cfg.WebDAVPassword)
+	cfg.FTPHost = strings.TrimSpace(cfg.FTPHost)
+	cfg.FTPUsername = strings.TrimSpace(cfg.FTPUsername)
+	cfg.FTPPassword = strings.TrimSpace(cfg.FTPPassword)
+	cfg.FTPBasePath = sanitizeRelativePath(cfg.FTPBasePath)
+	if cfg.FTPPort <= 0 {
+		cfg.FTPPort = 21
+	}
+	if cfg.FTPTimeoutSeconds <= 0 {
+		cfg.FTPTimeoutSeconds = 15
+	}
 	cfg.S3Endpoint = strings.TrimSpace(cfg.S3Endpoint)
 	cfg.S3Region = strings.TrimSpace(cfg.S3Region)
 	if strings.ToLower(strings.TrimSpace(cfg.Driver)) == "s3" && cfg.S3Region == "" {

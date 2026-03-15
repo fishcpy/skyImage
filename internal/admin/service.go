@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -467,6 +468,11 @@ func validateStrategyConfigs(configs map[string]interface{}) error {
 			return err
 		}
 	}
+	if driver == "ftp" {
+		if err := validateFTPConfigs(configs); err != nil {
+			return err
+		}
+	}
 	if driver == "s3" {
 		if strings.TrimSpace(firstConfigString(configs, "s3_bucket")) == "" {
 			return fmt.Errorf("s3_bucket 不能为空")
@@ -606,6 +612,33 @@ func validateWebDAVConfigs(configs map[string]interface{}) error {
 	scheme := strings.ToLower(parsed.Scheme)
 	if scheme != "http" && scheme != "https" {
 		return fmt.Errorf("WebDAV endpoint 仅支持 http/https")
+	}
+	return nil
+}
+
+func validateFTPConfigs(configs map[string]interface{}) error {
+	host := strings.TrimSpace(firstConfigString(configs, "ftp_host", "ftp_endpoint"))
+	if host == "" {
+		return fmt.Errorf("FTP 主机不能为空")
+	}
+	normalized := host
+	if !strings.Contains(normalized, "://") {
+		normalized = "ftp://" + normalized
+	}
+	parsed, err := url.Parse(normalized)
+	if err != nil || parsed.Host == "" {
+		return fmt.Errorf("FTP 主机格式不正确")
+	}
+	if parsed.Scheme != "" {
+		scheme := strings.ToLower(parsed.Scheme)
+		if scheme != "ftp" && scheme != "ftps" {
+			return fmt.Errorf("FTP 仅支持 ftp/ftps 协议")
+		}
+	}
+	if port := strings.TrimSpace(firstConfigString(configs, "ftp_port")); port != "" {
+		if _, err := strconv.Atoi(port); err != nil {
+			return fmt.Errorf("FTP 端口格式不正确")
+		}
 	}
 	return nil
 }
