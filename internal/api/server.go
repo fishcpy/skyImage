@@ -391,7 +391,7 @@ func (s *Server) serveLocalFileByRelative(c *gin.Context, rel string) bool {
 	if driver == "" {
 		driver = "local"
 	}
-	if driver == "s3" {
+	if driver == "s3" || driver == "minio" {
 		proxy, err := s.files.FetchProxyObject(c.Request.Context(), file)
 		if err != nil {
 			return false

@@ -24,11 +24,13 @@ export function AdminStrategyEditorPage() {
   const isEditing = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const isS3CompatibleDriver = (driver?: string) => driver === "s3" || driver === "minio";
   const driverOptions = [
     { key: "local", label: t("admin.strategyEditor.driver.local") },
     { key: "webdav", label: t("admin.strategyEditor.driver.webdav") },
     { key: "ftp", label: t("admin.strategyEditor.driver.ftp") },
-    { key: "s3", label: t("admin.strategyEditor.driver.s3") }
+    { key: "s3", label: t("admin.strategyEditor.driver.s3") },
+    { key: "minio", label: t("admin.strategyEditor.driver.minio") }
   ];
 
   const { data: strategies } = useQuery({
@@ -373,7 +375,7 @@ export function AdminStrategyEditorPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                <Label>{form.configs?.driver === "s3" ? t("admin.strategyEditor.objectPrefix") : t("admin.strategyEditor.storageRoot")}</Label>
+                <Label>{isS3CompatibleDriver(form.configs?.driver) ? t("admin.strategyEditor.objectPrefix") : t("admin.strategyEditor.storageRoot")}</Label>
                 <Input
                   value={form.configs?.root || ""}
                   onChange={(e) =>
@@ -382,10 +384,10 @@ export function AdminStrategyEditorPage() {
                       configs: { ...prev.configs, root: e.target.value }
                     }))
                   }
-                  placeholder={form.configs?.driver === "s3" ? "uploads" : ""}
+                  placeholder={isS3CompatibleDriver(form.configs?.driver) ? "uploads" : ""}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {form.configs?.driver === "s3"
+                  {isS3CompatibleDriver(form.configs?.driver)
                     ? t("admin.strategyEditor.objectPrefixHint")
                     : t("admin.strategyEditor.storageRootHint")}
                 </p>
@@ -408,7 +410,7 @@ export function AdminStrategyEditorPage() {
               </p>
             </div>
           </div>
-          {form.configs?.driver === "s3" && (
+          {isS3CompatibleDriver(form.configs?.driver) && (
             <div className="space-y-4 rounded-lg border p-4">
               <h3 className="text-sm font-medium">{t("admin.strategyEditor.s3Config")}</h3>
               <div className="grid gap-4 md:grid-cols-2">

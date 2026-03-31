@@ -473,7 +473,7 @@ func validateStrategyConfigs(configs map[string]interface{}) error {
 			return err
 		}
 	}
-	if driver == "s3" {
+	if driver == "s3" || driver == "minio" {
 		if strings.TrimSpace(firstConfigString(configs, "s3_bucket")) == "" {
 			return fmt.Errorf("s3_bucket 不能为空")
 		}

@@ -38,7 +38,7 @@ func (s *Service) storeObject(ctx context.Context, cfg strategyConfig, relativeP
 		return s.storeWebDAVObject(ctx, cfg, relativePath, head, remain)
 	case "ftp":
 		return s.storeFTPObject(ctx, cfg, relativePath, head, remain)
-	case "s3":
+	case "s3", "minio":
 		return s.storeS3Object(ctx, cfg, relativePath, head, remain)
 	default:
 		return s.storeLocalObject(cfg, relativePath, head, remain)
@@ -142,7 +142,7 @@ func (s *Service) deleteStoredObject(ctx context.Context, db *gorm.DB, file data
 	if driver == "" {
 		driver = "local"
 	}
-	if driver == "s3" {
+	if isS3CompatibleDriver(driver) {
 		var strategy data.Strategy
 		if err := db.WithContext(ctx).First(&strategy, file.StrategyID).Error; err != nil {
 			return err

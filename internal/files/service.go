@@ -117,6 +117,19 @@ type strategyConfig struct {
 	ProcessFormats     []string
 }
 
+func isS3CompatibleDriver(driver string) bool {
+	switch strings.ToLower(strings.TrimSpace(driver)) {
+	case "s3", "minio":
+		return true
+	default:
+		return false
+	}
+}
+
+func isMinIODriver(driver string) bool {
+	return strings.EqualFold(strings.TrimSpace(driver), "minio")
+}
+
 func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.FileHeader, opts UploadOptions) (data.FileAsset, error) {
 	strategy, cfg, err := s.resolveStrategy(ctx, user, opts.StrategyID)
 	if err != nil {
@@ -400,7 +413,7 @@ func (s *Service) PublicURL(ctx context.Context, file data.FileAsset) (string, e
 		driver = strings.ToLower(strings.TrimSpace(cfg.Driver))
 	}
 
-	if strings.TrimSpace(file.PublicURL) != "" && driver != "webdav" {
+	if strings.TrimSpace(file.PublicURL) != "" && driver != "webdav" && !isS3CompatibleDriver(driver) {
 		return sanitizeURL(file.PublicURL), nil
 	}
 
@@ -410,7 +423,7 @@ func (s *Service) PublicURL(ctx context.Context, file data.FileAsset) (string, e
 	}
 	where := "id = ? AND (public_url IS NULL OR public_url = '')"
 	args := []interface{}{file.ID}
-	if driver == "webdav" {
+	if driver == "webdav" || isS3CompatibleDriver(driver) {
 		where = "id = ? AND (public_url IS NULL OR public_url = '' OR public_url <> ?)"
 		args = []interface{}{file.ID, publicURL}
 	}
@@ -432,7 +445,7 @@ func (s *Service) FetchProxyObject(ctx context.Context, file data.FileAsset) (*P
 	if driver == "" {
 		driver = "local"
 	}
-	if driver != "s3" {
+	if !isS3CompatibleDriver(driver) {
 		return nil, ErrProxyUnsupported
 	}
 	if !cfg.S3Proxy {
@@ -1048,13 +1061,16 @@ func (s *Service) parseStrategyConfig(strategy data.Strategy) strategyConfig {
 	}
 	cfg.S3Endpoint = strings.TrimSpace(cfg.S3Endpoint)
 	cfg.S3Region = strings.TrimSpace(cfg.S3Region)
-	if strings.ToLower(strings.TrimSpace(cfg.Driver)) == "s3" && cfg.S3Region == "" {
+	if isS3CompatibleDriver(cfg.Driver) && cfg.S3Region == "" {
 		cfg.S3Region = "us-east-1"
 	}
 	cfg.S3Bucket = strings.TrimSpace(cfg.S3Bucket)
 	cfg.S3AccessKey = strings.TrimSpace(cfg.S3AccessKey)
 	cfg.S3SecretKey = strings.TrimSpace(cfg.S3SecretKey)
 	cfg.S3SessionToken = strings.TrimSpace(cfg.S3SessionToken)
+	if isMinIODriver(cfg.Driver) {
+		cfg.S3ForcePathStyle = true
+	}
 	return cfg
 }
 
@@ -1307,14 +1323,14 @@ func (s *Service) normalizeExternalBase(base string, driver string, root string,
 	if driver == "" {
 		driver = "local"
 	}
-	if strings.ToLower(strings.TrimSpace(driver)) == "s3" {
+	if isS3CompatibleDriver(driver) {
 		if proxy {
-			base = strings.TrimRight(strings.TrimSpace(s.cfg.PublicBaseURL), "/")
+			base = s.defaultBaseURL()
 		}
 		return base
 	}
 	if base == "" {
-		base = strings.TrimRight(strings.TrimSpace(s.cfg.PublicBaseURL), "/")
+		base = s.defaultBaseURL()
 	}
 	return base
 }

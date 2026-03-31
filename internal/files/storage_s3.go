@@ -23,7 +23,8 @@ func (s *Service) storeS3Object(ctx context.Context, cfg strategyConfig, relativ
 	if strings.TrimSpace(cfg.S3Bucket) == "" {
 		return storeObjectResult{}, fmt.Errorf("s3 bucket is required")
 	}
-	key := sanitizeRelativePath(relativePath)
+	key := joinRelativePath(cfg.Root, relativePath)
+	key = sanitizeRelativePath(key)
 	if key == "" {
 		return storeObjectResult{}, fmt.Errorf("s3 object key is empty")
 	}
@@ -166,28 +167,19 @@ func newS3Client(ctx context.Context, cfg strategyConfig) (*s3.Client, error) {
 			secretKey,
 			strings.TrimSpace(cfg.S3SessionToken),
 		)),
+		config.WithRequestChecksumCalculation(aws.RequestChecksumCalculationWhenRequired),
+		config.WithResponseChecksumValidation(aws.ResponseChecksumValidationWhenRequired),
 	}
 
 	endpoint := normalizeS3Endpoint(cfg.S3Endpoint)
-	if endpoint != "" {
-		opts = append(opts, config.WithEndpointResolverWithOptions(
-			aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-				if service == s3.ServiceID {
-					return aws.Endpoint{
-						URL:               endpoint,
-						HostnameImmutable: true,
-					}, nil
-				}
-				return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-			}),
-		))
-	}
-
 	awsCfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		if endpoint != "" {
+			o.BaseEndpoint = aws.String(endpoint)
+		}
 		o.UsePathStyle = cfg.S3ForcePathStyle
 	}), nil
 }
