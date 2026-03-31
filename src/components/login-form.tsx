@@ -23,6 +23,7 @@ import { login } from "@/lib/api";
 import { fetchTurnstileConfig, loadTurnstileScript } from "@/lib/turnstile";
 import { useAuthStore } from "@/state/auth";
 import { Turnstile, type TurnstileRef } from "@/components/Turnstile";
+import { useI18n } from "@/i18n";
 
 export function LoginForm({
   forgotPasswordEnabled = false,
@@ -32,6 +33,7 @@ export function LoginForm({
   const navigate = useNavigate();
   const location = useLocation();
   const setAuth = useAuthStore((state) => state.setAuth);
+  const { t } = useI18n();
   const [form, setForm] = useState({ email: "", password: "" });
   const [turnstileToken, setTurnstileToken] = useState<string>("");
   const [turnstileReady, setTurnstileReady] = useState(false);
@@ -42,9 +44,9 @@ export function LoginForm({
     const key = "skyimage-disabled-notice";
     if (window.sessionStorage.getItem(key) === "1") {
       window.sessionStorage.removeItem(key);
-      toast.error("账户已被封禁");
+      toast.error(t("login.disabledNotice"));
     }
-  }, []);
+  }, [t]);
 
   const { data: turnstileConfig } = useQuery({
     queryKey: ["turnstile-config", "login"],
@@ -57,29 +59,29 @@ export function LoginForm({
         .then(() => setTurnstileReady(true))
         .catch((err) => {
           console.error("Failed to load Turnstile:", err);
-          toast.error("加载人机验证失败");
+          toast.error(t("login.turnstileLoadError"));
         });
     }
-  }, [turnstileConfig]);
+  }, [t, turnstileConfig]);
 
   const mutation = useMutation({
     mutationFn: login,
     onSuccess: (data) => {
       setAuth({ user: data.user });
-      toast.success("登录成功");
+      toast.success(t("login.success"));
       const redirect = (location.state as any)?.from?.pathname ?? "/dashboard";
       navigate(redirect, { replace: true });
     },
     onError: (error) => {
       let message = error.message;
       if (message === "account disabled") {
-        message = "账户已被禁用";
+        message = t("login.error.accountDisabled");
       } else if (message === "invalid credentials") {
-        message = "邮箱/密码不正确";
+        message = t("login.error.invalidCredentials");
       } else if (message === "turnstile token required") {
-        message = "请完成人机验证";
+        message = t("login.error.turnstileRequired");
       } else if (message === "turnstile verification failed") {
-        message = "人机验证失败，请重试";
+        message = t("login.error.turnstileFailed");
       }
       toast.error(message);
       setTurnstileToken("");
@@ -92,11 +94,11 @@ export function LoginForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (form.password.length < 8) {
-      toast.error("密码必须至少8位");
+      toast.error(t("login.error.passwordLength"));
       return;
     }
     if (turnstileConfig?.enabled && !turnstileToken) {
-      toast.error("请完成人机验证");
+      toast.error(t("login.error.turnstileRequired"));
       return;
     }
     mutation.mutate({ ...form, turnstileToken });
@@ -106,14 +108,14 @@ export function LoginForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">欢迎回来</CardTitle>
-          <CardDescription>使用邮箱登录您的账户</CardDescription>
+          <CardTitle className="text-xl">{t("login.title")}</CardTitle>
+          <CardDescription>{t("login.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="email">邮箱</FieldLabel>
+                <FieldLabel htmlFor="email">{t("login.email")}</FieldLabel>
                 <Input
                   id="email"
                   type="email"
@@ -125,10 +127,10 @@ export function LoginForm({
               </Field>
               <Field>
                 <div className="flex items-center">
-                  <FieldLabel htmlFor="password">密码</FieldLabel>
+                  <FieldLabel htmlFor="password">{t("login.password")}</FieldLabel>
                   {forgotPasswordEnabled && (
                     <Link to="/forgot-password" className="ml-auto text-sm underline-offset-4 hover:underline">
-                      忘记密码？
+                      {t("login.forgotPassword")}
                     </Link>
                   )}
                 </div>
@@ -149,11 +151,11 @@ export function LoginForm({
                       onVerify={setTurnstileToken}
                       onError={() => {
                         setTurnstileToken("");
-                        toast.error("人机验证出错，请刷新页面重试");
+                        toast.error(t("login.turnstileError"));
                       }}
                       onExpire={() => {
                         setTurnstileToken("");
-                        toast.warning("人机验证已过期，请重新验证");
+                        toast.warning(t("login.turnstileExpired"));
                       }}
                     />
                   </div>
@@ -161,10 +163,10 @@ export function LoginForm({
               )}
               <Field>
                 <Button type="submit" className="w-full" disabled={mutation.isPending}>
-                  {mutation.isPending ? "登录中..." : "登录"}
+                  {mutation.isPending ? t("login.submitting") : t("login.submit")}
                 </Button>
                 <FieldDescription className="text-center">
-                  还没有账号？ <a href="/register" className="text-primary hover:underline">立即注册</a>
+                  {t("login.noAccount")} <a href="/register" className="text-primary hover:underline">{t("login.registerNow")}</a>
                 </FieldDescription>
               </Field>
             </FieldGroup>
@@ -172,8 +174,8 @@ export function LoginForm({
         </CardContent>
       </Card>
       <FieldDescription className="px-6 text-center">
-        继续即表示您同意我们的 <a href="/terms" className="underline hover:text-primary">服务条款</a>{" "}
-        和 <a href="/privacy" className="underline hover:text-primary">隐私政策</a>。
+        {t("legal.continuePrefix")} <a href="/terms" className="underline hover:text-primary">{t("legal.terms")}</a>{" "}
+        {t("legal.and")} <a href="/privacy" className="underline hover:text-primary">{t("legal.privacy")}</a>{t("legal.period")}
       </FieldDescription>
     </div>
   );

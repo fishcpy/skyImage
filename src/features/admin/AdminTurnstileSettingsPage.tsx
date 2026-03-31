@@ -18,8 +18,10 @@ import {
 import { SplashScreen } from "@/components/SplashScreen";
 import { Turnstile } from "@/components/Turnstile";
 import { loadTurnstileScript } from "@/lib/turnstile";
+import { useI18n } from "@/i18n";
 
 export function AdminTurnstileSettingsPage() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery<SystemSettingsResponse>({
     queryKey: ["admin", "system-settings"],
@@ -85,7 +87,7 @@ export function AdminTurnstileSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["site-config"] });
       queryClient.invalidateQueries({ queryKey: ["site-meta"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "system-settings"] });
-      toast.success("设置已更新");
+      toast.success(t("admin.turnstileSettings.saved"));
     },
     onError: (error) => toast.error(error.message)
   });
@@ -94,13 +96,13 @@ export function AdminTurnstileSettingsPage() {
     mutationFn: testTurnstileConfig,
     onSuccess: (result) => {
       if (result.success) {
-        toast.success("Turnstile 配置验证通过");
+        toast.success(t("admin.turnstileSettings.verifiedSuccess"));
         setTurnstileVerified(true);
         setTurnstileLastVerifiedAt(result.verifiedAt || new Date().toISOString());
         setShowTurnstileTester(false);
       } else {
         setTurnstileVerified(false);
-        toast.error(result.message || "Turnstile 验证失败，请重试");
+        toast.error(result.message || t("admin.turnstileSettings.verifyFailed"));
       }
     },
     onError: (error) => {
@@ -110,18 +112,18 @@ export function AdminTurnstileSettingsPage() {
   });
 
   if (isLoading) {
-    return <SplashScreen message="加载人机验证设置..." />;
+    return <SplashScreen message={t("admin.turnstileSettings.loading")} />;
   }
   if (error && !data) {
     const message =
       error.message === "account disabled"
-        ? "当前账户已被封禁，无法访问人机验证设置。"
+        ? t("admin.turnstileSettings.disabled")
         : error.message;
     return (
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>无法加载人机验证设置</CardTitle>
+            <CardTitle>{t("admin.turnstileSettings.loadFailed")}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-destructive">{message}</p>
@@ -138,7 +140,7 @@ export function AdminTurnstileSettingsPage() {
       setTurnstileLastVerifiedAt(null);
     }
     if (field === "enableTurnstile" && actualValue === true && !turnstileVerified) {
-      toast.error("请先完成下方的 Turnstile 测试并验证成功后再启用登录/注册人机验证");
+      toast.error(t("admin.turnstileSettings.requireVerifyBeforeEnable"));
       return;
     }
     setForm((prev) => ({ ...prev, [field]: actualValue }));
@@ -146,7 +148,7 @@ export function AdminTurnstileSettingsPage() {
 
   const startTurnstileTest = () => {
     if (!form.turnstileSiteKey || !form.turnstileSecretKey) {
-      toast.error("请先填写完整的 Site Key 和 Secret Key");
+      toast.error(t("admin.turnstileSettings.keysRequired"));
       return;
     }
     setShowTurnstileTester(true);
@@ -156,13 +158,13 @@ export function AdminTurnstileSettingsPage() {
       .then(() => setTurnstileReady(true))
       .catch((err) => {
         setTurnstileScriptError(err.message);
-        toast.error("加载 Turnstile 组件失败，请检查网络环境");
+        toast.error(t("admin.turnstileSettings.loadScriptFailed"));
       });
   };
 
   const handleTurnstileVerify = (token: string) => {
     if (!form.turnstileSiteKey || !form.turnstileSecretKey) {
-      toast.error("Turnstile 配置不完整");
+      toast.error(t("admin.turnstileSettings.configIncomplete"));
       return;
     }
     testTurnstileMutation.mutate({
@@ -174,7 +176,7 @@ export function AdminTurnstileSettingsPage() {
 
   const lastVerifiedText = turnstileLastVerifiedAt
     ? new Date(turnstileLastVerifiedAt).toLocaleString()
-    : "尚未验证";
+    : t("admin.turnstileSettings.unverified");
 
   const canTestTurnstile = Boolean(form.turnstileSiteKey && form.turnstileSecretKey);
 
@@ -193,30 +195,30 @@ export function AdminTurnstileSettingsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <h1 className="text-2xl font-semibold">人机验证 (Turnstile)</h1>
-        <p className="text-muted-foreground">配置 Cloudflare Turnstile 人机验证服务。</p>
+        <h1 className="text-2xl font-semibold">{t("admin.turnstileSettings.title")}</h1>
+        <p className="text-muted-foreground">{t("admin.turnstileSettings.description")}</p>
       </div>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5" />
-            Turnstile 配置
+            {t("admin.turnstileSettings.card")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>站点密钥 (Site Key)</Label>
+            <Label>{t("admin.turnstileSettings.siteKey")}</Label>
             <Input
               value={form.turnstileSiteKey}
               onChange={(e) => handleChange("turnstileSiteKey", e.target.value)}
               placeholder="0x4AAAAAAA..."
             />
             <p className="text-xs text-muted-foreground">
-              用于客户端渲染验证组件
+              {t("admin.turnstileSettings.siteKeyHint")}
             </p>
           </div>
           <div className="space-y-2">
-            <Label>密钥 (Secret Key)</Label>
+            <Label>{t("admin.turnstileSettings.secretKey")}</Label>
             <Input
               type="password"
               value={form.turnstileSecretKey}
@@ -224,11 +226,11 @@ export function AdminTurnstileSettingsPage() {
               placeholder="0x4AAAAAAA..."
             />
             <p className="text-xs text-muted-foreground">
-              用于服务端验证，请妥善保管
+              {t("admin.turnstileSettings.secretKeyHint")}
             </p>
           </div>
           <div className="space-y-3 rounded-md border p-3">
-            <p className="text-sm font-medium">登录与注册验证</p>
+            <p className="text-sm font-medium">{t("admin.turnstileSettings.loginRegister")}</p>
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="enableLoginTurnstile"
@@ -236,7 +238,7 @@ export function AdminTurnstileSettingsPage() {
                 onCheckedChange={(checked) => handleChange("enableLoginTurnstile", checked)}
               />
               <Label htmlFor="enableLoginTurnstile">
-                登录需 Cloudflare 验证
+                {t("admin.turnstileSettings.loginRequired")}
               </Label>
             </div>
             <div className="flex items-center space-x-2">
@@ -246,7 +248,7 @@ export function AdminTurnstileSettingsPage() {
                 onCheckedChange={(checked) => handleChange("enableRegisterTurnstile", checked)}
               />
               <Label htmlFor="enableRegisterTurnstile">
-                注册需 Cloudflare 验证
+                {t("admin.turnstileSettings.registerRequired")}
               </Label>
             </div>
             <div className="flex items-center space-x-2">
@@ -256,7 +258,7 @@ export function AdminTurnstileSettingsPage() {
                 onCheckedChange={(checked) => handleChange("enableRegisterVerifyTurnstile", checked)}
               />
               <Label htmlFor="enableRegisterVerifyTurnstile">
-                注册验证码发送需 Cloudflare 验证
+                {t("admin.turnstileSettings.registerVerifyRequired")}
               </Label>
             </div>
           </div>
@@ -268,7 +270,7 @@ export function AdminTurnstileSettingsPage() {
                 onCheckedChange={(checked) => handleChange("enableForgotPasswordTurnstile", checked)}
               />
               <Label htmlFor="enableForgotPasswordTurnstile" className="font-medium">
-                忘记密码流程需 Cloudflare 验证
+                {t("admin.turnstileSettings.forgotRequired")}
               </Label>
             </div>
             <div className="ml-6 space-y-2">
@@ -283,7 +285,7 @@ export function AdminTurnstileSettingsPage() {
                   htmlFor="enableForgotPasswordTurnstileRequest"
                   className={!form.enableForgotPasswordTurnstile ? "text-muted-foreground" : ""}
                 >
-                  重置密码发邮件需验证
+                  {t("admin.turnstileSettings.forgotRequestRequired")}
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
@@ -297,7 +299,7 @@ export function AdminTurnstileSettingsPage() {
                   htmlFor="enableForgotPasswordTurnstileReset"
                   className={!form.enableForgotPasswordTurnstile ? "text-muted-foreground" : ""}
                 >
-                  最终重置密码需验证
+                  {t("admin.turnstileSettings.forgotResetRequired")}
                 </Label>
               </div>
             </div>
@@ -305,11 +307,11 @@ export function AdminTurnstileSettingsPage() {
           <div className="rounded-md border border-dashed p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium">测试状态</p>
+                <p className="text-sm font-medium">{t("admin.turnstileSettings.testStatus")}</p>
                 <p className="text-xs text-muted-foreground">
                   {turnstileVerified
-                    ? `已通过测试：${lastVerifiedText}`
-                    : "尚未验证，启用前必须先完成测试"}
+                    ? t("admin.turnstileSettings.testPassedAt", { value: lastVerifiedText })
+                    : t("admin.turnstileSettings.testRequired")}
                 </p>
               </div>
               {turnstileVerified ? (
@@ -329,19 +331,19 @@ export function AdminTurnstileSettingsPage() {
                 {testTurnstileMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    正在验证...
+                    {t("admin.turnstileSettings.verifying")}
                   </>
                 ) : showTurnstileTester ? (
-                  "重新加载测试"
+                  t("admin.turnstileSettings.reloadTest")
                 ) : turnstileVerified ? (
-                  "重新测试配置"
+                  t("admin.turnstileSettings.retest")
                 ) : (
-                  "开始测试配置"
+                  t("admin.turnstileSettings.startTest")
                 )}
               </Button>
               {!canTestTurnstile && (
                 <p className="text-xs text-muted-foreground">
-                  请先填写 Site Key 与 Secret Key
+                  {t("admin.turnstileSettings.keysHint")}
                 </p>
               )}
             </div>
@@ -350,7 +352,7 @@ export function AdminTurnstileSettingsPage() {
                 {!turnstileReady && !turnstileScriptError && (
                   <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    正在加载 Turnstile 组件...
+                    {t("admin.turnstileSettings.loadingWidget")}
                   </div>
                 )}
                 {turnstileScriptError && (
@@ -363,13 +365,13 @@ export function AdminTurnstileSettingsPage() {
                         siteKey={form.turnstileSiteKey}
                         onVerify={handleTurnstileVerify}
                         onError={() => {
-                          toast.error("Turnstile 组件出现错误，请重试");
+                          toast.error(t("admin.turnstileSettings.widgetError"));
                         }}
                         onExpire={() => {}}
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      验证成功后系统会自动提交测试请求
+                      {t("admin.turnstileSettings.autoSubmitHint")}
                     </p>
                   </>
                 )}
@@ -377,10 +379,10 @@ export function AdminTurnstileSettingsPage() {
             )}
           </div>
           <div className="rounded-md bg-muted p-3 text-sm">
-            <p className="font-medium mb-1">配置说明：</p>
+            <p className="font-medium mb-1">{t("admin.turnstileSettings.guideTitle")}</p>
             <ul className="list-disc list-inside space-y-1 text-muted-foreground">
               <li>
-                前往{" "}
+                {t("admin.turnstileSettings.goTo")}{" "}
                 <a
                   href="https://dash.cloudflare.com/?to=/:account/turnstile"
                   target="_blank"
@@ -389,23 +391,23 @@ export function AdminTurnstileSettingsPage() {
                 >
                   Cloudflare Turnstile
                 </a>{" "}
-                创建站点
+                {t("admin.turnstileSettings.createSite")}
               </li>
-              <li>获取站点密钥和密钥后填入上方</li>
-              <li>启用后将在登录和注册页面显示验证</li>
+              <li>{t("admin.turnstileSettings.guideStep1")}</li>
+              <li>{t("admin.turnstileSettings.guideStep2")}</li>
             </ul>
           </div>
         </CardContent>
       </Card>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">
-          {isFormDirty ? "有未保存的更改" : "未检测到配置更改"}
+          {isFormDirty ? t("admin.systemSettings.unsaved") : t("admin.systemSettings.clean")}
         </p>
         <Button
           onClick={handleSave}
           disabled={mutation.isPending || !isFormDirty}
         >
-          {mutation.isPending ? "保存中..." : "保存所有更改"}
+          {mutation.isPending ? t("common.saving") : t("admin.systemSettings.saveAll")}
         </Button>
       </div>
     </div>

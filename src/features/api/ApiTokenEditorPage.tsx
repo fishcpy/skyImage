@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { addMonths, format, getDaysInMonth, startOfMonth } from "date-fns";
-import { zhCN } from "date-fns/locale";
+import { enUS, zhCN } from "date-fns/locale";
 import { Calendar as CalendarIcon, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import {
   updateApiToken,
   ApiTokenRecord
 } from "@/lib/api";
+import { useI18n } from "@/i18n";
 
 type EditorMode = "create" | "edit";
 
@@ -72,18 +73,18 @@ function getYearOptions(base: Date, range = 5) {
   const currentYear = base.getFullYear();
   return Array.from({ length: range * 2 + 1 }).map((_, index) => {
     const year = currentYear - range + index;
-    return { label: `${year}年`, value: year };
+    return { value: year };
   });
 }
 
 function getMonthList() {
   return Array.from({ length: 12 }).map((_, index) => ({
-    label: `${index + 1}月`,
     value: index
   }));
 }
 
 export function ApiTokenEditorPage() {
+  const { t, locale } = useI18n();
   const { id } = useParams();
   const mode: EditorMode = id ? "edit" : "create";
   const navigate = useNavigate();
@@ -167,7 +168,7 @@ export function ApiTokenEditorPage() {
     onSuccess: (data) => {
       setCreatedToken(data.token);
       queryClient.invalidateQueries({ queryKey: ["api-tokens"] });
-      toast.success("API Token 已生成");
+      toast.success(t("apiTokens.editor.createdSuccess"));
     },
     onError: (error: Error) => toast.error(error.message)
   });
@@ -176,7 +177,7 @@ export function ApiTokenEditorPage() {
     mutationFn: (expiresAt: string) => updateApiToken(Number(id), { expiresAt }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["api-tokens"] });
-      toast.success("到期时间已更新");
+      toast.success(t("apiTokens.editor.updatedSuccess"));
       navigate("/dashboard/api-tokens");
     },
     onError: (error: Error) => toast.error(error.message)
@@ -191,7 +192,7 @@ export function ApiTokenEditorPage() {
 
   const handleSubmit = () => {
     if (!expiryPayload) {
-      toast.error("请选择到期日期");
+      toast.error(t("apiTokens.editor.selectExpiryDate"));
       return;
     }
     if (mode === "create") {
@@ -210,16 +211,16 @@ export function ApiTokenEditorPage() {
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="sm" onClick={handleBack}>
           <ChevronLeft className="mr-1 h-4 w-4" />
-          返回
+          {t("apiTokens.editor.back")}
         </Button>
         <div>
           <h1 className="text-2xl font-semibold">
-            {mode === "create" ? "新建 API Token" : "编辑 API Token"}
+            {mode === "create" ? t("apiTokens.editor.createTitle") : t("apiTokens.editor.editTitle")}
           </h1>
           <p className="text-muted-foreground">
             {mode === "create"
-              ? "设置到期时间后生成新的 Token"
-              : "更新 Token 的到期时间"}
+              ? t("apiTokens.editor.createDescription")
+              : t("apiTokens.editor.editDescription")}
           </p>
         </div>
       </div>
@@ -227,14 +228,14 @@ export function ApiTokenEditorPage() {
       {mode === "edit" && !isLoading && !currentToken && (
         <Card>
           <CardContent className="py-6 text-sm text-muted-foreground">
-            未找到该 Token，可能已被删除。
+            {t("apiTokens.editor.notFound")}
           </CardContent>
         </Card>
       )}
 
       <Card>
         <CardHeader>
-          <CardTitle>到期设置</CardTitle>
+          <CardTitle>{t("apiTokens.editor.expirySettings")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center space-x-2">
@@ -245,9 +246,9 @@ export function ApiTokenEditorPage() {
             />
             <div className="space-y-1">
               <Label htmlFor="neverExpire" className="text-sm font-medium">
-                无限期 Token
+                {t("apiTokens.editor.neverExpire")}
               </Label>
-              <p className="text-xs text-muted-foreground">开启后不再限制到期时间</p>
+              <p className="text-xs text-muted-foreground">{t("apiTokens.editor.neverExpireHint")}</p>
             </div>
           </div>
 
@@ -255,7 +256,7 @@ export function ApiTokenEditorPage() {
             <FieldGroup className="max-w-xs flex-row">
               <Field>
                 <FieldLabel className="block">
-                  到期日期
+                  {t("apiTokens.editor.expiryDate")}
                 </FieldLabel>
                 <Popover>
                   <PopoverTrigger asChild>
@@ -265,8 +266,10 @@ export function ApiTokenEditorPage() {
                       className="w-32 justify-between font-normal"
                     >
                       {selectedDate
-                        ? format(selectedDate, "yyyy年M月d日", { locale: zhCN })
-                        : "选择日期"}
+                        ? format(selectedDate, locale === "zh-CN" ? "yyyy年M月d日" : "MMM d, yyyy", {
+                            locale: locale === "zh-CN" ? zhCN : enUS
+                          })
+                        : t("apiTokens.editor.pickDate")}
                       <ChevronDown />
                     </Button>
                   </PopoverTrigger>
@@ -291,13 +294,13 @@ export function ApiTokenEditorPage() {
                         }}
                       >
                         <SelectTrigger className="h-8 w-[110px]">
-                          <SelectValue placeholder="选择年份" />
+                          <SelectValue placeholder={t("apiTokens.editor.pickYear")} />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectGroup>
                             {yearOptions.map((option) => (
                               <SelectItem key={option.value} value={String(option.value)}>
-                                {option.label}
+                                {`${option.value}${t("apiTokens.editor.yearSuffix")}`}
                               </SelectItem>
                             ))}
                           </SelectGroup>
@@ -313,13 +316,13 @@ export function ApiTokenEditorPage() {
                         }}
                       >
                         <SelectTrigger className="h-8 w-[90px]">
-                          <SelectValue placeholder="选择月份" />
+                          <SelectValue placeholder={t("apiTokens.editor.pickMonth")} />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectGroup>
                             {monthOptions.map((option) => (
                               <SelectItem key={option.value} value={String(option.value)}>
-                                {option.label}
+                                {`${option.value + 1}${t("apiTokens.editor.monthSuffix")}`}
                               </SelectItem>
                             ))}
                           </SelectGroup>
@@ -365,22 +368,22 @@ export function ApiTokenEditorPage() {
                 </Popover>
               </Field>
               <Field className="w-52">
-                <FieldLabel htmlFor="token-time">到期时间</FieldLabel>
+                <FieldLabel htmlFor="token-time">{t("apiTokens.editor.expiryTime")}</FieldLabel>
                 <div className="flex items-center gap-2">
                   <Select value={timePeriod} onValueChange={(value) => setTimePeriod(value as TimePeriod)}>
                     <SelectTrigger className="h-9 w-[72px]">
-                      <SelectValue placeholder="上午/下午" />
+                      <SelectValue placeholder={t("apiTokens.editor.period")} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        <SelectItem value="AM">上午</SelectItem>
-                        <SelectItem value="PM">下午</SelectItem>
+                        <SelectItem value="AM">{t("apiTokens.editor.am")}</SelectItem>
+                        <SelectItem value="PM">{t("apiTokens.editor.pm")}</SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
                   <Select value={timeHour} onValueChange={setTimeHour}>
                     <SelectTrigger className="h-9 w-[70px]">
-                      <SelectValue placeholder="小时" />
+                      <SelectValue placeholder={t("apiTokens.editor.hour")} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
@@ -394,7 +397,7 @@ export function ApiTokenEditorPage() {
                   </Select>
                   <Select value={timeMinute} onValueChange={setTimeMinute}>
                     <SelectTrigger className="h-9 w-[70px]">
-                      <SelectValue placeholder="分钟" />
+                      <SelectValue placeholder={t("apiTokens.editor.minute")} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
@@ -413,10 +416,14 @@ export function ApiTokenEditorPage() {
 
           <div className="flex items-center gap-3">
             <Button onClick={handleSubmit} disabled={disableSubmit || (mode === "edit" && !currentToken)}>
-              {disableSubmit ? "提交中..." : mode === "create" ? "生成 Token" : "保存修改"}
+              {disableSubmit
+                ? t("apiTokens.editor.submitting")
+                : mode === "create"
+                  ? t("apiTokens.editor.submit")
+                  : t("apiTokens.editor.submitEdit")}
             </Button>
             <Button variant="outline" onClick={handleBack}>
-              取消
+              {t("common.cancel")}
             </Button>
           </div>
         </CardContent>
@@ -425,11 +432,11 @@ export function ApiTokenEditorPage() {
       {mode === "create" && createdToken && (
         <Card className="border-green-500/50 bg-green-50 dark:bg-green-950/20">
           <CardHeader>
-            <CardTitle className="text-green-700 dark:text-green-400">新 Token 已生成</CardTitle>
+            <CardTitle className="text-green-700 dark:text-green-400">{t("apiTokens.editor.createdTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label className="text-sm font-medium">您的 API Token</Label>
+              <Label className="text-sm font-medium">{t("apiTokens.editor.createdLabel")}</Label>
               <div className="mt-2 flex items-center gap-2">
                 <Input value={createdToken} readOnly className="font-mono text-sm" />
                 <Button
@@ -437,14 +444,14 @@ export function ApiTokenEditorPage() {
                   variant="outline"
                   onClick={() => {
                     navigator.clipboard.writeText(createdToken);
-                    toast.success("已复制到剪贴板");
+                    toast.success(t("apiTokens.editor.copied"));
                   }}
                 >
-                  复制
+                  {t("common.copy")}
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                请立即复制保存此 Token，关闭后将无法再次查看完整内容。
+                {t("apiTokens.editor.createdHint")}
               </p>
             </div>
           </CardContent>

@@ -3,13 +3,16 @@ import { ArrowRight, Images, Lock, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { fetchRegistrationStatus, type SiteConfig } from "@/lib/api";
 import { useAuthStore } from "@/state/auth";
+import { useI18n } from "@/i18n";
 
 export function HomePage({ siteConfig }: { siteConfig?: SiteConfig }) {
+  const { t } = useI18n();
   const token = useAuthStore((state) => state.token);
   const { data: registrationStatus } = useQuery({
     queryKey: ["registration-status"],
@@ -21,17 +24,18 @@ export function HomePage({ siteConfig }: { siteConfig?: SiteConfig }) {
   const title = siteConfig?.title ?? "";
   const description = siteConfig?.description ?? "";
   const slogan = siteConfig?.slogan?.trim() ?? "";
-  const badgeText = siteConfig?.homeBadgeText?.trim() ?? "";
-  const introText = siteConfig?.homeIntroText?.trim() ?? "";
-  const primaryCtaText = siteConfig?.homePrimaryCtaText?.trim() ?? "";
-  const dashboardCtaText = siteConfig?.homeDashboardCtaText?.trim() ?? "";
-  const secondaryCtaText = siteConfig?.homeSecondaryCtaText?.trim() ?? "";
-  const feature1Title = siteConfig?.homeFeature1Title?.trim() ?? "";
-  const feature1Desc = siteConfig?.homeFeature1Desc?.trim() ?? "";
-  const feature2Title = siteConfig?.homeFeature2Title?.trim() ?? "";
-  const feature2Desc = siteConfig?.homeFeature2Desc?.trim() ?? "";
-  const feature3Title = siteConfig?.homeFeature3Title?.trim() ?? "";
-  const feature3Desc = siteConfig?.homeFeature3Desc?.trim() ?? "";
+  const badgeText = siteConfig?.homeBadgeText?.trim() || t("home.defaultBadge");
+  const introText = siteConfig?.homeIntroText?.trim() || t("home.defaultIntro");
+  const primaryCtaText = siteConfig?.homePrimaryCtaText?.trim() || t("home.defaultPrimaryCta");
+  const dashboardCtaText = siteConfig?.homeDashboardCtaText?.trim() || t("home.defaultDashboardCta");
+  const secondaryCtaText = siteConfig?.homeSecondaryCtaText?.trim() || t("home.defaultSecondaryCta");
+  const feature1Title = siteConfig?.homeFeature1Title?.trim() || t("home.defaultFeature1Title");
+  const feature1Desc = siteConfig?.homeFeature1Desc?.trim() || t("home.defaultFeature1Desc");
+  const feature2Title = siteConfig?.homeFeature2Title?.trim() || t("home.defaultFeature2Title");
+  const feature2Desc = siteConfig?.homeFeature2Desc?.trim() || t("home.defaultFeature2Desc");
+  const feature3Title = siteConfig?.homeFeature3Title?.trim() || t("home.defaultFeature3Title");
+  const feature3Desc = siteConfig?.homeFeature3Desc?.trim() || t("home.defaultFeature3Desc");
+  const displaySlogan = slogan || t("home.defaultSlogan");
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-background">
@@ -41,7 +45,10 @@ export function HomePage({ siteConfig }: { siteConfig?: SiteConfig }) {
           <p className="text-xl font-semibold">{title}</p>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-2">
+          <LanguageToggle />
+          <ThemeToggle />
+        </div>
       </header>
 
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 pb-16 pt-6 sm:px-8">
@@ -51,7 +58,7 @@ export function HomePage({ siteConfig }: { siteConfig?: SiteConfig }) {
         </Badge>
         <section className="max-w-3xl animate-enter animate-enter-2 space-y-5">
           <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-6xl">
-            {slogan}
+            {displaySlogan}
           </h1>
           <p className="text-base text-muted-foreground sm:text-lg">
             {introText}

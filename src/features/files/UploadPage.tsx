@@ -21,6 +21,7 @@ import {
   type FileRecord
 } from "@/lib/api";
 import { normalizeFileUrl } from "@/lib/file-url";
+import { useI18n } from "@/i18n";
 
 type QueueItem = {
   id: string;
@@ -32,6 +33,7 @@ type QueueItem = {
 };
 
 export function UploadPage() {
+  const { t } = useI18n();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const queueRef = useRef<QueueItem[]>([]);
   const user = useAuthStore((state) => state.user);
@@ -97,7 +99,7 @@ export function UploadPage() {
 
   const uploadItem = async (item: QueueItem) => {
     if (!strategyId) {
-      toast.error("请先配置可用的储存策略");
+      toast.error(t("upload.configureStrategy"));
       return;
     }
     setQueue((prev) =>
@@ -118,7 +120,7 @@ export function UploadPage() {
             : it
         )
       );
-      toast.success(`${item.file.name} 上传成功`);
+      toast.success(t("upload.success", { name: item.file.name }));
       
       // 上传成功后立即刷新用户信息（更新已使用存储）
       useAuthStore.getState().refreshUser().catch((err) => {
@@ -131,7 +133,7 @@ export function UploadPage() {
             ? {
                 ...it,
                 status: "error",
-                error: error?.message || "上传失败"
+                error: error?.message || t("upload.failed")
               }
             : it
         )
@@ -151,13 +153,13 @@ export function UploadPage() {
   const statusText = useCallback((item: QueueItem) => {
     switch (item.status) {
       case "pending":
-        return "等待上传";
+        return t("upload.pending");
       case "uploading":
-        return "上传中...";
+        return t("upload.uploading");
       case "uploaded":
-        return "已上传";
+        return t("upload.uploaded");
       case "error":
-        return item.error || "上传失败";
+        return item.error || t("upload.failed");
       default:
         return "";
     }
@@ -165,7 +167,7 @@ export function UploadPage() {
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(normalizeFileUrl(text));
-    toast.success("已复制链接");
+    toast.success(t("upload.copied"));
   };
 
   const formatSize = (size: number) => {
@@ -206,9 +208,9 @@ export function UploadPage() {
             className="fixed inset-0 z-[500] flex items-center justify-center bg-black/70 p-4"
             onClick={() => setPreview(null)}
           >
-            <img
+              <img
               src={preview}
-              alt="预览"
+              alt={t("upload.previewAlt")}
               className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             />
@@ -220,15 +222,15 @@ export function UploadPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">文件上传</h1>
+        <h1 className="text-2xl font-semibold">{t("upload.title")}</h1>
         <p className="text-muted-foreground">
-          按需选择储存策略、可见性并批量上传图片。
+          {t("upload.description")}
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>上传文件</CardTitle>
+          <CardTitle>{t("upload.cardTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div
@@ -240,10 +242,10 @@ export function UploadPage() {
           >
             <UploadCloud className="h-10 w-10 text-muted-foreground" />
             <p className="mt-3 text-sm text-muted-foreground">
-              拖拽文件到这里，支持批量上传
+              {t("upload.dragHint")}
             </p>
             <p className="text-xs text-muted-foreground">
-              点击上方图标也可以选择文件
+              {t("upload.pickHint")}
             </p>
             <Input
               ref={fileInputRef}
@@ -257,7 +259,7 @@ export function UploadPage() {
           <div className="flex flex-col gap-3 border-t pt-4">
             {queueEmpty && (
               <p className="text-sm text-muted-foreground">
-                暂无文件，选择或拖拽图片开始上传。
+                {t("upload.empty")}
               </p>
             )}
             {queue.map((item) => (
@@ -290,7 +292,7 @@ export function UploadPage() {
                           className="px-0"
                           onClick={() => copy(item.result!.directUrl)}
                         >
-                          复制链接
+                          {t("upload.copyLink")}
                         </Button>
                         <Button
                           variant="link"
@@ -305,12 +307,12 @@ export function UploadPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setPreview(item.preview)}
-                    title="预览"
-                  >
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setPreview(item.preview)}
+                      title={t("upload.preview")}
+                    >
                     <Eye className="h-4 w-4" />
                   </Button>
                   {item.status === "pending" && (
@@ -319,12 +321,12 @@ export function UploadPage() {
                       onClick={() => uploadItem(item)}
                       disabled={strategyDisabled}
                     >
-                      上传
+                      {t("upload.actionUpload")}
                     </Button>
                   )}
                   {item.status === "uploading" && (
                     <Button size="sm" variant="outline" disabled>
-                      上传中...
+                      {t("upload.uploading")}
                     </Button>
                   )}
                   {item.status !== "uploaded" && (
@@ -334,7 +336,7 @@ export function UploadPage() {
                       onClick={() => removeItem(item.id)}
                     >
                       <X className="mr-1 h-4 w-4" />
-                      不上传
+                      {t("upload.actionSkip")}
                     </Button>
                   )}
                 </div>
@@ -345,7 +347,7 @@ export function UploadPage() {
           <div className="flex flex-col gap-4 rounded-xl border border-border/40 bg-muted/40 p-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-sm font-medium">默认可见性</label>
+                <label className="text-sm font-medium">{t("upload.defaultVisibility")}</label>
                 <Select
                   value={visibility}
                   onValueChange={(value) =>
@@ -353,16 +355,16 @@ export function UploadPage() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="选择可见性" />
+                    <SelectValue placeholder={t("upload.selectVisibility")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="private">私有</SelectItem>
-                    <SelectItem value="public">公开</SelectItem>
+                    <SelectItem value="private">{t("upload.private")}</SelectItem>
+                    <SelectItem value="public">{t("upload.public")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">储存策略</label>
+                <label className="text-sm font-medium">{t("upload.strategy")}</label>
                 <Select
                   value={strategyId?.toString() ?? ""}
                   onValueChange={(value) =>
@@ -371,7 +373,7 @@ export function UploadPage() {
                   disabled={strategyDisabled}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="选择储存策略" />
+                    <SelectValue placeholder={t("upload.selectStrategy")} />
                   </SelectTrigger>
                   <SelectContent>
                     {strategies.map((strategy) => (
@@ -383,7 +385,7 @@ export function UploadPage() {
                 </Select>
                 {strategyDisabled && (
                   <p className="text-xs text-destructive">
-                    请先在后台配置储存策略并关联角色组。
+                    {t("upload.strategyHint")}
                   </p>
                 )}
               </div>
@@ -398,10 +400,10 @@ export function UploadPage() {
                 }
               >
                 <UploadCloud className="mr-2 h-4 w-4" />
-                上传全部待上传文件
+                {t("upload.uploadAll")}
               </Button>
               <Button variant="ghost" onClick={clearQueue} disabled={queueEmpty}>
-                清空列表
+                {t("upload.clearList")}
               </Button>
             </div>
           </div>

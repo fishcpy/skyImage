@@ -2,8 +2,10 @@ import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchSiteConfig } from "@/lib/api";
 import DOMPurify from "dompurify";
+import { useI18n } from "@/i18n";
 
 export function NotFoundPage() {
+  const { t } = useI18n();
   // 从 localStorage 获取缓存的配置
   const getCachedConfig = () => {
     try {
@@ -64,9 +66,9 @@ export function NotFoundPage() {
           </div>
         ) : (
           <>
-            <p className="mt-2 text-lg font-semibold">页面不存在</p>
+            <p className="mt-2 text-lg font-semibold">{t("notFound.title")}</p>
             <p className="text-sm text-muted-foreground">
-              页面可能已经被删除或地址输入有误。
+              {t("notFound.description")}
             </p>
           </>
         )}

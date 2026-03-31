@@ -22,6 +22,7 @@ import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 
 import { CapacityMeter } from "@/components/CapacityMeter";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   Sidebar,
@@ -40,6 +41,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useAuthStore } from "@/state/auth";
 import { fetchSiteConfig, logout } from "@/lib/api";
+import { useI18n } from "@/i18n";
 
 type NavItem = {
   to?: string;
@@ -176,6 +178,7 @@ function SidebarNavSections({ sections }: { sections: NavSection[] }) {
 }
 
 export function AppShell() {
+  const { t } = useI18n();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
@@ -229,54 +232,56 @@ export function AppShell() {
     const enableApi = siteConfig?.enableApi ?? true;
     const base: NavSection[] = [
       {
-        items: [{ to: "/dashboard", label: "仪表盘", icon: GaugeCircle }]
+        items: [{ to: "/dashboard", label: t("nav.dashboard"), icon: GaugeCircle }]
       },
       {
-        title: "我的",
+        title: t("nav.mine"),
         items: [
-          { to: "/dashboard/upload", label: "上传图片", icon: CloudUpload },
-          { to: "/dashboard/images", label: "我的图片", icon: ImageIcon },
-          { to: "/dashboard/settings", label: "设置", icon: Settings2 }
+          { to: "/dashboard/upload", label: t("nav.upload"), icon: CloudUpload },
+          { to: "/dashboard/images", label: t("nav.images"), icon: ImageIcon },
+          { to: "/dashboard/settings", label: t("nav.settings"), icon: Settings2 }
         ]
       },
       {
-        title: "公共",
+        title: t("nav.public"),
         items: [
           ...(enableGallery
-            ? [{ to: "/dashboard/gallery", label: "画廊", icon: Brush }]
+            ? [{ to: "/dashboard/gallery", label: t("nav.gallery"), icon: Brush }]
             : []),
-          ...(enableApi ? [
-              { to: "/dashboard/api", label: "接口文档", icon: LinkIcon },
-              { to: "/dashboard/api-tokens", label: "API Token", icon: Key }
-            ] : []),
-          { to: "/dashboard/about", label: "关于", icon: Info }
+          ...(enableApi
+            ? [
+                { to: "/dashboard/api", label: t("nav.apiDocs"), icon: LinkIcon },
+                { to: "/dashboard/api-tokens", label: t("nav.apiTokens"), icon: Key }
+              ]
+            : []),
+          { to: "/dashboard/about", label: t("nav.about"), icon: Info }
         ]
       }
     ];
     if (isAdmin) {
       base.push({
-        title: "系统",
+        title: t("nav.system"),
         items: [
-          { to: "/dashboard/admin/console", label: "控制台", icon: Activity },
-          { to: "/dashboard/admin/images", label: "图片管理", icon: ImageIcon },
-          { to: "/dashboard/admin/groups", label: "角色组", icon: Users },
-          { to: "/dashboard/admin/users", label: "用户管理", icon: Users2 },
-          { to: "/dashboard/admin/strategies", label: "储存策略", icon: Layers3 },
+          { to: "/dashboard/admin/console", label: t("nav.console"), icon: Activity },
+          { to: "/dashboard/admin/images", label: t("nav.adminImages"), icon: ImageIcon },
+          { to: "/dashboard/admin/groups", label: t("nav.groups"), icon: Users },
+          { to: "/dashboard/admin/users", label: t("nav.users"), icon: Users2 },
+          { to: "/dashboard/admin/strategies", label: t("nav.strategies"), icon: Layers3 },
           {
-            label: "系统设置",
+            label: t("nav.systemSettings"),
             icon: ServerCog,
             children: [
-              { to: "/dashboard/admin/settings/site", label: "站点信息" },
-              { to: "/dashboard/admin/settings/smtp", label: "SMTP 配置" },
-              { to: "/dashboard/admin/settings/system", label: "系统设置" },
-              { to: "/dashboard/admin/settings/turnstile", label: "人机验证" }
+              { to: "/dashboard/admin/settings/site", label: t("nav.siteSettings") },
+              { to: "/dashboard/admin/settings/smtp", label: t("nav.smtpSettings") },
+              { to: "/dashboard/admin/settings/system", label: t("nav.systemSettings") },
+              { to: "/dashboard/admin/settings/turnstile", label: t("nav.turnstileSettings") }
             ]
           }
         ]
       });
     }
     return base;
-  }, [isAdmin, siteConfig]);
+  }, [isAdmin, siteConfig, t]);
 
   const handleLogout = async () => {
     try {
@@ -290,12 +295,12 @@ export function AppShell() {
 
   const getUserRole = () => {
     if (user?.isSuperAdmin) {
-      return "超级管理员";
+      return t("user.role.superAdmin");
     }
     if (user?.isAdmin) {
-      return "管理员";
+      return t("user.role.admin");
     }
-    return "普通用户";
+    return t("user.role.user");
   };
 
   return (
@@ -316,14 +321,14 @@ export function AppShell() {
               onClick={() => setAccountMenuOpen((prev) => !prev)}
               className="flex w-full items-center justify-between rounded-md border border-border bg-accent/40 px-4 py-3 text-left text-base hover:bg-accent"
             >
-              <span className="truncate font-medium">{user?.name || "未登录用户"}</span>
+              <span className="truncate font-medium">{user?.name || t("common.guestUser")}</span>
               <MoreHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
             </button>
             {accountMenuOpen ? (
               <div className="absolute bottom-[calc(100%+0.5rem)] left-0 z-50 w-full min-w-[240px] rounded-md border border-border bg-popover p-1 shadow-md">
                 <div className="px-3 py-2">
-                  <p className="text-base font-semibold">{user?.name || "未知用户"}</p>
-                  <p className="truncate pt-1 text-sm text-muted-foreground">{user?.email || "暂无邮箱"}</p>
+                  <p className="text-base font-semibold">{user?.name || t("common.unknownUser")}</p>
+                  <p className="truncate pt-1 text-sm text-muted-foreground">{user?.email || t("common.noEmail")}</p>
                   <p className="pt-1 text-xs text-muted-foreground">{getUserRole()}</p>
                 </div>
                 <button
@@ -332,7 +337,7 @@ export function AppShell() {
                   className="flex w-full items-center gap-2 rounded-sm px-3 py-2.5 text-base text-destructive hover:bg-accent"
                 >
                   <LogOut className="h-4 w-4" />
-                  退出登录
+                  {t("user.logout")}
                 </button>
               </div>
             ) : null}
@@ -344,6 +349,7 @@ export function AppShell() {
         <header className="flex h-14 items-center justify-between border-b bg-background px-3 sm:px-4">
           <SidebarTrigger className="lg:hidden" />
           <div className="ml-auto flex items-center gap-2">
+            <LanguageToggle />
             <ThemeToggle />
           </div>
         </header>

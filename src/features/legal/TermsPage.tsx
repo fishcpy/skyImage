@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { useMemo } from "react";
+import { useI18n } from "@/i18n";
 
 export function TermsPage() {
+  const { t } = useI18n();
   const { data: siteConfig, isLoading } = useQuery({
     queryKey: ["site-config"],
     queryFn: fetchSiteConfig,
@@ -26,7 +28,7 @@ export function TermsPage() {
       <div className="flex min-h-screen items-center justify-center bg-muted/30">
         <Card className="w-full max-w-4xl mx-4">
           <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">加载中...</p>
+            <p className="text-center text-muted-foreground">{t("common.loading")}</p>
           </CardContent>
         </Card>
       </div>
@@ -38,7 +40,7 @@ export function TermsPage() {
       <div className="flex min-h-screen items-center justify-center bg-muted/30">
         <Card className="w-full max-w-4xl mx-4">
           <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">服务条款内容未设置</p>
+            <p className="text-center text-muted-foreground">{t("legal.notConfiguredTerms")}</p>
           </CardContent>
         </Card>
       </div>
@@ -51,9 +53,9 @@ export function TermsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-2xl">服务条款</CardTitle>
+              <CardTitle className="text-2xl">{t("legal.terms")}</CardTitle>
               <Button asChild variant="outline" size="sm">
-                <Link to="/">返回首页</Link>
+                <Link to="/">{t("legal.backHome")}</Link>
               </Button>
             </div>
           </CardHeader>

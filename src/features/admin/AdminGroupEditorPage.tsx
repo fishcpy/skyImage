@@ -23,6 +23,7 @@ import {
   type GroupRecord
 } from "@/lib/api";
 import { useAuthStore } from "@/state/auth";
+import { useI18n } from "@/i18n";
 
 const defaultGroupConfigs = {
   max_file_size: 10 * 1024 * 1024,
@@ -103,6 +104,7 @@ function persistUnit(key: string, unit: SizeUnit) {
 }
 
 export function AdminGroupEditorPage() {
+  const { t } = useI18n();
   const { id } = useParams();
   const isEditing = Boolean(id);
   const navigate = useNavigate();
@@ -189,7 +191,7 @@ export function AdminGroupEditorPage() {
   const saveMutation = useMutation({
     mutationFn: saveGroup,
     onSuccess: () => {
-      toast.success("角色组已保存");
+      toast.success(t("admin.groupEditor.saved"));
       queryClient.invalidateQueries({ queryKey: ["admin", "groups"] });
       
       // Refresh current user's capacity
@@ -207,7 +209,7 @@ export function AdminGroupEditorPage() {
       assignUserGroup(userId, groupId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
-      toast.success("成员已更新");
+      toast.success(t("admin.groupEditor.membersUpdated"));
       
       // Refresh current user
       useAuthStore.getState().refreshUser().then(() => {
@@ -247,21 +249,21 @@ export function AdminGroupEditorPage() {
       <div className="flex flex-col gap-2">
         <p className="text-sm text-muted-foreground">
           <Link className="text-primary" to="/dashboard/admin/groups">
-            角色组列表
+            {t("admin.groupEditor.list")}
           </Link>{" "}
-          / {isEditing ? "编辑角色组" : "新增角色组"}
+          / {isEditing ? t("admin.groupEditor.edit") : t("admin.groupEditor.new")}
         </p>
-        <h1 className="text-2xl font-semibold">{isEditing ? form.name : "新建角色组"}</h1>
+        <h1 className="text-2xl font-semibold">{isEditing ? form.name : t("admin.groupEditor.newTitle")}</h1>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>基础信息</CardTitle>
+          <CardTitle>{t("admin.groupEditor.basic")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>名称</Label>
+              <Label>{t("admin.groupEditor.name")}</Label>
               <Input
                 value={form.name || ""}
                 onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
@@ -270,7 +272,7 @@ export function AdminGroupEditorPage() {
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>最大单文件大小</Label>
+              <Label>{t("admin.groupEditor.maxFileSize")}</Label>
               <div className="flex gap-2">
                 <Input
                   type="number"
@@ -303,7 +305,7 @@ export function AdminGroupEditorPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>容量上限</Label>
+              <Label>{t("admin.groupEditor.capacity")}</Label>
               <div className="flex gap-2">
                 <Input
                   type="number"
@@ -338,7 +340,7 @@ export function AdminGroupEditorPage() {
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>每分钟上传次数</Label>
+              <Label>{t("admin.groupEditor.rateMinute")}</Label>
               <Input
                 type="number"
                 min="0"
@@ -350,7 +352,7 @@ export function AdminGroupEditorPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>每小时上传次数</Label>
+              <Label>{t("admin.groupEditor.rateHour")}</Label>
               <Input
                 type="number"
                 min="0"
@@ -375,19 +377,19 @@ export function AdminGroupEditorPage() {
               htmlFor="isDefault"
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
             >
-              默认组
+              {t("admin.groupEditor.defaultGroup")}
             </Label>
           </div>
           <div className="flex gap-3">
             <Button onClick={handleSubmit} disabled={!form.name || saveMutation.isPending}>
-              {saveMutation.isPending ? "保存中..." : "保存"}
+              {saveMutation.isPending ? t("common.saving") : t("common.save")}
             </Button>
             <Button
               variant="ghost"
               onClick={() => navigate("/dashboard/admin/groups")}
               disabled={saveMutation.isPending}
             >
-              取消
+              {t("common.cancel")}
             </Button>
           </div>
         </CardContent>
@@ -396,11 +398,11 @@ export function AdminGroupEditorPage() {
       {isEditing && (
         <Card>
           <CardHeader>
-            <CardTitle>成员管理</CardTitle>
+            <CardTitle>{t("admin.groupEditor.members")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {!users?.length && (
-              <p className="text-sm text-muted-foreground">暂无用户</p>
+              <p className="text-sm text-muted-foreground">{t("admin.groupEditor.noUsers")}</p>
             )}
             {users?.map((user) => {
               const inGroup = user.groupId === Number(id);
@@ -414,7 +416,7 @@ export function AdminGroupEditorPage() {
                       {user.name} · {user.email}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {user.isSuperAdmin ? "超级管理员" : user.isAdmin ? "管理员" : "普通用户"}
+                      {user.isSuperAdmin ? t("users.roles.superAdmin") : user.isAdmin ? t("users.roles.admin") : t("users.roles.user")}
                     </p>
                   </div>
                   <Button
@@ -428,7 +430,7 @@ export function AdminGroupEditorPage() {
                       })
                     }
                   >
-                    {inGroup ? "移出本组" : "加入本组"}
+                    {inGroup ? t("admin.groupEditor.removeFromGroup") : t("admin.groupEditor.addToGroup")}
                   </Button>
                 </div>
               );

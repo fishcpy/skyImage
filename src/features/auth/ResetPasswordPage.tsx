@@ -10,8 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Turnstile, type TurnstileRef } from "@/components/Turnstile";
 import { fetchTurnstileConfig, loadTurnstileScript } from "@/lib/turnstile";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useI18n } from "@/i18n";
 
 export function ResetPasswordPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [code, setCode] = useState("");
@@ -44,14 +47,14 @@ export function ResetPasswordPage() {
     if (resetStatus?.requiresTurnstile && turnstileConfig?.enabled && turnstileConfig.siteKey) {
       loadTurnstileScript()
         .then(() => setTurnstileReady(true))
-        .catch(() => toast.error("加载人机验证失败"));
+        .catch(() => toast.error(t("resetPassword.loadTurnstileError")));
     }
-  }, [resetStatus?.requiresTurnstile, turnstileConfig?.enabled, turnstileConfig?.siteKey]);
+  }, [resetStatus?.requiresTurnstile, t, turnstileConfig?.enabled, turnstileConfig?.siteKey]);
 
   const mutation = useMutation({
     mutationFn: resetPasswordByEmail,
     onSuccess: () => {
-      toast.success("密码重置成功，请使用新密码登录");
+      toast.success(t("resetPassword.success"));
       navigate("/login", { replace: true });
     },
     onError: (error) => toast.error(error.message)
@@ -66,8 +69,8 @@ export function ResetPasswordPage() {
       <div className="flex min-h-svh items-center justify-center bg-muted p-6">
         <Card className="w-full max-w-sm">
           <CardHeader>
-            <CardTitle>正在校验链接</CardTitle>
-            <CardDescription>请稍候...</CardDescription>
+            <CardTitle>{t("resetPassword.checkingTitle")}</CardTitle>
+            <CardDescription>{t("resetPassword.checkingDescription")}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -79,12 +82,12 @@ export function ResetPasswordPage() {
       <div className="flex min-h-svh items-center justify-center bg-muted p-6">
         <Card className="w-full max-w-sm">
           <CardHeader>
-            <CardTitle>重置链接无效</CardTitle>
-            <CardDescription>请重新发起忘记密码流程。</CardDescription>
+            <CardTitle>{t("resetPassword.invalidTitle")}</CardTitle>
+            <CardDescription>{t("resetPassword.invalidDescription")}</CardDescription>
           </CardHeader>
           <CardContent>
             <Link to="/forgot-password" className="text-sm underline underline-offset-4 hover:text-primary">
-              前往忘记密码
+              {t("resetPassword.goForgot")}
             </Link>
           </CardContent>
         </Card>
@@ -94,19 +97,19 @@ export function ResetPasswordPage() {
 
   const handleSubmit = () => {
     if (!code.trim()) {
-      toast.error("请输入验证码");
+      toast.error(t("resetPassword.codeRequired"));
       return;
     }
     if (password.length < 8) {
-      toast.error("密码必须至少 8 位");
+      toast.error(t("resetPassword.passwordLength"));
       return;
     }
     if (password !== confirmPassword) {
-      toast.error("两次输入的密码不一致");
+      toast.error(t("resetPassword.passwordMismatch"));
       return;
     }
     if (resetStatus?.requiresTurnstile && !turnstileToken) {
-      toast.error("请完成人机验证");
+      toast.error(t("resetPassword.turnstileRequired"));
       return;
     }
     mutation.mutate({
@@ -119,23 +122,26 @@ export function ResetPasswordPage() {
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
+      <div className="fixed right-4 top-4 z-10">
+        <LanguageToggle />
+      </div>
       <div className="w-full max-w-sm">
         <Card>
           <CardHeader>
-            <CardTitle>重置密码</CardTitle>
-            <CardDescription>请输入邮件中的验证码并设置新密码。</CardDescription>
+            <CardTitle>{t("resetPassword.title")}</CardTitle>
+            <CardDescription>{t("resetPassword.description")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="code">验证码</Label>
+              <Label htmlFor="code">{t("resetPassword.code")}</Label>
               <Input id="code" value={code} onChange={(e) => setCode(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">新密码</Label>
+              <Label htmlFor="password">{t("resetPassword.newPassword")}</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">确认新密码</Label>
+              <Label htmlFor="confirmPassword">{t("resetPassword.confirmPassword")}</Label>
               <Input
                 id="confirmPassword"
                 type="password"
@@ -144,7 +150,7 @@ export function ResetPasswordPage() {
               />
             </div>
             <Button className="w-full" disabled={mutation.isPending} onClick={handleSubmit}>
-              {mutation.isPending ? "提交中..." : "重置密码"}
+              {mutation.isPending ? t("resetPassword.submitting") : t("resetPassword.submit")}
             </Button>
             {resetStatus?.requiresTurnstile && turnstileConfig?.enabled && turnstileConfig.siteKey && turnstileReady && (
               <div className="flex justify-center">
@@ -154,7 +160,7 @@ export function ResetPasswordPage() {
                   onVerify={setTurnstileToken}
                   onError={() => {
                     setTurnstileToken("");
-                    toast.error("人机验证出错，请重试");
+                    toast.error(t("resetPassword.turnstileError"));
                   }}
                   onExpire={() => setTurnstileToken("")}
                 />

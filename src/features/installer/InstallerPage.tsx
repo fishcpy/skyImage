@@ -18,8 +18,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuthStore } from "@/state/auth";
+import { useI18n } from "@/i18n";
 
 export function InstallerPage() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const clearAuth = useAuthStore((state) => state.clear);
   const [step, setStep] = useState(1); // 1: 数据库配置, 2: 站点信息
@@ -47,7 +49,7 @@ export function InstallerPage() {
     mutationFn: runInstaller,
     onSuccess: () => {
       clearAuth();
-      toast.success("安装完成");
+      toast.success(t("installer.complete"));
       queryClient.invalidateQueries({ queryKey: ["installer"] });
       window.location.href = "/login";
     },
@@ -55,19 +57,19 @@ export function InstallerPage() {
   });
 
   if (isLoading) {
-    return <div className="p-6 text-muted-foreground">检测安装状态...</div>;
+    return <div className="p-6 text-muted-foreground">{t("installer.checking")}</div>;
   }
 
   if (data?.installed) {
     return (
       <Card className="max-w-xl mx-auto mt-20">
         <CardHeader>
-          <CardTitle>系统已安装</CardTitle>
+          <CardTitle>{t("installer.installed")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p>版本：{data.version}</p>
+          <p>{t("installer.version", { version: data.version ?? "" })}</p>
           <Button onClick={() => (window.location.href = "/login")}>
-            前往登录
+            {t("installer.goLogin")}
           </Button>
         </CardContent>
       </Card>
@@ -77,20 +79,20 @@ export function InstallerPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-10">
       <div>
-        <h1 className="text-2xl font-semibold">安装程序</h1>
+        <h1 className="text-2xl font-semibold">{t("installer.title")}</h1>
         <p className="text-muted-foreground">
-          {step === 1 ? "第一步：配置数据库" : "第二步：配置站点信息"}
+          {step === 1 ? t("installer.step1") : t("installer.step2")}
         </p>
       </div>
       
       {step === 1 ? (
         <Card>
           <CardHeader>
-            <CardTitle>数据库配置</CardTitle>
+            <CardTitle>{t("installer.database")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="databaseType">数据库类型</Label>
+              <Label htmlFor="databaseType">{t("installer.databaseType")}</Label>
               <Select
                 value={form.databaseType}
                 onValueChange={(value) =>
@@ -98,10 +100,10 @@ export function InstallerPage() {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="选择数据库类型" />
+                  <SelectValue placeholder={t("installer.selectDatabaseType")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="sqlite">SQLite（推荐）</SelectItem>
+                  <SelectItem value="sqlite">{t("installer.sqliteRecommended")}</SelectItem>
                   <SelectItem value="mysql">MySQL</SelectItem>
                   <SelectItem value="postgres">PostgreSQL</SelectItem>
                 </SelectContent>
@@ -111,7 +113,7 @@ export function InstallerPage() {
             {form.databaseType === "sqlite" && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="databasePath">数据库文件路径</Label>
+                  <Label htmlFor="databasePath">{t("installer.databasePath")}</Label>
                   <Input
                     id="databasePath"
                     value={form.databasePath}
@@ -121,7 +123,7 @@ export function InstallerPage() {
                     placeholder="storage/data/skyimage.db"
                   />
                   <p className="text-sm text-muted-foreground">
-                    SQLite 是一个轻量级的嵌入式数据库，无需额外配置，适合个人使用和小型项目。
+                    {t("installer.sqliteHint")}
                   </p>
                 </div>
               </>
@@ -130,7 +132,7 @@ export function InstallerPage() {
             {form.databaseType !== "sqlite" && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="databaseHost">数据库主机</Label>
+                  <Label htmlFor="databaseHost">{t("installer.databaseHost")}</Label>
                   <Input
                     id="databaseHost"
                     value={form.databaseHost}
@@ -141,7 +143,7 @@ export function InstallerPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="databasePort">端口</Label>
+                  <Label htmlFor="databasePort">{t("installer.port")}</Label>
                   <Input
                     id="databasePort"
                     value={form.databasePort}
@@ -152,7 +154,7 @@ export function InstallerPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="databaseName">数据库名称</Label>
+                  <Label htmlFor="databaseName">{t("installer.databaseName")}</Label>
                   <Input
                     id="databaseName"
                     value={form.databaseName}
@@ -163,7 +165,7 @@ export function InstallerPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="databaseUser">用户名</Label>
+                  <Label htmlFor="databaseUser">{t("installer.databaseUser")}</Label>
                   <Input
                     id="databaseUser"
                     value={form.databaseUser}
@@ -174,7 +176,7 @@ export function InstallerPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="databasePassword">密码</Label>
+                  <Label htmlFor="databasePassword">{t("installer.databasePassword")}</Label>
                   <Input
                     id="databasePassword"
                     type="password"
@@ -191,18 +193,18 @@ export function InstallerPage() {
               className="w-full"
               onClick={() => setStep(2)}
             >
-              下一步
+              {t("installer.next")}
             </Button>
           </CardContent>
         </Card>
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>站点信息</CardTitle>
+            <CardTitle>{t("installer.siteInfo")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="siteName">站点名称</Label>
+              <Label htmlFor="siteName">{t("installer.siteName")}</Label>
               <Input
                 id="siteName"
                 value={form.siteName}
@@ -212,7 +214,7 @@ export function InstallerPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="adminName">管理员昵称</Label>
+              <Label htmlFor="adminName">{t("installer.adminName")}</Label>
               <Input
                 id="adminName"
                 value={form.adminName}
@@ -222,7 +224,7 @@ export function InstallerPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="adminEmail">管理员邮箱</Label>
+              <Label htmlFor="adminEmail">{t("installer.adminEmail")}</Label>
               <Input
                 id="adminEmail"
                 type="email"
@@ -233,7 +235,7 @@ export function InstallerPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="adminPassword">管理员密码(需大于等于8位)</Label>
+              <Label htmlFor="adminPassword">{t("installer.adminPassword")}</Label>
               <Input
                 id="adminPassword"
                 type="password"
@@ -252,14 +254,14 @@ export function InstallerPage() {
                 className="w-full"
                 onClick={() => setStep(1)}
               >
-                上一步
+                {t("installer.previous")}
               </Button>
               <Button
                 className="w-full"
                 onClick={() => mutation.mutate(form)}
                 disabled={mutation.isPending}
               >
-                {mutation.isPending ? "正在安装..." : "立即安装"}
+                {mutation.isPending ? t("installer.installing") : t("installer.installNow")}
               </Button>
             </div>
           </CardContent>

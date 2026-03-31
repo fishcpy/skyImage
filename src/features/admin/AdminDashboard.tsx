@@ -4,8 +4,10 @@ import { Activity, HardDrive, Users } from "lucide-react";
 import { fetchAdminMetrics, fetchAdminTrends } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendChart } from "./components/TrendChart";
+import { useI18n } from "@/i18n";
 
 export function AdminConsolePage() {
+  const { t } = useI18n();
   const { data, isLoading } = useQuery({
     queryKey: ["admin-metrics"],
     queryFn: fetchAdminMetrics
@@ -30,29 +32,29 @@ export function AdminConsolePage() {
   };
 
   if (isLoading) {
-    return <div>加载仪表盘数据...</div>;
+    return <div>{t("admin.loadingDashboard")}</div>;
   }
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">管理面板</h1>
+        <h1 className="text-2xl font-semibold">{t("admin.consoleTitle")}</h1>
         <p className="text-muted-foreground">
-          监控用户、文件与系统配置状态。
+          {t("admin.consoleDescription")}
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard
-          title="活跃用户"
+          title={t("admin.activeUsers")}
           value={data?.userCount ?? 0}
           icon={<Users className="h-4 w-4 text-muted-foreground" />}
         />
         <StatCard
-          title="文件数量"
+          title={t("admin.fileCount")}
           value={data?.fileCount ?? 0}
           icon={<Activity className="h-4 w-4 text-muted-foreground" />}
         />
         <StatCard
-          title="存储使用"
+          title={t("admin.storageUsage")}
           value={formatBytes(data?.storageUsed ?? 0)}
           icon={<HardDrive className="h-4 w-4 text-muted-foreground" />}
         />

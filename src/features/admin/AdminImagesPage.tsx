@@ -10,8 +10,10 @@ import {
   updateAdminImageVisibility,
   updateAdminImagesVisibilityBatch
 } from "@/lib/api";
+import { useI18n } from "@/i18n";
 
 export function AdminImagesPage() {
+  const { t } = useI18n();
   const pageSize = 80;
   const queryClient = useQueryClient();
   const { data: siteConfig } = useQuery({
@@ -43,7 +45,7 @@ export function AdminImagesPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteAdminImage(id),
     onSuccess: () => {
-      toast.success("已删除图片");
+      toast.success(t("admin.images.deleted"));
       queryClient.invalidateQueries({ queryKey: ["admin", "images"] });
     }
   });
@@ -52,29 +54,29 @@ export function AdminImagesPage() {
     mutationFn: (payload: { id: number; visibility: "public" | "private" }) =>
       updateAdminImageVisibility(payload.id, payload.visibility),
     onSuccess: () => {
-      toast.success("权限已更新");
+      toast.success(t("images.permissionUpdated"));
       queryClient.invalidateQueries({ queryKey: ["admin", "images"] });
     },
-    onError: (error) => toast.error(error.message || "更新权限失败")
+    onError: (error) => toast.error(error.message || t("images.permissionUpdateFailed"))
   });
 
   const batchVisibilityMutation = useMutation({
     mutationFn: (payload: { ids: number[]; visibility: "public" | "private" }) =>
       updateAdminImagesVisibilityBatch(payload.ids, payload.visibility),
     onSuccess: () => {
-      toast.success("批量权限已更新");
+      toast.success(t("images.batchPermissionUpdated"));
       queryClient.invalidateQueries({ queryKey: ["admin", "images"] });
     },
-    onError: (error) => toast.error(error.message || "批量更新权限失败")
+    onError: (error) => toast.error(error.message || t("images.batchPermissionUpdateFailed"))
   });
 
   const batchDeleteMutation = useMutation({
     mutationFn: (ids: number[]) => deleteAdminImagesBatch(ids),
     onSuccess: () => {
-      toast.success("批量删除成功");
+      toast.success(t("images.batchDeleteSuccess"));
       queryClient.invalidateQueries({ queryKey: ["admin", "images"] });
     },
-    onError: (error) => toast.error(error.message || "批量删除失败")
+    onError: (error) => toast.error(error.message || t("images.batchDeleteFailed"))
   });
 
   const deletingId =
@@ -85,9 +87,9 @@ export function AdminImagesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">图片管理</h1>
+        <h1 className="text-2xl font-semibold">{t("admin.images.title")}</h1>
         <p className="text-muted-foreground">
-          管理所有用户的上传内容，支持审核与删除。
+          {t("admin.images.description")}
         </p>
       </div>
       <ImageGrid

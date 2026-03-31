@@ -16,8 +16,10 @@ import {
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 import { fetchGroups, deleteGroup, type GroupRecord } from "@/lib/api";
+import { useI18n } from "@/i18n";
 
 export function AdminGroupsPage() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const { data: groups, isLoading } = useQuery({
     queryKey: ["admin", "groups"],
@@ -27,7 +29,7 @@ export function AdminGroupsPage() {
   const removeMutation = useMutation({
     mutationFn: deleteGroup,
     onSuccess: () => {
-      toast.success("已删除角色组");
+      toast.success(t("admin.groups.deleted"));
       queryClient.invalidateQueries({ queryKey: ["admin", "groups"] });
     },
     onError: (error) => toast.error(error.message)
@@ -37,21 +39,21 @@ export function AdminGroupsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">角色组管理</h1>
-          <p className="text-muted-foreground">管理上传限制与容量。</p>
+          <h1 className="text-2xl font-semibold">{t("admin.groups.title")}</h1>
+          <p className="text-muted-foreground">{t("admin.groups.description")}</p>
         </div>
         <Button asChild>
-          <Link to="/dashboard/admin/groups/new">新增角色组</Link>
+          <Link to="/dashboard/admin/groups/new">{t("admin.groups.new")}</Link>
         </Button>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>角色组列表</CardTitle>
+          <CardTitle>{t("admin.groups.list")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {isLoading && <p className="text-sm text-muted-foreground">加载中...</p>}
+          {isLoading && <p className="text-sm text-muted-foreground">{t("common.loading")}</p>}
           {!isLoading && !groups?.length && (
-            <p className="text-sm text-muted-foreground">暂未配置角色组。</p>
+            <p className="text-sm text-muted-foreground">{t("admin.groups.empty")}</p>
           )}
           {groups?.map((group: GroupRecord) => (
             <div
@@ -60,36 +62,36 @@ export function AdminGroupsPage() {
             >
               <div>
                 <p className="text-sm font-medium">
-                  {group.name} {group.isDefault ? "· 默认" : ""}
+                  {group.name} {group.isDefault ? `· ${t("admin.groups.default")}` : ""}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  最大容量 {(group.configs?.max_capacity ?? 0) / 1024 / 1024} MB
+                  {t("admin.groups.maxCapacity", { value: (group.configs?.max_capacity ?? 0) / 1024 / 1024 })}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button asChild size="sm">
-                  <Link to={`/dashboard/admin/groups/${group.id}`}>编辑</Link>
+                  <Link to={`/dashboard/admin/groups/${group.id}`}>{t("admin.edit")}</Link>
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="secondary" size="sm" disabled={removeMutation.isPending}>
-                      删除
+                      {t("admin.delete")}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent size="sm">
                     <AlertDialogHeader>
-                      <AlertDialogTitle>确认删除角色组？</AlertDialogTitle>
+                      <AlertDialogTitle>{t("admin.groups.confirmDeleteTitle")}</AlertDialogTitle>
                       <AlertDialogDescription>
-                        删除后将移除该角色组的配置，可能影响成员权限。
+                        {t("admin.groups.confirmDeleteDescription")}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>取消</AlertDialogCancel>
+                      <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                       <AlertDialogAction
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         onClick={() => removeMutation.mutate(group.id)}
                       >
-                        确认删除
+                        {t("admin.confirmDelete")}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -101,4 +103,4 @@ export function AdminGroupsPage() {
       </Card>
     </div>
   );
-}
+} 

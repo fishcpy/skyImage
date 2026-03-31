@@ -7,8 +7,10 @@ import { fetchGalleryPublic, type FileRecord } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SplashScreen } from "@/components/SplashScreen";
 import { normalizeFileUrl } from "@/lib/file-url";
+import { useI18n } from "@/i18n";
 
 export function GalleryPage() {
+  const { t } = useI18n();
   const { data, isLoading } = useQuery({
     queryKey: ["gallery", "public"],
     queryFn: () => fetchGalleryPublic({ limit: 60 })
@@ -26,22 +28,22 @@ export function GalleryPage() {
   }, [files]);
 
   if (isLoading) {
-    return <SplashScreen message="正在加载画廊..." />;
+    return <SplashScreen message={t("gallery.loading")} />;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">图片广场</h1>
-        <p className="text-muted-foreground">这些是最近公开分享的图片。</p>
+        <h1 className="text-2xl font-semibold">{t("gallery.title")}</h1>
+        <p className="text-muted-foreground">{t("gallery.description")}</p>
       </div>
       {files.length === 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>还没有公开作品</CardTitle>
+            <CardTitle>{t("gallery.emptyTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            在上传时选择“公开”即可将图片展示在这里。
+            {t("gallery.emptyDescription")}
           </CardContent>
         </Card>
       ) : (

@@ -3,32 +3,34 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchSiteConfig } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SplashScreen } from "@/components/SplashScreen";
+import { useI18n } from "@/i18n";
 
 export function AboutPage() {
+  const { t } = useI18n();
   const { data, isLoading } = useQuery({
     queryKey: ["site-config"],
     queryFn: fetchSiteConfig
   });
 
   if (isLoading) {
-    return <SplashScreen message="加载站点信息..." />;
+    return <SplashScreen message={t("about.loading")} />;
   }
 
   const title = data?.title || "skyImage";
-  const description = data?.description || "云端图床";
-  const about = data?.about || "功能重构中，即将上线更多特性。";
-  const aboutTitle = data?.aboutTitle?.trim() || "项目简介";
-  const version = data?.version || "未知版本";
+  const description = data?.description || t("about.defaultDescription");
+  const about = data?.about || t("about.defaultContent");
+  const aboutTitle = data?.aboutTitle?.trim() || t("about.defaultTitle");
+  const version = data?.version || t("about.unknownVersion");
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">关于 {title}</h1>
+        <h1 className="text-2xl font-semibold">{t("about.title", { title })}</h1>
         <p className="text-muted-foreground">{description}</p>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>当前版本</CardTitle>
+          <CardTitle>{t("about.version")}</CardTitle>
         </CardHeader>
         <CardContent className="text-3xl font-semibold">{version}</CardContent>
       </Card>

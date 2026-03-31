@@ -13,6 +13,7 @@ import {
   type SystemSettingsResponse
 } from "@/lib/api";
 import { SplashScreen } from "@/components/SplashScreen";
+import { useI18n } from "@/i18n";
 
 const defaultSystemSettingsForm: SystemSettingsInput = {
   siteTitle: "",
@@ -66,6 +67,7 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
 };
 
 export function AdminSystemSettingsPage() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery<SystemSettingsResponse>({
     queryKey: ["admin", "system-settings"],
@@ -100,25 +102,25 @@ export function AdminSystemSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["site-config"] });
       queryClient.invalidateQueries({ queryKey: ["site-meta"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "system-settings"] });
-      toast.success("设置已更新");
+      toast.success(t("admin.systemSettings.saved"));
     },
     onError: (error) => toast.error(error.message)
   });
 
 
   if (isLoading) {
-    return <SplashScreen message="加载系统设置..." />;
+    return <SplashScreen message={t("admin.systemSettings.loading")} />;
   }
   if (error && !data) {
     const message =
       error.message === "account disabled"
-        ? "当前账户已被封禁，无法访问系统设置。"
+        ? t("admin.systemSettings.disabled")
         : error.message;
     return (
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>无法加载系统设置</CardTitle>
+            <CardTitle>{t("admin.systemSettings.loadFailed")}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-destructive">{message}</p>
@@ -136,15 +138,15 @@ export function AdminSystemSettingsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <h1 className="text-2xl font-semibold">系统设置</h1>
-        <p className="text-muted-foreground">管理图片加载相关配置。</p>
+        <h1 className="text-2xl font-semibold">{t("admin.systemSettings.title")}</h1>
+        <p className="text-muted-foreground">{t("admin.systemSettings.description")}</p>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>图片列表加载</CardTitle>
+          <CardTitle>{t("admin.systemSettings.imageLoad")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <Label>单次加载行数</Label>
+          <Label>{t("admin.systemSettings.imageLoadRows")}</Label>
           <Input
             type="number"
             min={1}
@@ -156,19 +158,19 @@ export function AdminSystemSettingsPage() {
             }}
           />
           <p className="text-xs text-muted-foreground">
-            图片列表每次滚动触发时追加的行数（首屏自动填充不计入该值）。
+            {t("admin.systemSettings.imageLoadRowsHint")}
           </p>
         </CardContent>
       </Card>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">
-          {isFormDirty ? "有未保存的更改" : "未检测到配置更改"}
+          {isFormDirty ? t("admin.systemSettings.unsaved") : t("admin.systemSettings.clean")}
         </p>
         <Button
           onClick={() => mutation.mutate(form)}
           disabled={mutation.isPending || !isFormDirty}
         >
-          {mutation.isPending ? "保存中..." : "保存所有更改"}
+          {mutation.isPending ? t("common.saving") : t("admin.systemSettings.saveAll")}
         </Button>
       </div>
     </div>

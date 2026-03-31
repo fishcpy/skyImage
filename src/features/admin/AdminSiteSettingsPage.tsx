@@ -24,6 +24,7 @@ import {
   type SystemSettingsResponse
 } from "@/lib/api";
 import { SplashScreen } from "@/components/SplashScreen";
+import { useI18n } from "@/i18n";
 
 const defaultSystemSettingsForm: SystemSettingsInput = {
   siteTitle: "",
@@ -109,6 +110,7 @@ const siteFields: (keyof SystemSettingsInput)[] = [
 ];
 
 export function AdminSiteSettingsPage() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery<SystemSettingsResponse>({
     queryKey: ["admin", "system-settings"],
@@ -141,25 +143,25 @@ export function AdminSiteSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["site-config"] });
       queryClient.invalidateQueries({ queryKey: ["site-meta"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "system-settings"] });
-      toast.success("站点信息已更新");
+      toast.success(t("admin.siteSettings.saved"));
     },
     onError: (mutationError) => toast.error(mutationError.message)
   });
 
   if (isLoading) {
-    return <SplashScreen message="加载站点信息..." />;
+    return <SplashScreen message={t("admin.siteSettings.loading")} />;
   }
 
   if (error && !data) {
     const message =
       error.message === "account disabled"
-        ? "当前账户已被封禁，无法访问站点信息设置。"
+        ? t("admin.siteSettings.disabled")
         : error.message;
     return (
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>无法加载站点信息</CardTitle>
+            <CardTitle>{t("admin.siteSettings.loadFailed")}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-destructive">{message}</p>
@@ -177,137 +179,137 @@ export function AdminSiteSettingsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <h1 className="text-2xl font-semibold">系统设置</h1>
-        <p className="text-muted-foreground">管理站点品牌文案与公共入口配置。</p>
+        <h1 className="text-2xl font-semibold">{t("nav.systemSettings")}</h1>
+        <p className="text-muted-foreground">{t("admin.siteSettings.description")}</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>站点信息</CardTitle>
+          <CardTitle>{t("admin.siteSettings.card")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>站点标题</Label>
+            <Label>{t("admin.siteSettings.siteTitle")}</Label>
             <Input value={form.siteTitle} onChange={(e) => handleChange("siteTitle", e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>描述</Label>
+            <Label>{t("admin.siteSettings.siteDescription")}</Label>
             <Input
               value={form.siteDescription}
               onChange={(e) => handleChange("siteDescription", e.target.value)}
             />
           </div>
           <div className="space-y-2">
-            <Label>控制台地址</Label>
+            <Label>{t("admin.siteSettings.consoleUrl")}</Label>
             <Input
               value={form.consoleUrl}
               onChange={(e) => handleChange("consoleUrl", e.target.value)}
               placeholder="http://localhost:8080"
             />
             <p className="text-xs text-muted-foreground">
-              用于重置密码邮件中的链接地址。
+              {t("admin.siteSettings.consoleUrlHint")}
             </p>
           </div>
           <div className="space-y-2">
-            <Label>首页标语</Label>
+            <Label>{t("admin.siteSettings.siteSlogan")}</Label>
             <Input
               value={form.siteSlogan}
               onChange={(e) => handleChange("siteSlogan", e.target.value)}
-              placeholder="简单、稳定、可扩展的图像托管平台"
+              placeholder={t("admin.siteSettings.siteSloganPlaceholder")}
             />
           </div>
           <div className="space-y-2">
-            <Label>网站 Logo (Favicon)</Label>
+            <Label>{t("admin.siteSettings.siteLogo")}</Label>
             <Input
               value={form.siteLogo}
               onChange={(e) => handleChange("siteLogo", e.target.value)}
-              placeholder="输入图片链接或上传后的相对路径"
+              placeholder={t("admin.siteSettings.siteLogoPlaceholder")}
             />
             <p className="text-xs text-muted-foreground">
-              可以输入外部链接（如 https://example.com/logo.ico）或上传图片后使用相对路径（如 uploads/logo.png）。将在 /favicon.ico 显示
+              {t("admin.siteSettings.siteLogoHint")}
             </p>
           </div>
           <div className="space-y-2">
-            <Label>首页徽标文案</Label>
+            <Label>{t("admin.siteSettings.homeBadge")}</Label>
             <Input
               value={form.homeBadgeText}
               onChange={(e) => handleChange("homeBadgeText", e.target.value)}
-              placeholder="新首页"
+              placeholder={t("admin.siteSettings.homeBadgePlaceholder")}
             />
           </div>
           <div className="space-y-2">
-            <Label>首页介绍文案</Label>
+            <Label>{t("admin.siteSettings.homeIntro")}</Label>
             <Textarea
               value={form.homeIntroText}
               onChange={(e) => handleChange("homeIntroText", e.target.value)}
               rows={3}
-              placeholder="面向团队和个人的现代化图像托管面板..."
+              placeholder={t("admin.siteSettings.homeIntroPlaceholder")}
             />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>按钮文案（未登录）</Label>
+              <Label>{t("admin.siteSettings.homePrimaryCta")}</Label>
               <Input
                 value={form.homePrimaryCtaText}
                 onChange={(e) => handleChange("homePrimaryCtaText", e.target.value)}
-                placeholder="登录系统"
+                placeholder={t("admin.siteSettings.homePrimaryCtaPlaceholder")}
               />
             </div>
             <div className="space-y-2">
-              <Label>按钮文案（已登录）</Label>
+              <Label>{t("admin.siteSettings.homeDashboardCta")}</Label>
               <Input
                 value={form.homeDashboardCtaText}
                 onChange={(e) => handleChange("homeDashboardCtaText", e.target.value)}
-                placeholder="进入控制台"
+                placeholder={t("admin.siteSettings.homeDashboardCtaPlaceholder")}
               />
             </div>
           </div>
           <div className="space-y-2">
-            <Label>次按钮文案（注册）</Label>
+            <Label>{t("admin.siteSettings.homeSecondaryCta")}</Label>
             <Input
               value={form.homeSecondaryCtaText}
               onChange={(e) => handleChange("homeSecondaryCtaText", e.target.value)}
-              placeholder="注册账号"
+              placeholder={t("admin.siteSettings.homeSecondaryCtaPlaceholder")}
             />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>功能卡片 1 标题</Label>
+              <Label>{t("admin.siteSettings.feature1Title")}</Label>
               <Input
                 value={form.homeFeature1Title}
                 onChange={(e) => handleChange("homeFeature1Title", e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label>功能卡片 1 描述</Label>
+              <Label>{t("admin.siteSettings.feature1Desc")}</Label>
               <Input
                 value={form.homeFeature1Desc}
                 onChange={(e) => handleChange("homeFeature1Desc", e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label>功能卡片 2 标题</Label>
+              <Label>{t("admin.siteSettings.feature2Title")}</Label>
               <Input
                 value={form.homeFeature2Title}
                 onChange={(e) => handleChange("homeFeature2Title", e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label>功能卡片 2 描述</Label>
+              <Label>{t("admin.siteSettings.feature2Desc")}</Label>
               <Input
                 value={form.homeFeature2Desc}
                 onChange={(e) => handleChange("homeFeature2Desc", e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label>功能卡片 3 标题</Label>
+              <Label>{t("admin.siteSettings.feature3Title")}</Label>
               <Input
                 value={form.homeFeature3Title}
                 onChange={(e) => handleChange("homeFeature3Title", e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label>功能卡片 3 描述</Label>
+              <Label>{t("admin.siteSettings.feature3Desc")}</Label>
               <Input
                 value={form.homeFeature3Desc}
                 onChange={(e) => handleChange("homeFeature3Desc", e.target.value)}
@@ -315,18 +317,18 @@ export function AdminSiteSettingsPage() {
             </div>
           </div>
           <div className="space-y-2">
-            <Label>关于页标题</Label>
+            <Label>{t("admin.siteSettings.aboutTitle")}</Label>
             <Input
               value={form.aboutTitle}
               onChange={(e) => handleChange("aboutTitle", e.target.value)}
-              placeholder="项目简介"
+              placeholder={t("admin.siteSettings.aboutTitlePlaceholder")}
             />
             <p className="text-xs text-muted-foreground">
-              关于页面中卡片的标题，留空则显示"项目简介"
+              {t("admin.siteSettings.aboutTitleHint")}
             </p>
           </div>
           <div className="space-y-2">
-            <Label>关于页内容</Label>
+            <Label>{t("admin.siteSettings.about")}</Label>
             <Textarea
               rows={4}
               value={form.about}
@@ -336,7 +338,7 @@ export function AdminSiteSettingsPage() {
           
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label>服务条款（HTML）</Label>
+              <Label>{t("admin.siteSettings.terms")}</Label>
               <Button
                 type="button"
                 variant="ghost"
@@ -345,30 +347,30 @@ export function AdminSiteSettingsPage() {
                   try {
                     const defaults = await fetchLegalDefaults();
                     handleChange("termsOfService", defaults.termsOfService);
-                    toast.success("已重置为默认服务条款");
+                    toast.success(t("admin.siteSettings.resetTermsSuccess"));
                   } catch (error) {
-                    toast.error("获取默认内容失败");
+                    toast.error(t("admin.siteSettings.resetDefaultFailed"));
                   }
                 }}
               >
                 <RotateCcw className="h-4 w-4 mr-1" />
-                重置为默认
+                {t("admin.siteSettings.resetDefault")}
               </Button>
             </div>
             <Textarea
               rows={6}
               value={form.termsOfService}
               onChange={(e) => handleChange("termsOfService", e.target.value)}
-              placeholder="系统初始化时的默认服务条款"
+              placeholder={t("admin.siteSettings.termsPlaceholder")}
             />
             <p className="text-xs text-muted-foreground">
-              支持 HTML 格式，可使用 Tailwind CSS 类名
+              {t("admin.siteSettings.legalHint")}
             </p>
           </div>
           
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label>隐私政策（HTML）</Label>
+              <Label>{t("admin.siteSettings.privacy")}</Label>
               <Button
                 type="button"
                 variant="ghost"
@@ -377,84 +379,84 @@ export function AdminSiteSettingsPage() {
                   try {
                     const defaults = await fetchLegalDefaults();
                     handleChange("privacyPolicy", defaults.privacyPolicy);
-                    toast.success("已重置为默认隐私政策");
+                    toast.success(t("admin.siteSettings.resetPrivacySuccess"));
                   } catch (error) {
-                    toast.error("获取默认内容失败");
+                    toast.error(t("admin.siteSettings.resetDefaultFailed"));
                   }
                 }}
               >
                 <RotateCcw className="h-4 w-4 mr-1" />
-                重置为默认
+                {t("admin.siteSettings.resetDefault")}
               </Button>
             </div>
             <Textarea
               rows={6}
               value={form.privacyPolicy}
               onChange={(e) => handleChange("privacyPolicy", e.target.value)}
-              placeholder="系统初始化时的默认隐私政策"
+              placeholder={t("admin.siteSettings.privacyPlaceholder")}
             />
             <p className="text-xs text-muted-foreground">
-              支持 HTML 格式，可使用 Tailwind CSS 类名
+              {t("admin.siteSettings.legalHint")}
             </p>
           </div>
           
           <div className="space-y-4 rounded-lg border p-4">
             <div className="space-y-2">
-              <Label>404 页面模式</Label>
+              <Label>{t("admin.siteSettings.notFoundMode")}</Label>
               <Select
                 value={form.notFoundMode}
                 onValueChange={(value) => handleChange("notFoundMode", value)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="选择模式" />
+                  <SelectValue placeholder={t("admin.siteSettings.notFoundModePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="template">默认模板</SelectItem>
-                  <SelectItem value="html">自定义 HTML</SelectItem>
+                  <SelectItem value="template">{t("admin.siteSettings.notFoundModeTemplate")}</SelectItem>
+                  <SelectItem value="html">{t("admin.siteSettings.notFoundModeHtml")}</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                选择使用默认模板或完全自定义 HTML
+                {t("admin.siteSettings.notFoundModeHint")}
               </p>
             </div>
 
             {form.notFoundMode === "template" ? (
               <>
                 <div className="space-y-2">
-                  <Label>404 大标题</Label>
+                  <Label>{t("admin.siteSettings.notFoundHeading")}</Label>
                   <Input
                     value={form.notFoundHeading}
                     onChange={(e) => handleChange("notFoundHeading", e.target.value)}
                     placeholder="404"
                   />
                   <p className="text-xs text-muted-foreground">
-                    页面中间显示的大号404文字，留空则显示"404"
+                    {t("admin.siteSettings.notFoundHeadingHint")}
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>404 页面文本</Label>
+                  <Label>{t("admin.siteSettings.notFoundText")}</Label>
                   <Textarea
                     rows={3}
                     value={form.notFoundText}
                     onChange={(e) => handleChange("notFoundText", e.target.value)}
-                    placeholder="留空则显示默认文本"
+                    placeholder={t("admin.siteSettings.notFoundTextPlaceholder")}
                   />
                   <p className="text-xs text-muted-foreground">
-                    自定义404页面显示的文本内容，支持换行。页面标题将使用站点标题
+                    {t("admin.siteSettings.notFoundTextHint")}
                   </p>
                 </div>
               </>
             ) : (
               <div className="space-y-2">
-                <Label>404 页面自定义 HTML</Label>
+                <Label>{t("admin.siteSettings.notFoundHtml")}</Label>
                 <Textarea
                   rows={8}
                   value={form.notFoundHtml}
                   onChange={(e) => handleChange("notFoundHtml", e.target.value)}
-                  placeholder='<div class="text-center"><h1 class="text-6xl font-bold text-primary">404</h1><p class="mt-4">页面未找到</p></div>'
+                  placeholder={t("admin.siteSettings.notFoundHtmlPlaceholder")}
                 />
                 <p className="text-xs text-muted-foreground">
-                  使用自定义 HTML 完全控制404页面样式。支持 Tailwind CSS 类名
+                  {t("admin.siteSettings.notFoundHtmlHint")}
                 </p>
               </div>
             )}
@@ -466,7 +468,7 @@ export function AdminSiteSettingsPage() {
                 checked={form.enableGallery}
                 onCheckedChange={(checked) => handleChange("enableGallery", checked)}
               />
-              <Label htmlFor="enableGallery">开启画廊</Label>
+              <Label htmlFor="enableGallery">{t("admin.siteSettings.enableGallery")}</Label>
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -474,7 +476,7 @@ export function AdminSiteSettingsPage() {
                 checked={form.enableHome}
                 onCheckedChange={(checked) => handleChange("enableHome", checked)}
               />
-              <Label htmlFor="enableHome">开启首页</Label>
+              <Label htmlFor="enableHome">{t("admin.siteSettings.enableHome")}</Label>
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -482,7 +484,7 @@ export function AdminSiteSettingsPage() {
                 checked={form.enableApi}
                 onCheckedChange={(checked) => handleChange("enableApi", checked)}
               />
-              <Label htmlFor="enableApi">开启 API</Label>
+              <Label htmlFor="enableApi">{t("admin.siteSettings.enableApi")}</Label>
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -490,11 +492,11 @@ export function AdminSiteSettingsPage() {
                 checked={form.allowRegistration}
                 onCheckedChange={(checked) => handleChange("allowRegistration", checked)}
               />
-              <Label htmlFor="allowRegistration">允许用户注册</Label>
+              <Label htmlFor="allowRegistration">{t("admin.siteSettings.allowRegistration")}</Label>
             </div>
           </div>
           <div className="space-y-2">
-            <Label>封禁账户提示语</Label>
+            <Label>{t("admin.siteSettings.accountDisabledNotice")}</Label>
             <Textarea
               value={form.accountDisabledNotice}
               onChange={(e) => handleChange("accountDisabledNotice", e.target.value)}
@@ -508,10 +510,10 @@ export function AdminSiteSettingsPage() {
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">
-          {isFormDirty ? "有未保存的更改" : "未检测到配置更改"}
+          {isFormDirty ? t("admin.systemSettings.unsaved") : t("admin.systemSettings.clean")}
         </p>
         <Button onClick={() => mutation.mutate(form)} disabled={mutation.isPending || !isFormDirty}>
-          {mutation.isPending ? "保存中..." : "保存站点信息"}
+          {mutation.isPending ? t("common.saving") : t("admin.siteSettings.save")}
         </Button>
       </div>
     </div>

@@ -16,6 +16,7 @@ import {
   type SystemSettingsResponse
 } from "@/lib/api";
 import { SplashScreen } from "@/components/SplashScreen";
+import { useI18n } from "@/i18n";
 
 const defaultSystemSettingsForm: SystemSettingsInput = {
   siteTitle: "",
@@ -81,6 +82,7 @@ const smtpFields: (keyof SystemSettingsInput)[] = [
 ];
 
 export function AdminSmtpSettingsPage() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery<SystemSettingsResponse>({
     queryKey: ["admin", "system-settings"],
@@ -114,7 +116,7 @@ export function AdminSmtpSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["admin", "system-settings"] });
       queryClient.invalidateQueries({ queryKey: ["site-config"] });
       queryClient.invalidateQueries({ queryKey: ["site-meta"] });
-      toast.success("SMTP 配置已更新");
+      toast.success(t("admin.smtpSettings.saved"));
     },
     onError: (mutationError) => toast.error(mutationError.message)
   });
@@ -123,29 +125,29 @@ export function AdminSmtpSettingsPage() {
     mutationFn: testSmtpEmail,
     onSuccess: (result) => {
       if (result.success) {
-        toast.success("测试邮件发送成功，请检查收件箱");
+        toast.success(t("admin.smtpSettings.testMailSuccess"));
         setTestEmail("");
       } else {
-        toast.error(result.message || "测试邮件发送失败");
+        toast.error(result.message || t("admin.smtpSettings.testMailFailed"));
       }
     },
     onError: (mutationError) => toast.error(mutationError.message)
   });
 
   if (isLoading) {
-    return <SplashScreen message="加载 SMTP 配置..." />;
+    return <SplashScreen message={t("admin.smtpSettings.loading")} />;
   }
 
   if (error && !data) {
     const message =
       error.message === "account disabled"
-        ? "当前账户已被封禁，无法访问 SMTP 配置。"
+        ? t("admin.smtpSettings.disabled")
         : error.message;
     return (
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>无法加载 SMTP 配置</CardTitle>
+            <CardTitle>{t("admin.smtpSettings.loadFailed")}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-destructive">{message}</p>
@@ -162,11 +164,11 @@ export function AdminSmtpSettingsPage() {
 
   const handleTestEmail = () => {
     if (!testEmail) {
-      toast.error("请输入测试邮箱地址");
+      toast.error(t("admin.smtpSettings.testMailRequired"));
       return;
     }
     if (!form.smtpHost || !form.smtpPort || !form.smtpUsername) {
-      toast.error("请先填写完整的 SMTP 配置");
+      toast.error(t("admin.smtpSettings.configRequired"));
       return;
     }
     testEmailMutation.mutate({
@@ -183,13 +185,13 @@ export function AdminSmtpSettingsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <h1 className="text-2xl font-semibold">系统设置</h1>
-        <p className="text-muted-foreground">管理 SMTP 邮件服务与邮件相关开关。</p>
+        <h1 className="text-2xl font-semibold">{t("nav.systemSettings")}</h1>
+        <p className="text-muted-foreground">{t("admin.smtpSettings.description")}</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>SMTP 配置</CardTitle>
+          <CardTitle>{t("admin.smtpSettings.card")}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
@@ -201,14 +203,14 @@ export function AdminSmtpSettingsPage() {
             <Input value={form.smtpPort} onChange={(e) => handleChange("smtpPort", e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>用户名</Label>
+            <Label>{t("admin.smtpSettings.username")}</Label>
             <Input
               value={form.smtpUsername}
               onChange={(e) => handleChange("smtpUsername", e.target.value)}
             />
           </div>
           <div className="space-y-2">
-            <Label>密码 / 授权码</Label>
+            <Label>{t("admin.smtpSettings.password")}</Label>
             <Input
               type="password"
               value={form.smtpPassword}
@@ -216,7 +218,7 @@ export function AdminSmtpSettingsPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label>发信邮箱</Label>
+            <Label>{t("admin.smtpSettings.from")}</Label>
             <Input
               type="email"
               placeholder="noreply@yourdomain.com"
@@ -231,19 +233,19 @@ export function AdminSmtpSettingsPage() {
                 checked={form.smtpSecure}
                 onCheckedChange={(checked) => handleChange("smtpSecure", checked)}
               />
-              <Label htmlFor="smtpSecure">启用 TLS/SSL</Label>
+              <Label htmlFor="smtpSecure">{t("admin.smtpSettings.secure")}</Label>
             </div>
           </div>
           <div className="md:col-span-2 mt-4 border-t pt-4">
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Mail className="h-4 w-4" />
-                测试邮件发送
+                {t("admin.smtpSettings.testMail")}
               </Label>
               <div className="flex gap-2">
                 <Input
                   type="email"
-                  placeholder="输入测试邮箱地址"
+                  placeholder={t("admin.smtpSettings.testMailPlaceholder")}
                   value={testEmail}
                   onChange={(e) => setTestEmail(e.target.value)}
                   className="flex-1"
@@ -255,7 +257,7 @@ export function AdminSmtpSettingsPage() {
                   disabled={testEmailMutation.isPending}
                 >
                   <Send className="mr-2 h-4 w-4" />
-                  {testEmailMutation.isPending ? "发送中..." : "发送测试邮件"}
+                  {testEmailMutation.isPending ? t("admin.smtpSettings.testMailSending") : t("admin.smtpSettings.testMailSend")}
                 </Button>
               </div>
             </div>
@@ -264,7 +266,7 @@ export function AdminSmtpSettingsPage() {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>邮件通知设置</CardTitle>
+          <CardTitle>{t("admin.smtpSettings.notifications")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center space-x-2">
@@ -273,7 +275,7 @@ export function AdminSmtpSettingsPage() {
               checked={form.enableRegisterVerify}
               onCheckedChange={(checked) => handleChange("enableRegisterVerify", checked)}
             />
-            <Label htmlFor="enableRegisterVerify">启用注册邮件验证</Label>
+            <Label htmlFor="enableRegisterVerify">{t("admin.smtpSettings.enableRegisterVerify")}</Label>
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox
@@ -281,7 +283,7 @@ export function AdminSmtpSettingsPage() {
               checked={form.enableLoginNotification}
               onCheckedChange={(checked) => handleChange("enableLoginNotification", checked)}
             />
-            <Label htmlFor="enableLoginNotification">启用登录邮件提醒</Label>
+            <Label htmlFor="enableLoginNotification">{t("admin.smtpSettings.enableLoginNotification")}</Label>
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox
@@ -289,17 +291,17 @@ export function AdminSmtpSettingsPage() {
               checked={form.enableForgotPassword}
               onCheckedChange={(checked) => handleChange("enableForgotPassword", checked)}
             />
-            <Label htmlFor="enableForgotPassword">启用忘记密码</Label>
+            <Label htmlFor="enableForgotPassword">{t("admin.smtpSettings.enableForgotPassword")}</Label>
           </div>
         </CardContent>
       </Card>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">
-          {isFormDirty ? "有未保存的更改" : "未检测到配置更改"}
+          {isFormDirty ? t("admin.systemSettings.unsaved") : t("admin.systemSettings.clean")}
         </p>
         <Button onClick={() => mutation.mutate(form)} disabled={mutation.isPending || !isFormDirty}>
-          {mutation.isPending ? "保存中..." : "保存 SMTP 配置"}
+          {mutation.isPending ? t("common.saving") : t("admin.smtpSettings.save")}
         </Button>
       </div>
     </div>

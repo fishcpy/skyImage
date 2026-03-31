@@ -336,12 +336,12 @@ func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.Fi
 
 func (s *Service) ToDTO(ctx context.Context, file data.FileAsset) (FileDTO, error) {
 	if file.User.ID == 0 {
-		if err := s.db.WithContext(ctx).First(&file.User, file.UserID).Error; err != nil {
+		if err := s.db.WithContext(ctx).First(&file.User, file.UserID).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return FileDTO{}, err
 		}
 	}
 	if file.Strategy.ID == 0 && file.StrategyID != 0 {
-		if err := s.db.WithContext(ctx).First(&file.Strategy, file.StrategyID).Error; err != nil {
+		if err := s.db.WithContext(ctx).First(&file.Strategy, file.StrategyID).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return FileDTO{}, err
 		}
 	}
@@ -380,8 +380,14 @@ func (s *Service) ToDTO(ctx context.Context, file data.FileAsset) (FileDTO, erro
 
 // PublicURL returns the preferred public URL for a file asset based on its storage strategy.
 func (s *Service) PublicURL(ctx context.Context, file data.FileAsset) (string, error) {
+	if strings.TrimSpace(file.PublicURL) != "" && file.Strategy.ID == 0 {
+		return sanitizeURL(file.PublicURL), nil
+	}
 	if file.Strategy.ID == 0 && file.StrategyID != 0 {
 		if err := s.db.WithContext(ctx).First(&file.Strategy, file.StrategyID).Error; err != nil {
+			if strings.TrimSpace(file.PublicURL) != "" && errors.Is(err, gorm.ErrRecordNotFound) {
+				return sanitizeURL(file.PublicURL), nil
+			}
 			return "", err
 		}
 	}

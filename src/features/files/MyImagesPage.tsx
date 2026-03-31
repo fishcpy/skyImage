@@ -11,8 +11,10 @@ import {
 } from "@/lib/api";
 import { useAuthStore } from "@/state/auth";
 import { ImageGrid } from "./components/ImageGrid";
+import { useI18n } from "@/i18n";
 
 export function MyImagesPage() {
+  const { t } = useI18n();
   const pageSize = 60;
   const queryClient = useQueryClient();
   const { data: siteConfig } = useQuery({
@@ -57,11 +59,11 @@ export function MyImagesPage() {
     mutationFn: (payload: { id: number; visibility: "public" | "private" }) =>
       updateFileVisibility(payload.id, payload.visibility),
     onSuccess: () => {
-      toast.success("权限已更新");
+      toast.success(t("images.permissionUpdated"));
       queryClient.invalidateQueries({ queryKey: ["files"] });
     },
     onError: (error) => {
-      toast.error(error.message || "更新权限失败");
+      toast.error(error.message || t("images.permissionUpdateFailed"));
     }
   });
 
@@ -69,25 +71,25 @@ export function MyImagesPage() {
     mutationFn: (payload: { ids: number[]; visibility: "public" | "private" }) =>
       updateFilesVisibilityBatch(payload.ids, payload.visibility),
     onSuccess: () => {
-      toast.success("批量权限已更新");
+      toast.success(t("images.batchPermissionUpdated"));
       queryClient.invalidateQueries({ queryKey: ["files"] });
     },
     onError: (error) => {
-      toast.error(error.message || "批量更新权限失败");
+      toast.error(error.message || t("images.batchPermissionUpdateFailed"));
     }
   });
 
   const batchDeleteMutation = useMutation({
     mutationFn: (ids: number[]) => deleteFilesBatch(ids),
     onSuccess: () => {
-      toast.success("批量删除成功");
+      toast.success(t("images.batchDeleteSuccess"));
       queryClient.invalidateQueries({ queryKey: ["files"] });
       useAuthStore.getState().refreshUser().catch((err) => {
         console.error("[MyImagesPage] Failed to refresh user after batch delete:", err);
       });
     },
     onError: (error) => {
-      toast.error(error.message || "批量删除失败");
+      toast.error(error.message || t("images.batchDeleteFailed"));
     }
   });
 
@@ -99,8 +101,8 @@ export function MyImagesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">我的图片</h1>
-        <p className="text-muted-foreground">查看、管理、删除你已经上传的所有内容。</p>
+        <h1 className="text-2xl font-semibold">{t("images.title")}</h1>
+        <p className="text-muted-foreground">{t("images.description")}</p>
       </div>
       <ImageGrid
         files={files}

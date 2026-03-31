@@ -5,6 +5,7 @@ import "@fancyapps/ui/dist/fancybox/fancybox.css";
 
 import type { FileRecord } from "@/lib/api";
 import { normalizeFileUrl } from "@/lib/file-url";
+import { useI18n } from "@/i18n";
 
 // 固定行高（像素）
 const ROW_HEIGHT = 240;
@@ -66,6 +67,7 @@ export function ImageGrid({
   onBatchVisibilityChange,
   onBatchDelete
 }: Props) {
+  const { t } = useI18n();
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -368,9 +370,9 @@ export function ImageGrid({
       toast.success(message);
     } catch (err) {
       console.error("[ImageGrid] Failed to copy:", err);
-      toast.error("复制失败，请手动复制");
+      toast.error(t("grid.copyFailed"));
     }
-  }, []);
+  }, [t]);
 
   const executeDelete = useCallback(
     async (ids: number[]) => {
@@ -411,15 +413,15 @@ export function ImageGrid({
     const directUrl = normalizeFileUrl(file.directUrl);
     const viewUrl = normalizeFileUrl(file.viewUrl || file.directUrl);
     const visibility = file.visibility === "public" ? "private" : "public";
-    const visibilityLabel = visibility === "public" ? "设为公开" : "设为私有";
+    const visibilityLabel = visibility === "public" ? t("grid.makePublic") : t("grid.makePrivate");
     const canToggleVisibility = useSelection
       ? Boolean(onBatchVisibilityChange)
       : Boolean(onVisibilityChange);
-    const selectionLabelSuffix = isMulti ? `（选中 ${activeIds.length}）` : "";
+    const selectionLabelSuffix = isMulti ? t("grid.selectionSuffix", { count: activeIds.length }) : "";
 
     return [
       {
-        label: "预览",
+        label: t("grid.preview"),
         action: () => {
           if (onPreview) {
             onPreview(file);
@@ -431,23 +433,23 @@ export function ImageGrid({
         enabled: !isMulti
       },
       {
-        label: "在新标签打开",
+        label: t("grid.openNewTab"),
         action: () => window.open(viewUrl, "_blank", "noreferrer"),
         enabled: !isMulti
       },
       {
-        label: "复制链接",
-        action: () => handleCopy(directUrl, "已复制链接"),
+        label: t("grid.copyLink"),
+        action: () => handleCopy(directUrl, t("grid.copiedLink")),
         enabled: !isMulti
       },
       {
-        label: "复制 Markdown",
-        action: () => handleCopy(file.markdown, "已复制 Markdown"),
+        label: t("grid.copyMarkdown"),
+        action: () => handleCopy(file.markdown, t("grid.copiedMarkdown")),
         enabled: !isMulti
       },
       {
-        label: "复制 HTML",
-        action: () => handleCopy(file.html, "已复制 HTML"),
+        label: t("grid.copyHtml"),
+        action: () => handleCopy(file.html, t("grid.copiedHtml")),
         enabled: !isMulti
       },
       {
@@ -473,16 +475,16 @@ export function ImageGrid({
         enabled: canToggleVisibility
       },
       {
-        label: `删除${selectionLabelSuffix}`,
+        label: `${t("grid.deleteSelected")}${selectionLabelSuffix}`,
         action: () => {
           setPendingDeleteIds(activeIds);
-          setPendingDeleteLabel(isMulti ? `选中的 ${activeIds.length} 项` : `「${file.originalName}」`);
+          setPendingDeleteLabel(isMulti ? t("grid.selectedItems", { count: activeIds.length }) : `「${file.originalName}」`);
         },
         enabled: useSelection ? Boolean(onBatchDelete) : Boolean(onDelete),
         danger: true
       },
       {
-        label: "清空选择",
+        label: t("grid.clearSelection"),
         action: () => setSelectedIds(new Set()),
         enabled: selectedIds.size > 0 && menu.scope === "selection"
       }
@@ -500,11 +502,11 @@ export function ImageGrid({
   ]);
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">加载中...</p>;
+    return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
   }
 
   if (!items.length) {
-    return <p className="text-sm text-muted-foreground">暂无图片</p>;
+    return <p className="text-sm text-muted-foreground">{t("grid.empty")}</p>;
   }
 
   const hasSelection = selectedIds.size > 0;
@@ -532,7 +534,7 @@ export function ImageGrid({
       {hasSelection && (
         <div className="sticky top-0 z-10 mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-background/90 px-3 py-2 text-sm shadow-sm backdrop-blur">
           <span className="text-muted-foreground">
-            已选择 {selectedIds.size} 张
+            {t("grid.selectedCount", { count: selectedIds.size })}
           </span>
           <button
             type="button"
@@ -540,14 +542,14 @@ export function ImageGrid({
             onClick={selectAll}
             disabled={isAllSelected}
           >
-            全选
+            {t("grid.selectAll")}
           </button>
           <button
             type="button"
             className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted"
             onClick={() => setSelectedIds(new Set())}
           >
-            清空
+            {t("grid.clear")}
           </button>
             <div className="ml-auto flex flex-wrap items-center gap-2">
             <button
@@ -566,7 +568,7 @@ export function ImageGrid({
                 }
               }}
             >
-              批量公开
+              {t("grid.batchPublic")}
             </button>
             <button
               type="button"
@@ -584,7 +586,7 @@ export function ImageGrid({
                 }
               }}
             >
-              批量私有
+              {t("grid.batchPrivate")}
             </button>
             <button
               type="button"
@@ -593,23 +595,23 @@ export function ImageGrid({
                 const ids = Array.from(selectedIds);
                 if (!ids.length) return;
                 setPendingDeleteIds(ids);
-                setPendingDeleteLabel(`选中的 ${ids.length} 项`);
+                setPendingDeleteLabel(t("grid.selectedItems", { count: ids.length }));
               }}
             >
-              批量删除
+              {t("grid.batchDelete")}
             </button>
           </div>
         </div>
       )}
       <div ref={containerRef} className="flex w-full flex-col" style={{ gap: `${GAP}px` }}>
         {imageDimensions.size < items.length || containerWidth <= 0 ? (
-          <p className="text-sm text-muted-foreground">正在加载图片...</p>
+          <p className="text-sm text-muted-foreground">{t("grid.loadingImages")}</p>
         ) : (
           visibleRows.map((row, rowIndex) => (
             <div key={rowIndex} className="flex w-full" style={{ gap: `${GAP}px`, height: `${ROW_HEIGHT}px` }}>
               {row.map(({ item, width }) => {
                 const imageUrl = normalizeFileUrl(item.viewUrl || item.directUrl);
-                const visibilityLabel = item.visibility === "public" ? "公开" : "私有";
+                const visibilityLabel = item.visibility === "public" ? t("grid.public") : t("grid.private");
                 const isSelected = selectedIds.has(item.id);
                 return (
                   <div
@@ -681,7 +683,7 @@ export function ImageGrid({
                   }
                 }}
               >
-                <span className="sr-only">查看图片</span>
+                <span className="sr-only">{t("grid.viewImage")}</span>
               </a>
               <span
                 className={[
@@ -711,7 +713,7 @@ export function ImageGrid({
               </button>
               {deletingId === item.id && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-sm text-white">
-                  删除中...
+                  {t("grid.deleting")}
                 </div>
               )}
                   </div>
@@ -723,7 +725,7 @@ export function ImageGrid({
       </div>
       <div ref={sentinelRef} className="h-6 w-full" />
       {isFetchingMore && (
-        <p className="text-sm text-muted-foreground">正在加载更多图片...</p>
+        <p className="text-sm text-muted-foreground">{t("grid.loadingMore")}</p>
       )}
 
       {menu && menuPos && (
@@ -763,13 +765,13 @@ export function ImageGrid({
       <AlertDialog open={Boolean(pendingDeleteIds)} onOpenChange={(open) => !open && setPendingDeleteIds(null)}>
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
-            <AlertDialogTitle>确认删除？</AlertDialogTitle>
+            <AlertDialogTitle>{t("grid.confirmDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              即将删除 {pendingDeleteLabel || "所选内容"}，此操作不可恢复。
+              {t("grid.confirmDeleteDescription", { label: pendingDeleteLabel || t("grid.selectedContent") })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
@@ -777,7 +779,7 @@ export function ImageGrid({
                 void executeDelete(pendingDeleteIds);
               }}
             >
-              确认删除
+              {t("admin.confirmDelete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

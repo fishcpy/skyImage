@@ -14,8 +14,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/state/auth";
+import { useI18n } from "@/i18n";
 
 export function UserManagementPage() {
+  const { t } = useI18n();
   const currentUser = useAuthStore((state) => state.user);
   const isAdmin = currentUser?.isAdmin;
 
@@ -28,63 +30,61 @@ export function UserManagementPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">用户管理</h1>
-          <p className="text-muted-foreground">
-            统一查看用户状态、角色和所属角色组。
-          </p>
+          <h1 className="text-2xl font-semibold">{t("users.title")}</h1>
+          <p className="text-muted-foreground">{t("users.description")}</p>
         </div>
         {isAdmin && (
           <Button asChild>
-            <Link to="/dashboard/admin/users/new">新增用户</Link>
+            <Link to="/dashboard/admin/users/new">{t("users.new")}</Link>
           </Button>
         )}
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>全部用户</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">加载中...</p>
-          ) : (
-            <>
+          <CardHeader>
+            <CardTitle>{t("users.listTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+            ) : (
+              <>
               {/* 桌面端表格 */}
               <div className="hidden md:block overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>用户</TableHead>
-                      <TableHead>邮箱</TableHead>
-                      <TableHead>角色组</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>角色</TableHead>
-                      <TableHead className="text-right">操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users?.map((user: any) => (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t("users.table.user")}</TableHead>
+                        <TableHead>{t("users.table.email")}</TableHead>
+                        <TableHead>{t("users.table.group")}</TableHead>
+                        <TableHead>{t("users.table.status")}</TableHead>
+                        <TableHead>{t("users.table.role")}</TableHead>
+                        <TableHead className="text-right">{t("users.table.actions")}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {users?.map((user: any) => (
                       <TableRow key={user.id}>
                         <TableCell>{user.name}</TableCell>
                         <TableCell>{user.email}</TableCell>
-                        <TableCell>{user.group?.name ?? "未分组"}</TableCell>
+                        <TableCell>{user.group?.name ?? t("users.notGrouped")}</TableCell>
                         <TableCell>
                           <Badge variant={user.status === 1 ? "secondary" : "outline"}>
-                            {user.status === 1 ? "正常" : "禁用"}
+                            {user.status === 1 ? t("users.status.active") : t("users.status.disabled")}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           {user.isSuperAdmin ? (
-                            <Badge variant="secondary">超级管理员</Badge>
+                            <Badge variant="secondary">{t("users.roles.superAdmin")}</Badge>
                           ) : user.isAdmin ? (
-                            <Badge>管理员</Badge>
+                            <Badge>{t("users.roles.admin")}</Badge>
                           ) : (
-                            <Badge variant="outline">普通用户</Badge>
+                            <Badge variant="outline">{t("users.roles.user")}</Badge>
                           )}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button asChild size="sm">
-                            <Link to={`/dashboard/admin/users/${user.id}`}>编辑</Link>
+                            <Link to={`/dashboard/admin/users/${user.id}`}>{t("users.edit")}</Link>
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -107,23 +107,23 @@ export function UserManagementPage() {
                           <p className="text-sm text-muted-foreground truncate">{user.email}</p>
                         </div>
                         {user.isSuperAdmin ? (
-                          <Badge variant="secondary" className="flex-shrink-0">超级管理员</Badge>
+                          <Badge variant="secondary" className="flex-shrink-0">{t("users.roles.superAdmin")}</Badge>
                         ) : user.isAdmin ? (
-                          <Badge className="flex-shrink-0">管理员</Badge>
+                          <Badge className="flex-shrink-0">{t("users.roles.admin")}</Badge>
                         ) : (
-                          <Badge variant="outline" className="flex-shrink-0">普通用户</Badge>
+                          <Badge variant="outline" className="flex-shrink-0">{t("users.roles.user")}</Badge>
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-sm">
-                        <span className="text-muted-foreground">角色组:</span>
-                        <span>{user.group?.name ?? "未分组"}</span>
+                        <span className="text-muted-foreground">{t("users.table.group")}:</span>
+                        <span>{user.group?.name ?? t("users.notGrouped")}</span>
                         <Badge variant={user.status === 1 ? "secondary" : "outline"} className="ml-auto">
-                          {user.status === 1 ? "正常" : "禁用"}
+                          {user.status === 1 ? t("users.status.active") : t("users.status.disabled")}
                         </Badge>
                       </div>
                     </div>
                     <Button asChild size="sm" className="w-full">
-                      <Link to={`/dashboard/admin/users/${user.id}`}>编辑</Link>
+                      <Link to={`/dashboard/admin/users/${user.id}`}>{t("users.edit")}</Link>
                     </Button>
                   </div>
                 ))}

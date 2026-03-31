@@ -22,6 +22,7 @@ import { register, sendVerificationCode } from "@/lib/api";
 import { fetchTurnstileConfig, loadTurnstileScript } from "@/lib/turnstile";
 import { useAuthStore } from "@/state/auth";
 import { Turnstile, type TurnstileRef } from "@/components/Turnstile";
+import { useI18n } from "@/i18n";
 
 interface RegisterFormProps extends React.ComponentProps<"div"> {
   emailVerifyEnabled: boolean;
@@ -34,6 +35,7 @@ export function RegisterForm({
 }: RegisterFormProps) {
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
+  const { t } = useI18n();
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -66,10 +68,10 @@ export function RegisterForm({
         .then(() => setTurnstileReady(true))
         .catch((err) => {
           console.error("Failed to load Turnstile:", err);
-          toast.error("加载人机验证失败");
+          toast.error(t("register.loadTurnstileError"));
         });
     }
-  }, [turnstileConfig]);
+  }, [t, turnstileConfig]);
 
   useEffect(() => {
     if (countdown > 0) {
@@ -81,14 +83,14 @@ export function RegisterForm({
   const sendCodeMutation = useMutation({
     mutationFn: sendVerificationCode,
     onSuccess: () => {
-      toast.success("验证码已发送，请查收邮件");
+      toast.success(t("register.verificationSent"));
       setCodeSent(true);
       setCountdown(60);
       setShowSendCodeTurnstile(false);
       setSendCodeTurnstileToken("");
     },
     onError: (error) => {
-      toast.error(error.message || "发送验证码失败");
+      toast.error(error.message || t("register.sendVerificationFailed"));
       if (sendCodeTurnstileRef.current) {
         sendCodeTurnstileRef.current.reset();
       }
@@ -99,7 +101,7 @@ export function RegisterForm({
   const mutation = useMutation({
     mutationFn: register,
     onSuccess: (data) => {
-      toast.success("注册成功！正在跳转...");
+      toast.success(t("register.success"));
       if (data.user) {
         setAuth({ user: data.user });
         navigate("/dashboard", { replace: true });
@@ -108,7 +110,7 @@ export function RegisterForm({
       }
     },
     onError: (error) => {
-      toast.error(error.message || "注册失败");
+      toast.error(error.message || t("register.failed"));
       if (turnstileRef.current) {
         turnstileRef.current.reset();
       }
@@ -118,13 +120,13 @@ export function RegisterForm({
 
   const handleSendCode = async () => {
     if (!form.email) {
-      toast.error("请先输入邮箱地址");
+      toast.error(t("register.emailRequired"));
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(form.email)) {
-      toast.error("请输入有效的邮箱地址");
+      toast.error(t("register.emailInvalid"));
       return;
     }
 
@@ -154,27 +156,27 @@ export function RegisterForm({
     e.preventDefault();
 
     if (!form.name || !form.email || !form.password) {
-      toast.error("请填写所有必填字段");
+      toast.error(t("register.required"));
       return;
     }
 
     if (form.password.length < 8) {
-      toast.error("密码至少需要 8 个字符");
+      toast.error(t("register.passwordLength"));
       return;
     }
 
     if (form.password !== form.confirmPassword) {
-      toast.error("两次输入的密码不一致");
+      toast.error(t("register.passwordMismatch"));
       return;
     }
 
     if (emailVerifyEnabled && !form.verificationCode) {
-      toast.error("请输入邮箱验证码");
+      toast.error(t("register.codeRequired"));
       return;
     }
 
     if (turnstileConfig?.enabled && !turnstileToken) {
-      toast.error("请完成人机验证");
+      toast.error(t("register.turnstileRequired"));
       return;
     }
 
@@ -191,18 +193,18 @@ export function RegisterForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">创建账户</CardTitle>
-          <CardDescription>输入您的信息以创建账户</CardDescription>
+          <CardTitle className="text-xl">{t("register.title")}</CardTitle>
+          <CardDescription>{t("register.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="name">用户名</FieldLabel>
+                <FieldLabel htmlFor="name">{t("register.username")}</FieldLabel>
                 <Input
                   id="name"
                   type="text"
-                  placeholder="请输入用户名"
+                  placeholder={t("register.usernamePlaceholder")}
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   required
@@ -210,7 +212,7 @@ export function RegisterForm({
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="email">邮箱</FieldLabel>
+                <FieldLabel htmlFor="email">{t("register.email")}</FieldLabel>
                 <Input
                   id="email"
                   type="email"
@@ -223,12 +225,12 @@ export function RegisterForm({
               </Field>
               {emailVerifyEnabled && (
                 <Field>
-                  <FieldLabel htmlFor="verificationCode">邮箱验证码</FieldLabel>
+                  <FieldLabel htmlFor="verificationCode">{t("register.code")}</FieldLabel>
                   <div className="flex gap-2">
                     <Input
                       id="verificationCode"
                       type="text"
-                      placeholder="请输入6位验证码"
+                      placeholder={t("register.codePlaceholder")}
                       value={form.verificationCode}
                       onChange={(e) => setForm({ ...form, verificationCode: e.target.value })}
                       maxLength={6}
@@ -243,22 +245,22 @@ export function RegisterForm({
                       className="whitespace-nowrap"
                     >
                       {sendCodeMutation.isPending
-                        ? "发送中..."
+                        ? t("register.sending")
                         : countdown > 0
-                        ? `${countdown}秒`
+                        ? t("register.resendIn", { count: countdown })
                         : codeSent
-                        ? "重新发送"
-                        : "发送验证码"}
+                        ? t("register.resend")
+                        : t("register.sendCode")}
                     </Button>
                   </div>
                   {codeSent && (
                     <FieldDescription>
-                      验证码已发送到您的邮箱，有效期5分钟
+                      {t("register.codeSentNotice")}
                     </FieldDescription>
                   )}
                   {showSendCodeTurnstile && sendCodeTurnstileConfig?.enabled && sendCodeTurnstileConfig.siteKey && turnstileReady && (
                     <div className="rounded-md border p-4 space-y-2">
-              <p className="text-sm text-muted-foreground">请完成人机验证后发送验证码</p>
+                      <p className="text-sm text-muted-foreground">{t("register.sendCodeTurnstileHint")}</p>
                       <div className="flex justify-center">
                         <Turnstile
                           ref={sendCodeTurnstileRef}
@@ -266,7 +268,7 @@ export function RegisterForm({
                           onVerify={handleSendCodeTurnstileVerify}
                           onExpire={() => setSendCodeTurnstileToken("")}
                           onError={() => {
-                            toast.error("人机验证失败，请刷新页面重试");
+                            toast.error(t("register.turnstileError"));
                             setSendCodeTurnstileToken("");
                           }}
                         />
@@ -276,11 +278,11 @@ export function RegisterForm({
                 </Field>
               )}
               <Field>
-                <FieldLabel htmlFor="password">密码</FieldLabel>
+                <FieldLabel htmlFor="password">{t("register.password")}</FieldLabel>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="至少 8 个字符"
+                  placeholder={t("register.passwordPlaceholder")}
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                   required
@@ -288,11 +290,11 @@ export function RegisterForm({
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="confirmPassword">确认密码</FieldLabel>
+                <FieldLabel htmlFor="confirmPassword">{t("register.confirmPassword")}</FieldLabel>
                 <Input
                   id="confirmPassword"
                   type="password"
-                  placeholder="再次输入密码"
+                  placeholder={t("register.confirmPasswordPlaceholder")}
                   value={form.confirmPassword}
                   onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
                   required
@@ -309,21 +311,21 @@ export function RegisterForm({
                         onVerify={setTurnstileToken}
                         onExpire={() => setTurnstileToken("")}
                         onError={() => {
-                          toast.error("人机验证失败，请刷新页面重试");
+                          toast.error(t("register.turnstileError"));
                         }}
                       />
                     ) : (
-                      <p className="text-sm text-muted-foreground">加载人机验证中...</p>
+                      <p className="text-sm text-muted-foreground">{t("register.turnstileLoading")}</p>
                     )}
                   </div>
                 </Field>
               )}
               <Field>
                 <Button type="submit" className="w-full" disabled={mutation.isPending}>
-                  {mutation.isPending ? "注册中..." : "注册"}
+                  {mutation.isPending ? t("register.submitting") : t("register.submit")}
                 </Button>
                 <FieldDescription className="text-center">
-                  已有账号？ <a href="/login" className="text-primary hover:underline">立即登录</a>
+                  {t("register.hasAccount")} <a href="/login" className="text-primary hover:underline">{t("register.loginNow")}</a>
                 </FieldDescription>
               </Field>
             </FieldGroup>
@@ -331,8 +333,8 @@ export function RegisterForm({
         </CardContent>
       </Card>
       <FieldDescription className="px-6 text-center">
-        继续即表示您同意我们的 <a href="/terms" className="underline hover:text-primary">服务条款</a>{" "}
-        和 <a href="/privacy" className="underline hover:text-primary">隐私政策</a>。
+        {t("legal.continuePrefix")} <a href="/terms" className="underline hover:text-primary">{t("legal.terms")}</a>{" "}
+        {t("legal.and")} <a href="/privacy" className="underline hover:text-primary">{t("legal.privacy")}</a>{t("legal.period")}
       </FieldDescription>
     </div>
   );

@@ -5,8 +5,11 @@ import { fetchHasUsers, fetchSiteConfig } from "@/lib/api";
 import { useAuthStore } from "@/state/auth";
 import { Button } from "@/components/ui/button";
 import { LoginForm } from "@/components/login-form";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useI18n } from "@/i18n";
 
 export function LoginPage() {
+  const { t } = useI18n();
   const token = useAuthStore((state) => state.token);
 
   const {
@@ -37,24 +40,27 @@ export function LoginPage() {
   if (error) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-muted/30 p-4 text-center">
-        <p className="text-lg font-semibold">无法连接后端服务</p>
+        <p className="text-lg font-semibold">{t("login.page.connectionErrorTitle")}</p>
         <p className="text-sm text-muted-foreground">
-          请确认 Go API 已启动并可通过 /api 访问。
+          {t("login.page.connectionErrorDescription")}
         </p>
-        <Button onClick={() => refetch()}>重试检测</Button>
+        <Button onClick={() => refetch()}>{t("login.page.retry")}</Button>
       </div>
     );
   }
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
+      <div className="fixed right-4 top-4 z-10">
+        <LanguageToggle />
+      </div>
       <div className="flex w-full max-w-sm flex-col gap-6">
         <a href="/" className="self-center font-medium text-xl">
           {siteName}
         </a>
         {checkingUsers ? (
           <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
-            正在检测系统状态...
+            {t("login.page.checking")}
           </div>
         ) : (
           <LoginForm forgotPasswordEnabled={siteConfig?.forgotPasswordEnabled === true} />

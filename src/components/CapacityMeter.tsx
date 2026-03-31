@@ -3,10 +3,12 @@ import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAuthStore } from "@/state/auth";
+import { useI18n } from "@/i18n";
 
 const REFRESH_COOLDOWN_MS = 5000; // 5 seconds
 
 export function CapacityMeter() {
+  const { t } = useI18n();
   const user = useAuthStore((state) => state.user);
   const [refreshing, setRefreshing] = useState(false);
   const lastRefreshTime = useRef<number>(0);
@@ -32,9 +34,9 @@ export function CapacityMeter() {
     return {
       percent: pct,
       usedLabel: format(used),
-      totalLabel: capacity > 0 ? format(capacity) : "未配置"
+      totalLabel: capacity > 0 ? format(capacity) : t("common.notConfigured")
     };
-  }, [user]);
+  }, [t, user]);
 
   const handleRefresh = async () => {
     const now = Date.now();
@@ -43,7 +45,7 @@ export function CapacityMeter() {
     // Check if 5 seconds have passed since last refresh
     if (timeSinceLastRefresh < REFRESH_COOLDOWN_MS) {
       const remainingSeconds = Math.ceil((REFRESH_COOLDOWN_MS - timeSinceLastRefresh) / 1000);
-      toast.error(`请等待 ${remainingSeconds} 秒后再刷新`);
+      toast.error(t("capacity.waitToRefresh", { seconds: remainingSeconds }));
       return;
     }
     
@@ -63,12 +65,12 @@ export function CapacityMeter() {
   return (
     <div className="space-y-2 rounded-lg border p-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">容量使用</p>
+        <p className="text-sm text-muted-foreground">{t("capacity.usage")}</p>
         <button
           onClick={handleRefresh}
           disabled={refreshing}
           className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          title="刷新容量信息"
+          title={t("capacity.refresh")}
         >
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
         </button>

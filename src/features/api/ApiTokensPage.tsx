@@ -19,8 +19,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useI18n } from "@/i18n";
 
 export function ApiTokensPage() {
+  const { t } = useI18n();
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -34,7 +36,7 @@ export function ApiTokensPage() {
     mutationFn: deleteApiToken,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["api-tokens"] });
-      toast.success("Token 已删除");
+      toast.success(t("apiTokens.deleted"));
       setDeleteId(null);
     },
     onError: (error) => toast.error(error.message),
@@ -57,24 +59,24 @@ export function ApiTokensPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">API Token 管理</h1>
-          <p className="text-muted-foreground">管理您的 API 访问令牌</p>
+          <h1 className="text-2xl font-semibold">{t("apiTokens.title")}</h1>
+          <p className="text-muted-foreground">{t("apiTokens.description")}</p>
         </div>
         <Button onClick={() => navigate("/dashboard/api-tokens/new")}>
           <Plus className="mr-2 h-4 w-4" />
-          新建 Token
+          {t("apiTokens.new")}
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>现有 Token</CardTitle>
+          <CardTitle>{t("apiTokens.list")}</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">加载中...</p>
+            <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
           ) : tokenItems.length === 0 ? (
-            <p className="text-sm text-muted-foreground">暂无 Token，点击上方按钮生成新 Token</p>
+            <p className="text-sm text-muted-foreground">{t("apiTokens.empty")}</p>
           ) : (
             <div className="space-y-3">
               {tokenItems.map((token) => (
@@ -87,23 +89,23 @@ export function ApiTokensPage() {
                       <code className="text-sm font-mono">{token.tokenMasked ?? token.token}</code>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span>创建于 {format(new Date(token.createdAt), "yyyy-MM-dd HH:mm")}</span>
+                      <span>{t("apiTokens.createdAt", { value: format(new Date(token.createdAt), "yyyy-MM-dd HH:mm") })}</span>
                       <span>•</span>
                       <span>
-                        过期时间 {token.neverExpire ? "无限期" : format(new Date(token.expiresAt), "yyyy-MM-dd HH:mm")}
+                        {t("apiTokens.expiresAt", { value: token.neverExpire ? t("apiTokens.neverExpire") : format(new Date(token.expiresAt), "yyyy-MM-dd HH:mm") })}
                       </span>
                       {token.lastUsedAt && (
                         <>
                           <span>•</span>
                           <span>
-                            最后使用 {format(new Date(token.lastUsedAt), "yyyy-MM-dd HH:mm")}
+                            {t("apiTokens.lastUsedAt", { value: format(new Date(token.lastUsedAt), "yyyy-MM-dd HH:mm") })}
                           </span>
                         </>
                       )}
                     </div>
                     {token.expired && (
                       <Badge variant="destructive" className="text-xs">
-                        已过期
+                        {t("apiTokens.expired")}
                       </Badge>
                     )}
                   </div>
@@ -135,18 +137,18 @@ export function ApiTokensPage() {
       <AlertDialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogTitle>{t("apiTokens.confirmDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              删除此 Token 后，使用该 Token 的应用将无法继续访问 API。此操作不可撤销。
+              {t("apiTokens.confirmDeleteDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              删除
+              {t("admin.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

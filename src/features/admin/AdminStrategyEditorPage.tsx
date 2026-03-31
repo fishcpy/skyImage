@@ -16,19 +16,20 @@ import {
   type GroupRecord,
   type StrategyRecord
 } from "@/lib/api";
-
-const driverOptions = [
-  { key: "local", label: "本地储存" },
-  { key: "webdav", label: "WebDAV" },
-  { key: "ftp", label: "FTP" },
-  { key: "s3", label: "S3 兼容存储" }
-];
+import { useI18n } from "@/i18n";
 
 export function AdminStrategyEditorPage() {
+  const { t } = useI18n();
   const { id } = useParams();
   const isEditing = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const driverOptions = [
+    { key: "local", label: t("admin.strategyEditor.driver.local") },
+    { key: "webdav", label: t("admin.strategyEditor.driver.webdav") },
+    { key: "ftp", label: t("admin.strategyEditor.driver.ftp") },
+    { key: "s3", label: t("admin.strategyEditor.driver.s3") }
+  ];
 
   const { data: strategies } = useQuery({
     queryKey: ["admin", "strategies"],
@@ -202,7 +203,7 @@ export function AdminStrategyEditorPage() {
   const saveMutation = useMutation({
     mutationFn: saveStrategy,
     onSuccess: () => {
-      toast.success("策略已保存");
+      toast.success(t("admin.strategyEditor.saved"));
       queryClient.invalidateQueries({ queryKey: ["admin", "strategies"] });
       navigate("/dashboard/admin/strategies");
     },
@@ -213,7 +214,7 @@ export function AdminStrategyEditorPage() {
     if (!form.name) return;
     const template = (form.configs as any)?.path_template || "{year}/{month}/{day}/{uuid}";
     if (template && !String(template).includes("{uuid}")) {
-      toast.error("路径模板必须包含 {uuid} 以确保唯一性");
+      toast.error(t("admin.strategyEditor.pathTemplateMustContainUuid"));
       return;
     }
     saveMutation.mutate({
@@ -287,28 +288,28 @@ export function AdminStrategyEditorPage() {
       <div className="flex flex-col gap-2">
         <p className="text-sm text-muted-foreground">
           <Link className="text-primary" to="/dashboard/admin/strategies">
-            储存策略
+            {t("admin.strategies.title")}
           </Link>{" "}
-          / {isEditing ? "编辑策略" : "新增策略"}
+          / {isEditing ? t("admin.strategyEditor.edit") : t("admin.strategyEditor.new")}
         </p>
-        <h1 className="text-2xl font-semibold">{isEditing ? form.name : "新建策略"}</h1>
+        <h1 className="text-2xl font-semibold">{isEditing ? form.name : t("admin.strategyEditor.newTitle")}</h1>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>策略配置</CardTitle>
+          <CardTitle>{t("admin.strategyEditor.config")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>策略名称</Label>
+              <Label>{t("admin.strategyEditor.name")}</Label>
               <Input
                 value={form.name || ""}
                 onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
-              <Label>驱动类型</Label>
+              <Label>{t("admin.strategyEditor.driver")}</Label>
               <Select
                 value={form.configs?.driver || "local"}
                 onValueChange={(value) =>
@@ -316,7 +317,7 @@ export function AdminStrategyEditorPage() {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="选择驱动" />
+                  <SelectValue placeholder={t("admin.strategyEditor.driverPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {driverOptions.map((option) => (
@@ -329,7 +330,7 @@ export function AdminStrategyEditorPage() {
             </div>
           </div>
           <div className="space-y-2">
-            <Label>简介（可选）</Label>
+            <Label>{t("admin.strategyEditor.intro")}</Label>
             <Input
               value={form.intro || ""}
               onChange={(e) => setForm((prev) => ({ ...prev, intro: e.target.value }))}
@@ -338,7 +339,7 @@ export function AdminStrategyEditorPage() {
           <div className="grid gap-4 md:grid-cols-2">
             {form.configs?.driver === "webdav" ? (
               <div className="space-y-2">
-                <Label>WebDAV Endpoint</Label>
+                <Label>{t("admin.strategyEditor.webdavEndpoint")}</Label>
                 <Input
                   value={(form.configs as any)?.webdav_endpoint || ""}
                   onChange={(e) =>
@@ -350,12 +351,12 @@ export function AdminStrategyEditorPage() {
                   placeholder="https://dav.example.com/remote.php/dav/files/user"
                 />
                 <p className="text-xs text-muted-foreground">
-                  仅用于上传/删除，外链仍由“外部访问域名”控制。
+                  {t("admin.strategyEditor.webdavEndpointHint")}
                 </p>
               </div>
             ) : form.configs?.driver === "ftp" ? (
               <div className="space-y-2">
-                <Label>FTP 主机</Label>
+                <Label>{t("admin.strategyEditor.ftpHost")}</Label>
                 <Input
                   value={(form.configs as any)?.ftp_host || ""}
                   onChange={(e) =>
@@ -367,12 +368,12 @@ export function AdminStrategyEditorPage() {
                   placeholder="ftp.example.com:21 或 ftp://user:pass@host:21"
                 />
                 <p className="text-xs text-muted-foreground">
-                  支持 ftp:// 或 ftps:// 形式，基础目录请在下方配置。
+                  {t("admin.strategyEditor.ftpHostHint")}
                 </p>
               </div>
             ) : (
               <div className="space-y-2">
-                <Label>{form.configs?.driver === "s3" ? "对象前缀" : "储存根路径"}</Label>
+                <Label>{form.configs?.driver === "s3" ? t("admin.strategyEditor.objectPrefix") : t("admin.strategyEditor.storageRoot")}</Label>
                 <Input
                   value={form.configs?.root || ""}
                   onChange={(e) =>
@@ -385,13 +386,13 @@ export function AdminStrategyEditorPage() {
                 />
                 <p className="text-xs text-muted-foreground">
                   {form.configs?.driver === "s3"
-                    ? "可选，用于作为对象 Key 的前缀。"
-                    : "确保该路径具有读写权限。"}
+                    ? t("admin.strategyEditor.objectPrefixHint")
+                    : t("admin.strategyEditor.storageRootHint")}
                 </p>
               </div>
             )}
             <div className="space-y-2">
-              <Label>外部访问域名</Label>
+              <Label>{t("admin.strategyEditor.publicUrl")}</Label>
               <Input
                 value={form.configs?.url || ""}
                 onChange={(e) =>
@@ -403,16 +404,16 @@ export function AdminStrategyEditorPage() {
                 placeholder="https://cdn.example.com"
               />
               <p className="text-xs text-muted-foreground">
-                仅允许填写域名（不含路径），路径由“路径模板”控制。
+                {t("admin.strategyEditor.publicUrlHint")}
               </p>
             </div>
           </div>
           {form.configs?.driver === "s3" && (
             <div className="space-y-4 rounded-lg border p-4">
-              <h3 className="text-sm font-medium">S3 配置</h3>
+              <h3 className="text-sm font-medium">{t("admin.strategyEditor.s3Config")}</h3>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>S3 Endpoint（可选）</Label>
+                  <Label>{`S3 Endpoint${t("admin.strategyEditor.optional")}`}</Label>
                   <Input
                     value={(form.configs as any)?.s3_endpoint || ""}
                     onChange={(e) =>
@@ -475,7 +476,7 @@ export function AdminStrategyEditorPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Session Token（可选）</Label>
+                  <Label>{`Session Token${t("admin.strategyEditor.optional")}`}</Label>
                   <Input
                     value={(form.configs as any)?.s3_session_token || ""}
                     onChange={(e) =>
@@ -501,7 +502,7 @@ export function AdminStrategyEditorPage() {
                     }}
                   />
                   <Label htmlFor="s3-force-path-style" className="cursor-pointer">
-                    强制 Path-Style 访问
+                    {t("admin.strategyEditor.s3ForcePathStyle")}
                   </Label>
                 </div>
                 <div className="flex items-center gap-2">
@@ -517,21 +518,21 @@ export function AdminStrategyEditorPage() {
                     }}
                   />
                   <Label htmlFor="s3-proxy" className="cursor-pointer">
-                    启用服务端代理（无需公开桶）
+                    {t("admin.strategyEditor.s3Proxy")}
                   </Label>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  关闭代理时，需要配置外部访问域名并确保桶或 CDN 可公网访问。
+                  {t("admin.strategyEditor.s3ProxyHint")}
                 </p>
               </div>
             </div>
           )}
           {form.configs?.driver === "ftp" && (
             <div className="space-y-4 rounded-lg border p-4">
-              <h3 className="text-sm font-medium">FTP 配置</h3>
+              <h3 className="text-sm font-medium">{t("admin.strategyEditor.ftpConfig")}</h3>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>FTP 端口</Label>
+                  <Label>{t("admin.strategyEditor.ftpPort")}</Label>
                   <Input
                     type="number"
                     min="1"
@@ -545,7 +546,7 @@ export function AdminStrategyEditorPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>基础目录（可选）</Label>
+                  <Label>{t("admin.strategyEditor.basePath")}</Label>
                   <Input
                     value={(form.configs as any)?.ftp_base_path || ""}
                     onChange={(e) =>
@@ -558,7 +559,7 @@ export function AdminStrategyEditorPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>用户名（可选）</Label>
+                  <Label>{t("admin.strategyEditor.username")}</Label>
                   <Input
                     value={(form.configs as any)?.ftp_username || ""}
                     onChange={(e) =>
@@ -570,7 +571,7 @@ export function AdminStrategyEditorPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>密码（可选）</Label>
+                  <Label>{t("admin.strategyEditor.password")}</Label>
                   <Input
                     type="password"
                     value={(form.configs as any)?.ftp_password || ""}
@@ -597,7 +598,7 @@ export function AdminStrategyEditorPage() {
                     }}
                   />
                   <Label htmlFor="ftp-tls" className="cursor-pointer">
-                    启用 TLS（FTPS）
+                    {t("admin.strategyEditor.enableTls")}
                   </Label>
                 </div>
                 <div className="flex items-center gap-2">
@@ -613,12 +614,12 @@ export function AdminStrategyEditorPage() {
                     }}
                   />
                   <Label htmlFor="ftp-skip-tls-verify" className="cursor-pointer">
-                    跳过 TLS 证书验证（不推荐）
+                    {t("admin.strategyEditor.skipTlsVerify")}
                   </Label>
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>超时（秒）</Label>
+                <Label>{t("admin.strategyEditor.timeout")}</Label>
                 <Input
                   type="number"
                   min="1"
@@ -636,7 +637,7 @@ export function AdminStrategyEditorPage() {
           {form.configs?.driver === "webdav" && (
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>WebDAV 用户名（可选）</Label>
+                <Label>{t("admin.strategyEditor.webdavUsername")}</Label>
                 <Input
                   value={(form.configs as any)?.webdav_username || ""}
                   onChange={(e) =>
@@ -648,7 +649,7 @@ export function AdminStrategyEditorPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>WebDAV 密码（可选）</Label>
+                <Label>{t("admin.strategyEditor.webdavPassword")}</Label>
                 <Input
                   type="password"
                   value={(form.configs as any)?.webdav_password || ""}
@@ -661,7 +662,7 @@ export function AdminStrategyEditorPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>WebDAV 基础目录（可选）</Label>
+                <Label>{t("admin.strategyEditor.webdavBasePath")}</Label>
                 <Input
                   value={(form.configs as any)?.webdav_base_path || ""}
                   onChange={(e) =>
@@ -673,7 +674,7 @@ export function AdminStrategyEditorPage() {
                   placeholder="skyimage"
                 />
                 <p className="text-xs text-muted-foreground">
-                  最终上传路径 = 基础目录 + 路径模板。
+                  {t("admin.strategyEditor.webdavBasePathHint")}
                 </p>
               </div>
               <div className="flex items-center gap-2 pt-8">
@@ -692,13 +693,13 @@ export function AdminStrategyEditorPage() {
                   }}
                 />
                 <Label htmlFor="webdav-skip-tls-verify" className="cursor-pointer">
-                  跳过 TLS 证书验证（不推荐）
+                  {t("admin.strategyEditor.skipTlsVerify")}
                 </Label>
               </div>
             </div>
           )}
           <div className="space-y-2">
-            <Label>允许上传后缀（可选）</Label>
+            <Label>{t("admin.strategyEditor.allowedExtensions")}</Label>
             <Input
               value={(form.configs as any)?.allowed_extensions || ""}
               onChange={(e) =>
@@ -709,10 +710,10 @@ export function AdminStrategyEditorPage() {
               }
               placeholder="jpg,png,webp,mp4"
             />
-            <p className="text-xs text-muted-foreground">使用英文逗号分隔，留空表示不限制。</p>
+            <p className="text-xs text-muted-foreground">{t("admin.strategyEditor.allowedExtensionsHint")}</p>
           </div>
           <div className="space-y-4 rounded-lg border p-4">
-            <h3 className="text-sm font-medium">图片处理配置</h3>
+            <h3 className="text-sm font-medium">{t("admin.strategyEditor.imageProcessing")}</h3>
             <div className="flex items-center gap-2">
               <Checkbox
                 id="enable-compression"
@@ -726,12 +727,12 @@ export function AdminStrategyEditorPage() {
                 }}
               />
               <Label htmlFor="enable-compression" className="cursor-pointer">
-                启用图片压缩
+                {t("admin.strategyEditor.enableCompression")}
               </Label>
             </div>
             {(form.configs as any)?.enable_compression && (
               <div className="space-y-2">
-                <Label>压缩质量（1-100）</Label>
+                <Label>{t("admin.strategyEditor.compressionQuality")}</Label>
                 <Input
                   type="number"
                   min="1"
@@ -745,11 +746,11 @@ export function AdminStrategyEditorPage() {
                   }
                   placeholder="85"
                 />
-                <p className="text-xs text-muted-foreground">推荐值：85，数值越高质量越好但文件越大。</p>
+                <p className="text-xs text-muted-foreground">{t("admin.strategyEditor.compressionQualityHint")}</p>
               </div>
             )}
             <div className="space-y-2">
-              <Label>目标格式（可选）</Label>
+              <Label>{t("admin.strategyEditor.targetFormat")}</Label>
               <Select
                 value={(form.configs as any)?.target_format || ""}
                 onValueChange={(value) =>
@@ -760,21 +761,21 @@ export function AdminStrategyEditorPage() {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="不转换格式" />
+                  <SelectValue placeholder={t("admin.strategyEditor.noConversion")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">不转换格式</SelectItem>
+                  <SelectItem value="none">{t("admin.strategyEditor.noConversion")}</SelectItem>
                   <SelectItem value="webp">WebP</SelectItem>
                   <SelectItem value="jpeg">JPEG</SelectItem>
                   <SelectItem value="png">PNG</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                将上传的图片转换为指定格式，仅对支持的格式生效。
+                {t("admin.strategyEditor.targetFormatHint")}
               </p>
             </div>
             <div className="space-y-2">
-              <Label>处理格式范围（可选）</Label>
+              <Label>{t("admin.strategyEditor.processFormats")}</Label>
               <Input
                 value={(form.configs as any)?.process_formats || ""}
                 onChange={(e) =>
@@ -786,12 +787,12 @@ export function AdminStrategyEditorPage() {
                 placeholder="jpg,jpeg,png,webp"
               />
               <p className="text-xs text-muted-foreground">
-                指定哪些格式的图片可以被压缩或转换，使用英文逗号分隔。留空表示处理所有支持的图片格式（jpg、jpeg、png、webp、gif、bmp）。
+                {t("admin.strategyEditor.processFormatsHint")}
               </p>
             </div>
           </div>
           <div className="space-y-2">
-            <Label>路径模板</Label>
+            <Label>{t("admin.strategyEditor.pathTemplate")}</Label>
             <Input
               value={(form.configs as any)?.path_template || ""}
               onChange={(e) =>
@@ -803,13 +804,11 @@ export function AdminStrategyEditorPage() {
               placeholder="{year}/{month}/{day}/{uuid}"
             />
             <p className="text-xs text-muted-foreground">
-              可用变量：{`{year}`}/{`{month}`}/{`{day}`}/{`{hour}`}/{`{minute}`}/{`{second}`}/
-              {`{unix}`}/{`{uuid}`}/{`{userId}`}/{`{userName}`}/{`{original}`}/{`{ext}`}/
-              {`{rand6}`}（例如：{`{original}`}/{`{rand6}`}）。不包含 {`{ext}`} 将自动追加后缀。
+              {t("admin.strategyEditor.pathTemplateHint")}
             </p>
           </div>
           <div className="space-y-2">
-            <Label>授权角色组</Label>
+            <Label>{t("admin.strategyEditor.authorizedGroups")}</Label>
             <div className="space-y-3">
               {groups?.map((group) => (
                 <div
@@ -820,7 +819,7 @@ export function AdminStrategyEditorPage() {
                     <p className="text-sm font-medium">
                       {group.name}
                       {group.isDefault && (
-                        <span className="ml-2 text-xs text-muted-foreground">· 默认</span>
+                        <span className="ml-2 text-xs text-muted-foreground">· {t("admin.strategyEditor.defaultGroup")}</span>
                       )}
                     </p>
                   </div>
@@ -839,20 +838,20 @@ export function AdminStrategyEditorPage() {
                 </div>
               ))}
               {!groups?.length && (
-                <p className="text-sm text-muted-foreground">暂无角色组，请先创建。</p>
+                <p className="text-sm text-muted-foreground">{t("admin.strategyEditor.noGroups")}</p>
               )}
             </div>
           </div>
           <div className="flex gap-3">
             <Button onClick={handleSave} disabled={!form.name || saveMutation.isPending}>
-              {saveMutation.isPending ? "保存中..." : "保存策略"}
+              {saveMutation.isPending ? t("common.saving") : t("admin.strategyEditor.save")}
             </Button>
             <Button
               variant="ghost"
               onClick={() => navigate("/dashboard/admin/strategies")}
               disabled={saveMutation.isPending}
             >
-              取消
+              {t("common.cancel")}
             </Button>
           </div>
         </CardContent>

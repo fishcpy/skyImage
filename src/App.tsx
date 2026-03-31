@@ -40,6 +40,7 @@ import { SiteMetaWatcher } from "@/components/SiteMetaWatcher";
 import { Button } from "@/components/ui/button";
 import { NotFoundPage } from "@/features/misc/NotFoundPage";
 import { HomePage } from "@/features/home/HomePage";
+import { useI18n } from "@/i18n";
 
 function HomeEntry() {
   const getCachedConfig = () => {
@@ -77,6 +78,7 @@ function HomeEntry() {
 }
 
 export default function App() {
+  const { t } = useI18n();
   const {
     data,
     isLoading,
@@ -94,11 +96,11 @@ export default function App() {
   if (error) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-muted/30 p-4 text-center">
-        <p className="text-lg font-semibold">无法获取系统状态</p>
+        <p className="text-lg font-semibold">{t("app.statusError.title")}</p>
         <p className="text-sm text-muted-foreground">
-          {error instanceof Error ? error.message : "请确认后端服务已启动并监听 /api。"}
+          {error instanceof Error ? error.message : t("app.statusError.description")}
         </p>
-        <Button onClick={() => refetch()}>重试连接</Button>
+        <Button onClick={() => refetch()}>{t("app.statusError.retry")}</Button>
       </div>
     );
   }

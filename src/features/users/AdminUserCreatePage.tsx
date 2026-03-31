@@ -15,8 +15,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createUser } from "@/lib/api";
+import { useI18n } from "@/i18n";
 
 export function AdminUserCreatePage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [form, setForm] = useState({
@@ -29,7 +31,7 @@ export function AdminUserCreatePage() {
   const createMutation = useMutation({
     mutationFn: createUser,
     onSuccess: () => {
-      toast.success("用户创建成功");
+      toast.success(t("users.created"));
       queryClient.invalidateQueries({ queryKey: ["users"] });
       navigate("/dashboard/admin/users");
     },
@@ -45,18 +47,18 @@ export function AdminUserCreatePage() {
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
         <Link to="/dashboard/admin/users" className="text-primary">
-          用户管理
+          {t("users.title")}
         </Link>{" "}
-        / 新增用户
+        / {t("users.new")}
       </p>
       <Card>
         <CardHeader>
-          <CardTitle>创建新用户</CardTitle>
+          <CardTitle>{t("users.new")}</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
             <div className="space-y-2">
-              <Label>昵称</Label>
+              <Label>{t("users.fields.name")}</Label>
               <Input
                 value={form.name}
                 onChange={(e) =>
@@ -66,7 +68,7 @@ export function AdminUserCreatePage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>邮箱</Label>
+              <Label>{t("users.fields.email")}</Label>
               <Input
                 type="email"
                 value={form.email}
@@ -77,7 +79,7 @@ export function AdminUserCreatePage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>初始密码</Label>
+              <Label>{t("users.fields.password")}</Label>
               <Input
                 type="password"
                 value={form.password}
@@ -89,7 +91,7 @@ export function AdminUserCreatePage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>角色</Label>
+              <Label>{t("users.fields.role")}</Label>
               <Select
                 value={form.role}
                 onValueChange={(value) =>
@@ -100,17 +102,17 @@ export function AdminUserCreatePage() {
                 }
               >
                 <SelectTrigger className="h-10">
-                  <SelectValue placeholder="选择角色" />
+                  <SelectValue placeholder={t("users.fields.roleSelect")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="user">普通用户</SelectItem>
-                  <SelectItem value="admin">管理员</SelectItem>
+                  <SelectItem value="user">{t("users.roles.user")}</SelectItem>
+                  <SelectItem value="admin">{t("users.roles.admin")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="md:col-span-2 flex gap-3">
               <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? "创建中..." : "创建用户"}
+                {createMutation.isPending ? t("users.actions.creating") : t("users.actions.create")}
               </Button>
               <Button
                 type="button"
@@ -118,7 +120,7 @@ export function AdminUserCreatePage() {
                 onClick={() => navigate("/dashboard/admin/users")}
                 disabled={createMutation.isPending}
               >
-                取消
+                {t("common.cancel")}
               </Button>
             </div>
           </form>

@@ -32,8 +32,10 @@ import {
   deleteAccount
 } from "@/lib/api";
 import { SplashScreen } from "@/components/SplashScreen";
+import { useI18n } from "@/i18n";
 
 export function ProfileSettingsPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const setUser = useAuthStore((state) => state.setUser);
   const clearAuth = useAuthStore((state) => state.clear);
@@ -86,7 +88,7 @@ export function ProfileSettingsPage() {
     mutationFn: updateAccountProfile,
     onSuccess: (updated) => {
       setUser(updated);
-      toast.success("已保存");
+      toast.success(t("profile.saved"));
       setForm((prev) => ({ ...prev, password: "" }));
     },
     onError: (error) => toast.error(error.message)
@@ -96,14 +98,14 @@ export function ProfileSettingsPage() {
     mutationFn: deleteAccount,
     onSuccess: () => {
       clearAuth();
-      toast.success("账户已删除");
+      toast.success(t("profile.deleted"));
       navigate("/login");
     },
     onError: (error) => toast.error(error.message)
   });
 
   if (isLoading) {
-    return <SplashScreen message="加载中..." />;
+    return <SplashScreen message={t("common.loading")} />;
   }
 
   const handleSubmit = () => {
@@ -119,29 +121,29 @@ export function ProfileSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">个人设置</h1>
-        <p className="text-muted-foreground">更新昵称、邮箱与账户偏好。</p>
+        <h1 className="text-2xl font-semibold">{t("profile.title")}</h1>
+        <p className="text-muted-foreground">{t("profile.description")}</p>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>基本信息</CardTitle>
+          <CardTitle>{t("profile.basic")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>昵称</Label>
+              <Label>{t("profile.name")}</Label>
               <Input
                 value={form.name}
                 onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
-              <Label>邮箱</Label>
+              <Label>{t("profile.email")}</Label>
               <Input value={form.email} disabled />
             </div>
           </div>
           <div className="space-y-2">
-            <Label>个人链接</Label>
+            <Label>{t("profile.url")}</Label>
             <Input
               value={form.url}
               onChange={(e) => setForm((prev) => ({ ...prev, url: e.target.value }))}
@@ -149,18 +151,18 @@ export function ProfileSettingsPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label>新密码（可选）</Label>
+            <Label>{t("profile.newPassword")}</Label>
             <Input
               type="password"
               value={form.password}
               onChange={(e) =>
                 setForm((prev) => ({ ...prev, password: e.target.value }))
               }
-              placeholder="至少 8 位"
+              placeholder={t("profile.passwordPlaceholder")}
             />
           </div>
           <div className="space-y-2">
-            <Label>默认上传可见性</Label>
+            <Label>{t("profile.defaultVisibility")}</Label>
             <Select
               value={form.defaultVisibility}
               onValueChange={(value) =>
@@ -171,16 +173,16 @@ export function ProfileSettingsPage() {
               }
             >
               <SelectTrigger className="h-10">
-                <SelectValue placeholder="选择可见性" />
+                <SelectValue placeholder={t("upload.selectVisibility")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="private">私有</SelectItem>
-                <SelectItem value="public">公开</SelectItem>
+                <SelectItem value="private">{t("upload.private")}</SelectItem>
+                <SelectItem value="public">{t("upload.public")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>默认主题</Label>
+            <Label>{t("profile.defaultTheme")}</Label>
             <Select
               value={form.theme}
               onValueChange={(value) =>
@@ -191,17 +193,17 @@ export function ProfileSettingsPage() {
               }
             >
               <SelectTrigger className="h-10">
-                <SelectValue placeholder="选择主题" />
+                <SelectValue placeholder={t("theme.placeholder")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="system">跟随系统</SelectItem>
-                <SelectItem value="light">浅色</SelectItem>
-                <SelectItem value="dark">深色</SelectItem>
+                <SelectItem value="system">{t("theme.system")}</SelectItem>
+                <SelectItem value="light">{t("theme.light")}</SelectItem>
+                <SelectItem value="dark">{t("theme.dark")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <Button onClick={handleSubmit} disabled={mutation.isPending}>
-            {mutation.isPending ? "保存中..." : "保存"}
+            {mutation.isPending ? t("profile.saving") : t("profile.save")}
           </Button>
         </CardContent>
       </Card>
@@ -209,34 +211,34 @@ export function ProfileSettingsPage() {
       {!isSuperAdmin && (
         <Card className="border-destructive">
           <CardHeader>
-            <CardTitle className="text-destructive">危险区域</CardTitle>
+            <CardTitle className="text-destructive">{t("profile.danger")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
               <p className="text-sm text-muted-foreground mb-4">
-                删除账户后，您的所有数据将被永久删除且无法恢复。
+                {t("profile.deleteHint")}
               </p>
               <AlertDialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" disabled={deleteMutation.isPending}>
-                    删除账户
+                    {t("profile.deleteAccount")}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>确认删除账户？</AlertDialogTitle>
+                    <AlertDialogTitle>{t("profile.confirmDeleteTitle")}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      此操作无法撤销。您的账户和所有相关数据将被永久删除。
+                      {t("profile.confirmDeleteDescription")}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>取消</AlertDialogCancel>
+                    <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={() => deleteMutation.mutate()}
                       disabled={countdown > 0}
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
-                      {countdown > 0 ? `确认删除 (${countdown}s)` : "确认删除"}
+                      {countdown > 0 ? t("profile.confirmDeleteCountdown", { count: countdown }) : t("profile.confirmDelete")}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

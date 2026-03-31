@@ -6,8 +6,11 @@ import { useAuthStore } from "@/state/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RegisterForm } from "@/components/register-form";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useI18n } from "@/i18n";
 
 export function RegisterPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
 
@@ -39,7 +42,7 @@ export function RegisterPage() {
         <div className="flex w-full max-w-sm flex-col gap-6">
           <Card>
             <CardContent className="pt-6">
-              <p className="text-center text-muted-foreground">加载中...</p>
+              <p className="text-center text-muted-foreground">{t("common.loading")}</p>
             </CardContent>
           </Card>
         </div>
@@ -50,20 +53,23 @@ export function RegisterPage() {
   if (statusError || !registrationStatus?.allowed) {
     return (
       <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
+        <div className="fixed right-4 top-4 z-10">
+          <LanguageToggle />
+        </div>
         <div className="flex w-full max-w-sm flex-col gap-6">
           <a href="/" className="self-center font-medium text-xl">
             {siteName}
           </a>
           <Card>
             <CardHeader>
-              <CardTitle>注册已关闭</CardTitle>
+              <CardTitle>{t("register.closed")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                管理员已关闭用户注册功能。如需账号，请联系管理员。
+                {t("register.closedDescription")}
               </p>
               <Button asChild className="w-full">
-                <Link to="/login">返回登录</Link>
+                <Link to="/login">{t("register.backToLogin")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -74,6 +80,9 @@ export function RegisterPage() {
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
+      <div className="fixed right-4 top-4 z-10">
+        <LanguageToggle />
+      </div>
       <div className="flex w-full max-w-sm flex-col gap-6">
         <a href="/" className="self-center font-medium text-xl">
           {siteName}

@@ -22,17 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const chartConfig = {
-  uploads: {
-    label: "上传",
-    color: "hsl(217, 91%, 60%)",
-  },
-  registrations: {
-    label: "注册",
-    color: "hsl(210, 100%, 80%)",
-  },
-} satisfies ChartConfig;
+import { useI18n } from "@/i18n";
 
 type TrendChartProps = {
   data: Array<{
@@ -43,7 +33,23 @@ type TrendChartProps = {
 };
 
 export function TrendChart({ data }: TrendChartProps) {
+  const { t, locale } = useI18n();
   const [timeRange, setTimeRange] = React.useState("30d");
+
+  const chartConfig = React.useMemo(
+    () =>
+      ({
+        uploads: {
+          label: t("chart.uploads"),
+          color: "hsl(217, 91%, 60%)",
+        },
+        registrations: {
+          label: t("chart.registrations"),
+          color: "hsl(210, 100%, 80%)",
+        },
+      }) satisfies ChartConfig,
+    [t]
+  );
 
   const filteredData = React.useMemo(() => {
     if (!data || data.length === 0) return [];
@@ -69,13 +75,13 @@ export function TrendChart({ data }: TrendChartProps) {
   const getTimeRangeLabel = () => {
     switch (timeRange) {
       case "7d":
-        return "最近 7 天";
+        return t("chart.last7Days");
       case "30d":
-        return "最近 30 天";
+        return t("chart.last30Days");
       case "90d":
-        return "最近 90 天";
+        return t("chart.last90Days");
       default:
-        return "最近 30 天";
+        return t("chart.last30Days");
     }
   };
 
@@ -83,27 +89,27 @@ export function TrendChart({ data }: TrendChartProps) {
     <Card className="pt-0 [&_*]:outline-none [&_*]:ring-0 [&_*:focus]:outline-none [&_*:focus]:ring-0">
       <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
         <div className="grid flex-1 gap-1">
-          <CardTitle>趋势统计</CardTitle>
+          <CardTitle>{t("chart.adminTrendTitle")}</CardTitle>
           <CardDescription>
-            显示{getTimeRangeLabel()}的上传和注册趋势
+            {t("chart.adminTrendDescription", { range: getTimeRangeLabel() })}
           </CardDescription>
         </div>
         <Select value={timeRange} onValueChange={setTimeRange}>
           <SelectTrigger
             className="hidden w-[160px] rounded-lg sm:ml-auto sm:flex"
-            aria-label="选择时间范围"
+            aria-label={t("chart.selectRange")}
           >
-            <SelectValue placeholder="最近 30 天" />
+            <SelectValue placeholder={t("chart.last30Days")} />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
             <SelectItem value="90d" className="rounded-lg">
-              最近 90 天
+              {t("chart.last90Days")}
             </SelectItem>
             <SelectItem value="30d" className="rounded-lg">
-              最近 30 天
+              {t("chart.last30Days")}
             </SelectItem>
             <SelectItem value="7d" className="rounded-lg">
-              最近 7 天
+              {t("chart.last7Days")}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -111,7 +117,7 @@ export function TrendChart({ data }: TrendChartProps) {
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
         {filteredData.length === 0 ? (
           <div className="flex h-[250px] items-center justify-center text-sm text-muted-foreground">
-            暂无数据
+            {t("chart.noData")}
           </div>
         ) : (
           <ChartContainer
@@ -160,7 +166,7 @@ export function TrendChart({ data }: TrendChartProps) {
                 minTickGap={32}
                 tickFormatter={(value) => {
                   const date = new Date(value);
-                  return date.toLocaleDateString("zh-CN", {
+                  return date.toLocaleDateString(locale, {
                     month: "short",
                     day: "numeric",
                   });
@@ -171,7 +177,7 @@ export function TrendChart({ data }: TrendChartProps) {
                 content={
                   <ChartTooltipContent
                     labelFormatter={(value) => {
-                      return new Date(value).toLocaleDateString("zh-CN", {
+                      return new Date(value).toLocaleDateString(locale, {
                         month: "long",
                         day: "numeric",
                       });
@@ -182,14 +188,14 @@ export function TrendChart({ data }: TrendChartProps) {
               />
               <Area
                 dataKey="uploads"
-                name="上传"
+                name={t("chart.uploads")}
                 type="natural"
                 fill="url(#fillUploads)"
                 stroke="var(--color-uploads)"
               />
               <Area
                 dataKey="registrations"
-                name="注册"
+                name={t("chart.registrations")}
                 type="natural"
                 fill="url(#fillRegistrations)"
                 stroke="var(--color-registrations)"
@@ -209,7 +215,7 @@ export function TrendChart({ data }: TrendChartProps) {
                             style={{ backgroundColor: item.color }}
                           />
                           <span className="text-sm text-muted-foreground">
-                            {item.dataKey === "uploads" ? "上传" : "注册"}
+                            {item.dataKey === "uploads" ? t("chart.uploads") : t("chart.registrations")}
                           </span>
                         </div>
                       ))}

@@ -16,8 +16,10 @@ import {
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 import { fetchStrategies, deleteStrategy, type StrategyRecord } from "@/lib/api";
+import { useI18n } from "@/i18n";
 
 export function AdminStrategiesPage() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const { data: strategies, isLoading } = useQuery({
     queryKey: ["admin", "strategies"],
@@ -27,7 +29,7 @@ export function AdminStrategiesPage() {
   const deleteMutation = useMutation({
     mutationFn: deleteStrategy,
     onSuccess: () => {
-      toast.success("策略已删除");
+      toast.success(t("admin.strategies.deleted"));
       queryClient.invalidateQueries({ queryKey: ["admin", "strategies"] });
     },
     onError: (error) => toast.error(error.message)
@@ -37,21 +39,21 @@ export function AdminStrategiesPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">储存策略</h1>
-          <p className="text-muted-foreground">配置不同驱动、根路径与外链域名。</p>
+          <h1 className="text-2xl font-semibold">{t("admin.strategies.title")}</h1>
+          <p className="text-muted-foreground">{t("admin.strategies.description")}</p>
         </div>
         <Button asChild>
-          <Link to="/dashboard/admin/strategies/new">新增策略</Link>
+          <Link to="/dashboard/admin/strategies/new">{t("admin.strategies.new")}</Link>
         </Button>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>策略列表</CardTitle>
+          <CardTitle>{t("admin.strategies.list")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {isLoading && <p className="text-sm text-muted-foreground">加载中...</p>}
+          {isLoading && <p className="text-sm text-muted-foreground">{t("common.loading")}</p>}
           {!isLoading && !strategies?.length && (
-            <p className="text-sm text-muted-foreground">暂未配置策略。</p>
+            <p className="text-sm text-muted-foreground">{t("admin.strategies.empty")}</p>
           )}
           {strategies?.map((strategy: StrategyRecord) => (
             <div
@@ -65,41 +67,41 @@ export function AdminStrategiesPage() {
                   {strategy.configs?.url ||
                     strategy.configs?.base_url ||
                     strategy.configs?.baseUrl ||
-                    "未配置外链"}
+                    t("admin.strategies.noPublicUrl")}
                 </p>
                 {strategy.groups?.length ? (
                   <p className="text-xs text-muted-foreground">
-                    已授权角色组：
+                    {t("admin.strategies.authorizedGroups")}
                     {strategy.groups.map((group) => group.name).join("，")}
                   </p>
                 ) : (
-                  <p className="text-xs text-muted-foreground">未关联任何角色组</p>
+                  <p className="text-xs text-muted-foreground">{t("admin.strategies.noGroups")}</p>
                 )}
               </div>
               <div className="flex gap-2">
                 <Button asChild size="sm">
-                  <Link to={`/dashboard/admin/strategies/${strategy.id}`}>编辑</Link>
+                  <Link to={`/dashboard/admin/strategies/${strategy.id}`}>{t("admin.edit")}</Link>
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="secondary" size="sm" disabled={deleteMutation.isPending}>
-                      删除
+                      {t("admin.delete")}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent size="sm">
                     <AlertDialogHeader>
-                      <AlertDialogTitle>确认删除策略？</AlertDialogTitle>
+                      <AlertDialogTitle>{t("admin.strategies.confirmDeleteTitle")}</AlertDialogTitle>
                       <AlertDialogDescription>
-                        删除后相关上传策略配置将失效，此操作不可恢复。
+                        {t("admin.strategies.confirmDeleteDescription")}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>取消</AlertDialogCancel>
+                      <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                       <AlertDialogAction
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         onClick={() => deleteMutation.mutate(strategy.id)}
                       >
-                        确认删除
+                        {t("admin.confirmDelete")}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
