@@ -25,7 +25,7 @@ export function ThemeToggle() {
       try {
         await updateAccountProfile({
           name: user.name,
-          url: "",
+          url: user.url ?? "",
           theme: value
         });
         await useAuthStore.getState().refreshUser();

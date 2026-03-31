@@ -112,6 +112,8 @@ func (s *Server) handleTurnstileConfig(c *gin.Context) {
 		configKey = "turnstile.register"
 	case "register_verify":
 		configKey = "turnstile.register_verify"
+	case "forgot_password_request":
+		configKey = "mail.forgot_password.turnstile_request"
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scenario"})
 		return

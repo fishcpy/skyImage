@@ -63,7 +63,11 @@ export function RegisterForm({
   });
 
   useEffect(() => {
-    if (turnstileConfig?.enabled && turnstileConfig.siteKey) {
+    const needsTurnstileScript =
+      (turnstileConfig?.enabled && turnstileConfig.siteKey) ||
+      (sendCodeTurnstileConfig?.enabled && sendCodeTurnstileConfig.siteKey);
+
+    if (needsTurnstileScript) {
       loadTurnstileScript()
         .then(() => setTurnstileReady(true))
         .catch((err) => {
@@ -71,7 +75,7 @@ export function RegisterForm({
           toast.error(t("register.loadTurnstileError"));
         });
     }
-  }, [t, turnstileConfig]);
+  }, [t, turnstileConfig, sendCodeTurnstileConfig]);
 
   useEffect(() => {
     if (countdown > 0) {

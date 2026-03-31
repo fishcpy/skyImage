@@ -25,8 +25,8 @@ export function ForgotPasswordPage() {
   });
 
   const { data: turnstileConfig } = useQuery({
-    queryKey: ["turnstile-config", "login"],
-    queryFn: () => fetchTurnstileConfig("login"),
+    queryKey: ["turnstile-config", "forgot_password_request"],
+    queryFn: () => fetchTurnstileConfig("forgot_password_request"),
     enabled: !!siteConfig?.forgotPasswordTurnstileRequest
   });
 

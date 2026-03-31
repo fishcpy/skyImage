@@ -5,6 +5,7 @@ type User = {
   id: number;
   name: string;
   email: string;
+  url?: string;
   isAdmin?: boolean;
   isSuperAdmin?: boolean;
   status?: number;
@@ -44,6 +45,7 @@ const normalizeUser = (user: any): User | null => {
     id: user.id,
     name: user.name,
     email: user.email,
+    url: typeof user.url === "string" ? user.url : "",
     isAdmin: user.isAdmin ?? user.is_adminer ?? user.IsAdmin ?? false,
     isSuperAdmin:
       user.isSuperAdmin ??
