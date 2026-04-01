@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/tls"
 	"errors"
+	"io"
 	"net/http"
 	"net/smtp"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"skyimage/internal/admin"
 	"skyimage/internal/files"
 	"skyimage/internal/middleware"
+	"skyimage/internal/notifications"
 	"skyimage/internal/turnstile"
 	"skyimage/internal/users"
 )
@@ -457,7 +459,14 @@ func (s *Server) handleAdminDeleteImage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	if err := s.files.DeleteByAdmin(c.Request.Context(), uint(id)); err != nil {
+	var payload struct {
+		Reason string `json:"reason"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil && err != io.EOF {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := s.files.DeleteByAdmin(c.Request.Context(), uint(id), payload.Reason); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -535,13 +544,14 @@ func (s *Server) handleAdminBatchUpdateImageVisibility(c *gin.Context) {
 
 func (s *Server) handleAdminBatchDeleteImages(c *gin.Context) {
 	var payload struct {
-		IDs []uint `json:"ids"`
+		IDs    []uint `json:"ids"`
+		Reason string `json:"reason"`
 	}
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	deleted, err := s.files.DeleteByAdminBatch(c.Request.Context(), payload.IDs)
+	deleted, err := s.files.DeleteByAdminBatch(c.Request.Context(), payload.IDs, payload.Reason)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -626,6 +636,9 @@ type systemSettingsPayload struct {
 	EnableRegisterTurnstile              bool   `json:"enableRegisterTurnstile"`
 	EnableRegisterVerifyTurnstile        bool   `json:"enableRegisterVerifyTurnstile"`
 	AccountDisabledNotice                string `json:"accountDisabledNotice"`
+	UserNotificationLimit                int    `json:"userNotificationLimit"`
+	AdminImageDeleteDefaultReason        string `json:"adminImageDeleteDefaultReason"`
+	SystemAutoDeleteDefaultReason        string `json:"systemAutoDeleteDefaultReason"`
 }
 
 type systemSettingsResponse struct {
@@ -650,6 +663,10 @@ func normalizeImageLoadRowsValue(value int) int {
 		return 20
 	}
 	return value
+}
+
+func normalizeUserNotificationLimit(value int) int {
+	return notifications.NormalizeRetentionLimitValue(value)
 }
 
 func (s *Server) handleAdminSystemSettings(c *gin.Context) {
@@ -719,6 +736,9 @@ func (s *Server) handleAdminSystemSettings(c *gin.Context) {
 			EnableRegisterTurnstile:              settings["turnstile.register"] == "true",
 			EnableRegisterVerifyTurnstile:        settings["turnstile.register_verify"] == "true",
 			AccountDisabledNotice:                disabledNotice,
+			UserNotificationLimit:                notifications.NormalizeRetentionLimit(settings[notifications.ConfigUserRetentionLimit]),
+			AdminImageDeleteDefaultReason:        notifications.NormalizeAdminDeleteReason(settings[notifications.ConfigAdminImageDeleteReason]),
+			SystemAutoDeleteDefaultReason:        notifications.NormalizeSystemAutoDeleteReason(settings[notifications.ConfigSystemAutoDeleteReason]),
 		},
 		TurnstileLastVerifiedAt: settings["turnstile.last_verified_at"],
 	}
@@ -767,55 +787,60 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 	if notice == "" {
 		notice = defaultAccountDisabledNotice
 	}
+	adminDeleteReason := notifications.NormalizeAdminDeleteReason(payload.AdminImageDeleteDefaultReason)
+	systemAutoDeleteReason := notifications.NormalizeSystemAutoDeleteReason(payload.SystemAutoDeleteDefaultReason)
 	values := map[string]string{
-		"site.title":                             payload.SiteTitle,
-		"site.console_url":                       payload.ConsoleURL,
-		"site.description":                       payload.SiteDescription,
-		"site.slogan":                            payload.SiteSlogan,
-		"site.logo":                              payload.SiteLogo,
-		"home.badge_text":                        payload.HomeBadgeText,
-		"home.intro_text":                        payload.HomeIntroText,
-		"home.primary_cta_text":                  payload.HomePrimaryCtaText,
-		"home.dashboard_cta_text":                payload.HomeDashboardCtaText,
-		"home.secondary_cta_text":                payload.HomeSecondaryCtaText,
-		"home.feature1_title":                    payload.HomeFeature1Title,
-		"home.feature1_desc":                     payload.HomeFeature1Desc,
-		"home.feature2_title":                    payload.HomeFeature2Title,
-		"home.feature2_desc":                     payload.HomeFeature2Desc,
-		"home.feature3_title":                    payload.HomeFeature3Title,
-		"home.feature3_desc":                     payload.HomeFeature3Desc,
-		"site.about":                             payload.About,
-		"site.about_title":                       payload.AboutTitle,
-		"site.notfound_mode":                     payload.NotFoundMode,
-		"site.notfound_heading":                  payload.NotFoundHeading,
-		"site.notfound_text":                     payload.NotFoundText,
-		"site.notfound_html":                     payload.NotFoundHtml,
-		"site.terms_of_service":                  payload.TermsOfService,
-		"site.privacy_policy":                    payload.PrivacyPolicy,
-		"features.gallery":                       strconv.FormatBool(payload.EnableGallery),
-		"features.home":                          strconv.FormatBool(payload.EnableHome),
-		"features.api":                           strconv.FormatBool(payload.EnableApi),
-		"images.load_rows":                       strconv.Itoa(normalizeImageLoadRowsValue(payload.ImageLoadRows)),
-		"features.allow_registration":            strconv.FormatBool(payload.AllowRegistration),
-		"mail.smtp.host":                         payload.SMTPHost,
-		"mail.smtp.port":                         payload.SMTPPort,
-		"mail.smtp.username":                     payload.SMTPUsername,
-		"mail.smtp.password":                     smtpPassword,
-		"mail.smtp.from":                         payload.SMTPFrom,
-		"mail.smtp.secure":                       strconv.FormatBool(payload.SMTPSecure),
-		"mail.register.verify":                   strconv.FormatBool(payload.EnableRegisterVerify),
-		"mail.login.notification":                strconv.FormatBool(payload.EnableLoginNotification),
-		"mail.forgot_password.enabled":           strconv.FormatBool(payload.EnableForgotPassword),
-		"mail.forgot_password.turnstile":         strconv.FormatBool(payload.EnableForgotPasswordTurnstile),
-		"mail.forgot_password.turnstile_request": strconv.FormatBool(payload.EnableForgotPasswordTurnstileRequest),
-		"mail.forgot_password.turnstile_reset":   strconv.FormatBool(payload.EnableForgotPasswordTurnstileReset),
-		"turnstile.site_key":                     payload.TurnstileSiteKey,
-		"turnstile.secret_key":                   turnstileSecretKey,
-		"turnstile.enabled":                      strconv.FormatBool(payload.EnableTurnstile),
-		"turnstile.login":                        strconv.FormatBool(payload.EnableLoginTurnstile),
-		"turnstile.register":                     strconv.FormatBool(payload.EnableRegisterTurnstile),
-		"turnstile.register_verify":              strconv.FormatBool(payload.EnableRegisterVerifyTurnstile),
-		"account.disabled_notice":                notice,
+		"site.title":                               payload.SiteTitle,
+		"site.console_url":                         payload.ConsoleURL,
+		"site.description":                         payload.SiteDescription,
+		"site.slogan":                              payload.SiteSlogan,
+		"site.logo":                                payload.SiteLogo,
+		"home.badge_text":                          payload.HomeBadgeText,
+		"home.intro_text":                          payload.HomeIntroText,
+		"home.primary_cta_text":                    payload.HomePrimaryCtaText,
+		"home.dashboard_cta_text":                  payload.HomeDashboardCtaText,
+		"home.secondary_cta_text":                  payload.HomeSecondaryCtaText,
+		"home.feature1_title":                      payload.HomeFeature1Title,
+		"home.feature1_desc":                       payload.HomeFeature1Desc,
+		"home.feature2_title":                      payload.HomeFeature2Title,
+		"home.feature2_desc":                       payload.HomeFeature2Desc,
+		"home.feature3_title":                      payload.HomeFeature3Title,
+		"home.feature3_desc":                       payload.HomeFeature3Desc,
+		"site.about":                               payload.About,
+		"site.about_title":                         payload.AboutTitle,
+		"site.notfound_mode":                       payload.NotFoundMode,
+		"site.notfound_heading":                    payload.NotFoundHeading,
+		"site.notfound_text":                       payload.NotFoundText,
+		"site.notfound_html":                       payload.NotFoundHtml,
+		"site.terms_of_service":                    payload.TermsOfService,
+		"site.privacy_policy":                      payload.PrivacyPolicy,
+		"features.gallery":                         strconv.FormatBool(payload.EnableGallery),
+		"features.home":                            strconv.FormatBool(payload.EnableHome),
+		"features.api":                             strconv.FormatBool(payload.EnableApi),
+		"images.load_rows":                         strconv.Itoa(normalizeImageLoadRowsValue(payload.ImageLoadRows)),
+		"features.allow_registration":              strconv.FormatBool(payload.AllowRegistration),
+		"mail.smtp.host":                           payload.SMTPHost,
+		"mail.smtp.port":                           payload.SMTPPort,
+		"mail.smtp.username":                       payload.SMTPUsername,
+		"mail.smtp.password":                       smtpPassword,
+		"mail.smtp.from":                           payload.SMTPFrom,
+		"mail.smtp.secure":                         strconv.FormatBool(payload.SMTPSecure),
+		"mail.register.verify":                     strconv.FormatBool(payload.EnableRegisterVerify),
+		"mail.login.notification":                  strconv.FormatBool(payload.EnableLoginNotification),
+		"mail.forgot_password.enabled":             strconv.FormatBool(payload.EnableForgotPassword),
+		"mail.forgot_password.turnstile":           strconv.FormatBool(payload.EnableForgotPasswordTurnstile),
+		"mail.forgot_password.turnstile_request":   strconv.FormatBool(payload.EnableForgotPasswordTurnstileRequest),
+		"mail.forgot_password.turnstile_reset":     strconv.FormatBool(payload.EnableForgotPasswordTurnstileReset),
+		"turnstile.site_key":                       payload.TurnstileSiteKey,
+		"turnstile.secret_key":                     turnstileSecretKey,
+		"turnstile.enabled":                        strconv.FormatBool(payload.EnableTurnstile),
+		"turnstile.login":                          strconv.FormatBool(payload.EnableLoginTurnstile),
+		"turnstile.register":                       strconv.FormatBool(payload.EnableRegisterTurnstile),
+		"turnstile.register_verify":                strconv.FormatBool(payload.EnableRegisterVerifyTurnstile),
+		"account.disabled_notice":                  notice,
+		notifications.ConfigUserRetentionLimit:     strconv.Itoa(normalizeUserNotificationLimit(payload.UserNotificationLimit)),
+		notifications.ConfigAdminImageDeleteReason: adminDeleteReason,
+		notifications.ConfigSystemAutoDeleteReason: systemAutoDeleteReason,
 	}
 	if settings["turnstile.last_verified_signature"] != newSignature {
 		values["turnstile.last_verified_signature"] = ""

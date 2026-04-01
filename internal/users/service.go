@@ -32,6 +32,7 @@ var (
 	ErrSuperAdminImmutable = errors.New("cannot modify super admin")
 	ErrInvalidEmail        = errors.New("invalid email format")
 	ErrWeakPassword        = errors.New("password must be at least 8 characters and contain uppercase, lowercase, and numbers")
+	ErrUserAlreadyExists   = errors.New("user already exists")
 )
 
 // 邮箱验证正则表达式
@@ -112,6 +113,20 @@ func validatePassword(password string) error {
 	return nil
 }
 
+func isUniqueConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "unique constraint") ||
+		strings.Contains(message, "duplicate entry") ||
+		strings.Contains(message, "duplicated key") ||
+		strings.Contains(message, "duplicate key value")
+}
+
 func (s *Service) Register(ctx context.Context, in RegisterInput) (data.User, error) {
 	// 验证邮箱格式
 	if err := validateEmail(in.Email); err != nil {
@@ -142,6 +157,9 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (data.User, er
 		user.GroupID = &group.ID
 	}
 	if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
+		if isUniqueConstraintError(err) {
+			return data.User{}, ErrUserAlreadyExists
+		}
 		return data.User{}, err
 	}
 	_ = s.hydrateUser(ctx, &user)
@@ -347,6 +365,9 @@ func (s *Service) DeleteUser(ctx context.Context, actor data.User, userID uint) 
 		if err := tx.Where("user_id = ?", user.ID).Delete(&data.FileAsset{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("user_id = ?", user.ID).Delete(&data.UserNotification{}).Error; err != nil {
+			return err
+		}
 		if err := tx.Delete(&data.User{}, user.ID).Error; err != nil {
 			return err
 		}
@@ -371,6 +392,9 @@ func (s *Service) DeleteOwnAccount(ctx context.Context, userID uint) error {
 			return err
 		}
 		if err := tx.Where("user_id = ?", user.ID).Delete(&data.FileAsset{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", user.ID).Delete(&data.UserNotification{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Delete(&data.User{}, user.ID).Error; err != nil {

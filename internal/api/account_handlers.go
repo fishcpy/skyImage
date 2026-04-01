@@ -1,13 +1,17 @@
 package api
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"skyimage/internal/data"
 	"skyimage/internal/middleware"
@@ -23,6 +27,7 @@ func (s *Server) registerAccountRoutes(r *gin.RouterGroup) {
 	// 只读接口不需要 CSRF
 	account.GET("/profile", s.handleAccountProfile)
 	account.GET("/api-tokens", s.handleListApiTokens)
+	account.GET("/notifications", s.handleAccountNotifications)
 
 	// 写操作需要 CSRF
 	accountWithCSRF := account.Group("")
@@ -33,6 +38,37 @@ func (s *Server) registerAccountRoutes(r *gin.RouterGroup) {
 	accountWithCSRF.PATCH("/api-token/:id", s.handleUpdateApiToken)
 	accountWithCSRF.DELETE("/api-token/:id", s.handleDeleteApiToken)
 	accountWithCSRF.DELETE("/api-token", s.handleDeleteApiTokens)
+	accountWithCSRF.PATCH("/notifications/:id/read", s.handleAccountNotificationRead)
+	accountWithCSRF.POST("/notifications/read-all", s.handleAccountNotificationsReadAll)
+	accountWithCSRF.DELETE("/notifications", s.handleAccountNotificationsClear)
+}
+
+type accountNotificationDTO struct {
+	ID        uint                   `json:"id"`
+	Type      string                 `json:"type"`
+	Title     string                 `json:"title"`
+	Message   string                 `json:"message"`
+	Metadata  map[string]interface{} `json:"metadata"`
+	ReadAt    *time.Time             `json:"readAt,omitempty"`
+	CreatedAt time.Time              `json:"createdAt"`
+	UpdatedAt time.Time              `json:"updatedAt"`
+}
+
+func buildAccountNotificationDTO(item data.UserNotification) accountNotificationDTO {
+	metadata := map[string]interface{}{}
+	if len(item.Metadata) > 0 {
+		_ = json.Unmarshal(item.Metadata, &metadata)
+	}
+	return accountNotificationDTO{
+		ID:        item.ID,
+		Type:      item.Type,
+		Title:     item.Title,
+		Message:   item.Message,
+		Metadata:  metadata,
+		ReadAt:    item.ReadAt,
+		CreatedAt: item.CreatedAt,
+		UpdatedAt: item.UpdatedAt,
+	}
 }
 
 func (s *Server) handleAccountProfile(c *gin.Context) {
@@ -77,6 +113,88 @@ func (s *Server) handleAccountDelete(c *gin.Context) {
 		s.session.Delete(sessionID)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "account deleted"})
+}
+
+func (s *Server) handleAccountNotifications(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	limit, offset := parsePagination(c, 20, 100)
+	status := strings.TrimSpace(c.Query("status"))
+	items, err := s.notifications.List(c.Request.Context(), user.ID, status, limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	dtos := make([]accountNotificationDTO, 0, len(items))
+	for _, item := range items {
+		dtos = append(dtos, buildAccountNotificationDTO(item))
+	}
+	c.JSON(http.StatusOK, gin.H{"data": dtos})
+}
+
+func (s *Server) handleAccountNotificationRead(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	parsedID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var payload struct {
+		Read *bool `json:"read"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil && err != io.EOF {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	read := true
+	if payload.Read != nil {
+		read = *payload.Read
+	}
+	item, err := s.notifications.MarkRead(c.Request.Context(), user.ID, uint(parsedID), read)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "notification not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": buildAccountNotificationDTO(item)})
+}
+
+func (s *Server) handleAccountNotificationsReadAll(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	updated, err := s.notifications.MarkAllRead(c.Request.Context(), user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"updated": updated}})
+}
+
+func (s *Server) handleAccountNotificationsClear(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	deleted, err := s.notifications.ClearAll(c.Request.Context(), user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"deleted": deleted}})
 }
 
 func (s *Server) handleGenerateApiToken(c *gin.Context) {

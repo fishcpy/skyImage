@@ -16,6 +16,7 @@ import { AppShell } from "@/layouts/AppShell";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { MyImagesPage } from "@/features/files/MyImagesPage";
 import { ProfileSettingsPage } from "@/features/settings/ProfileSettingsPage";
+import { NotificationsPage } from "@/features/notifications/NotificationsPage";
 import { GalleryPage } from "@/features/gallery/GalleryPage";
 import { ApiDocsPage } from "@/features/api/ApiDocsPage";
 import { ApiTokensPage } from "@/features/api/ApiTokensPage";
@@ -128,6 +129,7 @@ export default function App() {
               <Route path="upload" element={<UploadPage />} />
               <Route path="images" element={<MyImagesPage />} />
               <Route path="settings" element={<ProfileSettingsPage />} />
+              <Route path="notifications" element={<NotificationsPage />} />
               <Route path="gallery" element={<GalleryPage />} />
               <Route path="api" element={<ApiDocsPage />} />
               <Route path="api-tokens" element={<ApiTokensPage />} />

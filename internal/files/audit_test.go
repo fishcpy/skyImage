@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -21,6 +22,7 @@ import (
 
 	"skyimage/internal/config"
 	"skyimage/internal/data"
+	"skyimage/internal/notifications"
 )
 
 const tinyPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jk6cAAAAASUVORK5CYII="
@@ -43,6 +45,8 @@ func setupFilesTestDB(t *testing.T) *gorm.DB {
 		&data.Strategy{},
 		&data.GroupStrategy{},
 		&data.FileAsset{},
+		&data.UserNotification{},
+		&data.ConfigEntry{},
 		&data.AuditProfile{},
 	); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
@@ -157,6 +161,8 @@ func TestUpload_AuditDecisions(t *testing.T) {
 		expectedUploadStatus     string
 		expectedFinalStatus      string
 		expectedEventuallyDelete bool
+		expectedReasonType       string
+		expectedMessageContains  string
 	}{
 		{
 			name:                 "pass becomes approved",
@@ -193,6 +199,8 @@ func TestUpload_AuditDecisions(t *testing.T) {
 			responseBody:             `{"suggestion":"block","label":"nsfw","risk_level":"high","is_nsfw":true,"nsfw_score":0.99,"normal_score":0.01,"confidence":0.99,"inference_time_ms":21}`,
 			expectedUploadStatus:     auditStatusPending,
 			expectedEventuallyDelete: true,
+			expectedReasonType:       notifications.ReasonAuditBlockDelete,
+			expectedMessageContains:  notifications.DefaultSystemAutoDeleteReason,
 		},
 		{
 			name:                 "provider error keep becomes audit error",
@@ -211,6 +219,8 @@ func TestUpload_AuditDecisions(t *testing.T) {
 			responseBody:             `{"message":"quota exceeded"}`,
 			expectedUploadStatus:     auditStatusPending,
 			expectedEventuallyDelete: true,
+			expectedReasonType:       notifications.ReasonAuditErrorDelete,
+			expectedMessageContains:  notifications.DefaultSystemAutoDeleteReason,
 		},
 	}
 
@@ -283,6 +293,27 @@ func TestUpload_AuditDecisions(t *testing.T) {
 				})
 				if _, err := os.Stat(storedPath); !os.IsNotExist(err) {
 					t.Fatalf("expected stored file to be deleted, stat err=%v", err)
+				}
+				waitForCondition(t, 2*time.Second, func() bool {
+					var count int64
+					if err := db.Model(&data.UserNotification{}).Where("user_id = ?", user.ID).Count(&count).Error; err != nil {
+						return false
+					}
+					return count == 1
+				})
+				var notice data.UserNotification
+				if err := db.First(&notice, "user_id = ?", user.ID).Error; err != nil {
+					t.Fatalf("failed to load notification: %v", err)
+				}
+				var metadata map[string]interface{}
+				if err := json.Unmarshal(notice.Metadata, &metadata); err != nil {
+					t.Fatalf("failed to parse notification metadata: %v", err)
+				}
+				if got := metadata["reasonType"]; got != tc.expectedReasonType {
+					t.Fatalf("expected reasonType %q, got %v", tc.expectedReasonType, got)
+				}
+				if !strings.Contains(notice.Message, tc.expectedMessageContains) {
+					t.Fatalf("expected notification message to contain %q, got %q", tc.expectedMessageContains, notice.Message)
 				}
 				return
 			}

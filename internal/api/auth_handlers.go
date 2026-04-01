@@ -22,6 +22,8 @@ import (
 
 const defaultConsoleBaseURL = "http://localhost:8080"
 
+const registrationVerificationMessage = "验证码已发送，请查收邮件"
+
 func (s *Server) registerAuthRoutes(r *gin.RouterGroup) {
 	auth := r.Group("/auth")
 	auth.POST("/login", s.handleLogin)
@@ -93,31 +95,31 @@ func (s *Server) handleSendVerificationCode(c *gin.Context) {
 
 	// 检查邮箱是否已注册
 	var count int64
-	if err := s.db.Model(&data.User{}).Where("email = ?", input.Email).Count(&count).Error; err != nil {
+	if err := s.db.Model(&data.User{}).Where("LOWER(email) = ?", emailKey).Count(&count).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "系统错误"})
 		return
 	}
 	if count > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "该邮箱已被注册"})
+		c.JSON(http.StatusOK, gin.H{"data": gin.H{"message": registrationVerificationMessage}})
 		return
 	}
 
 	// 生成验证码
 	code := s.verification.GenerateCode()
-	s.verification.StoreCode(input.Email, code)
+	s.verification.StoreCode(emailKey, code)
 
 	// 发送验证码邮件
 	go func() {
 		ctx := context.Background()
-		log.Printf("[邮件] 准备发送验证码到: %s", input.Email)
-		if err := s.mail.SendVerificationCode(ctx, input.Email, code); err != nil {
+		log.Printf("[邮件] 准备发送验证码到: %s", emailKey)
+		if err := s.mail.SendVerificationCode(ctx, emailKey, code); err != nil {
 			log.Printf("[邮件] 发送验证码失败: %v", err)
 		} else {
 			log.Printf("[邮件] 验证码发送成功")
 		}
 	}()
 
-	c.JSON(http.StatusOK, gin.H{"data": gin.H{"message": "验证码已发送，请查收邮件"}})
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"message": registrationVerificationMessage}})
 }
 
 func (s *Server) handleRegister(c *gin.Context) {
@@ -145,6 +147,7 @@ func (s *Server) handleRegister(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写完整信息"})
 		return
 	}
+	normalizedEmail := strings.ToLower(strings.TrimSpace(input.Email))
 
 	// 如果启用了邮件验证，验证邮箱验证码
 	if emailVerifyEnabled {
@@ -152,7 +155,7 @@ func (s *Server) handleRegister(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "请输入邮箱验证码"})
 			return
 		}
-		valid, err := s.verification.VerifyCode(input.Email, input.VerificationCode)
+		valid, err := s.verification.VerifyCode(normalizedEmail, input.VerificationCode)
 		if err != nil || !valid {
 			errMsg := "验证码错误"
 			if err != nil {
@@ -181,7 +184,11 @@ func (s *Server) handleRegister(c *gin.Context) {
 
 	user, err := s.users.Register(c.Request.Context(), input.RegisterInput)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		statusCode, message := registerErrorResponse(err)
+		if statusCode >= http.StatusInternalServerError {
+			log.Printf("[注册] 创建用户失败: %v", err)
+		}
+		c.JSON(statusCode, gin.H{"error": message})
 		return
 	}
 
@@ -531,6 +538,19 @@ func buildPasswordResetLink(configuredBaseURL, token string) string {
 	}
 	baseURL = strings.TrimRight(baseURL, "/")
 	return baseURL + "/reset-password?token=" + url.QueryEscape(token)
+}
+
+func registerErrorResponse(err error) (int, string) {
+	switch {
+	case errors.Is(err, users.ErrInvalidEmail):
+		return http.StatusBadRequest, "请输入有效的邮箱地址"
+	case errors.Is(err, users.ErrWeakPassword):
+		return http.StatusBadRequest, users.ErrWeakPassword.Error()
+	case errors.Is(err, users.ErrUserAlreadyExists):
+		return http.StatusBadRequest, "注册失败，请检查输入信息"
+	default:
+		return http.StatusInternalServerError, "注册失败，请稍后重试"
+	}
 }
 
 func (s *Server) handleResetPasswordStatus(c *gin.Context) {

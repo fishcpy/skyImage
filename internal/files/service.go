@@ -26,6 +26,7 @@ import (
 
 	"skyimage/internal/config"
 	"skyimage/internal/data"
+	"skyimage/internal/notifications"
 	"skyimage/internal/users"
 )
 
@@ -33,15 +34,17 @@ type Service struct {
 	db             *gorm.DB
 	cfg            config.Config
 	limiter        *uploadLimiter
+	notifications  *notifications.Service
 	auditLimiterMu sync.Mutex
 	auditLimiters  map[uint]*auditLimiterEntry
 }
 
 func New(db *gorm.DB, cfg config.Config) *Service {
 	return &Service{
-		db:      db,
-		cfg:     cfg,
-		limiter: newUploadLimiter(),
+		db:            db,
+		cfg:           cfg,
+		limiter:       newUploadLimiter(),
+		notifications: notifications.New(db),
 	}
 }
 
@@ -385,9 +388,7 @@ func (s *Service) ToDTO(ctx context.Context, file data.FileAsset) (FileDTO, erro
 	if err != nil {
 		return FileDTO{}, err
 	}
-
-	markdown := fmt.Sprintf("![%s](%s)", file.OriginalName, publicURL)
-	html := fmt.Sprintf("<img src=\"%s\" alt=\"%s\" />", publicURL, file.OriginalName)
+	embeds := BuildImageEmbedCodes(file.OriginalName, publicURL)
 
 	return FileDTO{
 		ID:            file.ID,
@@ -402,8 +403,8 @@ func (s *Service) ToDTO(ctx context.Context, file data.FileAsset) (FileDTO, erro
 		CreatedAt:     file.CreatedAt,
 		ViewURL:       publicURL,
 		DirectURL:     publicURL,
-		Markdown:      markdown,
-		HTML:          html,
+		Markdown:      embeds.Markdown,
+		HTML:          embeds.HTML,
 		OwnerID:       file.UserID,
 		OwnerName:     file.User.Name,
 		OwnerEmail:    file.User.Email,
@@ -735,17 +736,20 @@ func (s *Service) UpdateVisibilityBatch(ctx context.Context, userID uint, ids []
 	return result.RowsAffected, result.Error
 }
 
-func (s *Service) DeleteByAdmin(ctx context.Context, id uint) error {
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var file data.FileAsset
-		if err := tx.First(&file, "id = ?", id).Error; err != nil {
+func (s *Service) DeleteByAdmin(ctx context.Context, id uint, reason string) error {
+	var deleted data.FileAsset
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&deleted, "id = ?", id).Error; err != nil {
 			return err
 		}
 		if err := tx.Delete(&data.FileAsset{}, id).Error; err != nil {
 			return err
 		}
-		return s.deleteStoredObject(ctx, tx, file)
-	})
+		return s.deleteStoredObject(ctx, tx, deleted)
+	}); err != nil {
+		return err
+	}
+	return s.notifyAdminDeleted(ctx, deleted, reason)
 }
 
 func (s *Service) DeleteBatch(ctx context.Context, userID uint, ids []uint) (int64, error) {
@@ -813,7 +817,7 @@ func (s *Service) UpdateVisibilityByAdminBatch(ctx context.Context, ids []uint, 
 	return result.RowsAffected, result.Error
 }
 
-func (s *Service) DeleteByAdminBatch(ctx context.Context, ids []uint) (int64, error) {
+func (s *Service) DeleteByAdminBatch(ctx context.Context, ids []uint, reason string) (int64, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
@@ -837,6 +841,7 @@ func (s *Service) DeleteByAdminBatch(ctx context.Context, ids []uint) (int64, er
 	}
 	for _, file := range files {
 		_ = s.deleteStoredObject(ctx, s.db, file)
+		_ = s.notifyAdminDeleted(ctx, file, reason)
 	}
 	return returned, nil
 }

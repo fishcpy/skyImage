@@ -1,5 +1,6 @@
 import {
   Activity,
+  Bell,
   Brush,
   ChevronDown,
   CloudUpload,
@@ -240,7 +241,8 @@ export function AppShell() {
         items: [
           { to: "/dashboard/upload", label: t("nav.upload"), icon: CloudUpload },
           { to: "/dashboard/images", label: t("nav.images"), icon: ImageIcon },
-          { to: "/dashboard/settings", label: t("nav.settings"), icon: Settings2 }
+          { to: "/dashboard/settings", label: t("nav.settings"), icon: Settings2 },
+          { to: "/dashboard/notifications", label: t("nav.notifications"), icon: Bell }
         ]
       },
       {

@@ -18,6 +18,9 @@ import {
 import { SplashScreen } from "@/components/SplashScreen";
 import { useI18n } from "@/i18n";
 
+const defaultAdminImageDeleteReasonText = "图片已被管理员删除";
+const defaultSystemAutoDeleteReasonText = "图片已被系统自动删除";
+
 const defaultSystemSettingsForm: SystemSettingsInput = {
   siteTitle: "",
   consoleUrl: "http://localhost:8080",
@@ -66,7 +69,10 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
   enableLoginTurnstile: false,
   enableRegisterTurnstile: false,
   enableRegisterVerifyTurnstile: false,
-  accountDisabledNotice: ""
+  accountDisabledNotice: "",
+  userNotificationLimit: 50,
+  adminImageDeleteDefaultReason: defaultAdminImageDeleteReasonText,
+  systemAutoDeleteDefaultReason: defaultSystemAutoDeleteReasonText
 };
 
 const smtpFields: (keyof SystemSettingsInput)[] = [

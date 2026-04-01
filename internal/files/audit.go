@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm"
 
 	"skyimage/internal/data"
+	"skyimage/internal/notifications"
 )
 
 const (
@@ -197,7 +198,7 @@ func (s *Service) processAuditUpload(ctx context.Context, file data.FileAsset, c
 		_ = s.persistAuditResult(ctx, file.ID, auditStatusPending, encoded, &checkedAt)
 	case auditDecisionBlock:
 		if normalizeAuditAction(cfg.ImageAuditBlockAction, auditActionDelete) == auditActionDelete {
-			_ = s.deleteAfterAudit(ctx, file)
+			_ = s.deleteAfterAudit(ctx, file, notifications.ReasonAuditBlockDelete, "")
 			return
 		}
 		_ = s.persistAuditResult(ctx, file.ID, auditStatusRejected, encoded, &checkedAt)
@@ -245,7 +246,7 @@ func (s *Service) completeAuditFailure(
 		Raw:      raw,
 	}
 	if normalizeAuditAction(cfg.ImageAuditErrorAction, auditActionKeep) == auditActionDelete {
-		_ = s.deleteAfterAudit(ctx, file)
+		_ = s.deleteAfterAudit(ctx, file, notifications.ReasonAuditErrorDelete, message)
 		return
 	}
 	_ = s.persistAuditResult(ctx, file.ID, auditStatusError, encodeAuditResult(result), &checkedAt)
@@ -477,7 +478,7 @@ func (s *Service) persistAuditResult(ctx context.Context, fileID uint, status st
 		}).Error
 }
 
-func (s *Service) deleteAfterAudit(ctx context.Context, file data.FileAsset) error {
+func (s *Service) deleteAfterAudit(ctx context.Context, file data.FileAsset, reasonType, auditMessage string) error {
 	if file.ID == 0 {
 		return nil
 	}
@@ -491,7 +492,10 @@ func (s *Service) deleteAfterAudit(ctx context.Context, file data.FileAsset) err
 	if shouldSkipAuditUpdate(current) {
 		return nil
 	}
-	return s.Delete(ctx, file.UserID, file.ID)
+	if err := s.Delete(ctx, current.UserID, current.ID); err != nil {
+		return err
+	}
+	return s.notifyAuditDeleted(ctx, current, reasonType, auditMessage)
 }
 
 func shouldSkipAuditUpdate(file data.FileAsset) bool {

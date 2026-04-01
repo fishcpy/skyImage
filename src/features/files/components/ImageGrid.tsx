@@ -23,6 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
 
 type Props = {
   files?: FileRecord[];
@@ -31,7 +32,7 @@ type Props = {
   isFetchingMore?: boolean;
   onLoadMore?: () => void | Promise<void>;
   loadRowsPerBatch?: number;
-  onDelete?: (id: number) => void | Promise<void>;
+  onDelete?: (id: number, reason?: string) => void | Promise<void>;
   deletingId?: number;
   showOwner?: boolean;
   onPreview?: (file: FileRecord) => void;
@@ -43,7 +44,8 @@ type Props = {
     ids: number[],
     visibility: "public" | "private"
   ) => void | Promise<void>;
-  onBatchDelete?: (ids: number[]) => void | Promise<void>;
+  onBatchDelete?: (ids: number[], reason?: string) => void | Promise<void>;
+  enableDeleteReason?: boolean;
   onAuditApprove?: (id: number) => void | Promise<void>;
   approvingAuditId?: number;
 };
@@ -69,6 +71,7 @@ export function ImageGrid({
   onVisibilityChange,
   onBatchVisibilityChange,
   onBatchDelete,
+  enableDeleteReason = false,
   onAuditApprove,
   approvingAuditId
 }: Props) {
@@ -80,6 +83,7 @@ export function ImageGrid({
   const [batchBusy, setBatchBusy] = useState(false);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<number[] | null>(null);
   const [pendingDeleteLabel, setPendingDeleteLabel] = useState("");
+  const [pendingDeleteReason, setPendingDeleteReason] = useState("");
   const [baseVisibleRows, setBaseVisibleRows] = useState(0);
   const [extraVisibleRows, setExtraVisibleRows] = useState(0);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -380,7 +384,7 @@ export function ImageGrid({
   }, [t]);
 
   const executeDelete = useCallback(
-    async (ids: number[]) => {
+    async (ids: number[], reason?: string) => {
       if (batchBusy) return;
       if (ids.length > 1) {
         if (!onBatchDelete) return;
@@ -391,15 +395,16 @@ export function ImageGrid({
       setBatchBusy(true);
       try {
         if (ids.length > 1 && onBatchDelete) {
-          await onBatchDelete(ids);
+          await onBatchDelete(ids, reason);
         } else if (onDelete) {
-          await onDelete(ids[0]);
+          await onDelete(ids[0], reason);
         }
       } finally {
         setBatchBusy(false);
         setSelectedIds(new Set());
         setPendingDeleteIds(null);
         setPendingDeleteLabel("");
+        setPendingDeleteReason("");
       }
     },
     [batchBusy, onBatchDelete, onDelete]
@@ -501,6 +506,7 @@ export function ImageGrid({
         action: () => {
           setPendingDeleteIds(activeIds);
           setPendingDeleteLabel(isMulti ? t("grid.selectedItems", { count: activeIds.length }) : `「${file.originalName}」`);
+          setPendingDeleteReason("");
         },
         enabled: useSelection ? Boolean(onBatchDelete) : Boolean(onDelete),
         danger: true
@@ -619,6 +625,7 @@ export function ImageGrid({
                 if (!ids.length) return;
                 setPendingDeleteIds(ids);
                 setPendingDeleteLabel(t("grid.selectedItems", { count: ids.length }));
+                setPendingDeleteReason("");
               }}
             >
               {t("grid.batchDelete")}
@@ -791,7 +798,15 @@ export function ImageGrid({
         </div>
       )}
 
-      <AlertDialog open={Boolean(pendingDeleteIds)} onOpenChange={(open) => !open && setPendingDeleteIds(null)}>
+      <AlertDialog
+        open={Boolean(pendingDeleteIds)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeleteIds(null);
+            setPendingDeleteReason("");
+          }
+        }}
+      >
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
             <AlertDialogTitle>{t("grid.confirmDeleteTitle")}</AlertDialogTitle>
@@ -799,13 +814,33 @@ export function ImageGrid({
               {t("grid.confirmDeleteDescription", { label: pendingDeleteLabel || t("grid.selectedContent") })}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {enableDeleteReason ? (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t("grid.deleteReason")}</label>
+              <Input
+                value={pendingDeleteReason}
+                onChange={(event) => setPendingDeleteReason(event.target.value)}
+                placeholder={t("grid.deleteReasonPlaceholder")}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("grid.deleteReasonHint")}
+              </p>
+            </div>
+          ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogCancel
+              onClick={() => {
+                setPendingDeleteIds(null);
+                setPendingDeleteReason("");
+              }}
+            >
+              {t("common.cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 if (!pendingDeleteIds?.length) return;
-                void executeDelete(pendingDeleteIds);
+                void executeDelete(pendingDeleteIds, pendingDeleteReason);
               }}
             >
               {t("admin.confirmDelete")}

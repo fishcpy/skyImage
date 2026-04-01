@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"gorm.io/datatypes"
@@ -118,5 +119,30 @@ func TestUpdateProfile_OnlyVisibility(t *testing.T) {
 	// Verify theme is preserved
 	if theme, ok := cfg["theme_preference"].(string); !ok || theme != "light" {
 		t.Errorf("expected theme_preference to be preserved as 'light', got %v", cfg["theme_preference"])
+	}
+}
+
+func TestRegister_ReturnsUserAlreadyExistsOnDuplicateEmail(t *testing.T) {
+	db := setupTestDB(t)
+	service := New(db)
+
+	existing := data.User{
+		Name:         "Existing User",
+		Email:        "existing@example.com",
+		PasswordHash: "hashed",
+		Status:       1,
+		Configs:      datatypes.JSON([]byte(`{}`)),
+	}
+	if err := db.Create(&existing).Error; err != nil {
+		t.Fatalf("failed to create existing user: %v", err)
+	}
+
+	_, err := service.Register(context.Background(), RegisterInput{
+		Name:     "New User",
+		Email:    "Existing@example.com",
+		Password: "Password1",
+	})
+	if !errors.Is(err, ErrUserAlreadyExists) {
+		t.Fatalf("expected ErrUserAlreadyExists, got %v", err)
 	}
 }

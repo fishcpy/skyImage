@@ -26,6 +26,7 @@ import (
 	"skyimage/internal/installer"
 	"skyimage/internal/mail"
 	"skyimage/internal/middleware"
+	"skyimage/internal/notifications"
 	"skyimage/internal/session"
 	"skyimage/internal/turnstile"
 	"skyimage/internal/users"
@@ -33,20 +34,21 @@ import (
 )
 
 type Server struct {
-	engine       *gin.Engine
-	mu           sync.RWMutex
-	cfg          config.Config
-	db           *gorm.DB
-	installer    *installer.Service
-	admin        *admin.Service
-	files        *files.Service
-	users        *users.Service
-	mail         *mail.Service
-	turnstile    *turnstile.Service
-	verification *verification.Service
-	session      *session.Manager
-	authLimiter  *requestLimiter
-	publicPaths  map[string]struct{}
+	engine        *gin.Engine
+	mu            sync.RWMutex
+	cfg           config.Config
+	db            *gorm.DB
+	installer     *installer.Service
+	admin         *admin.Service
+	files         *files.Service
+	users         *users.Service
+	notifications *notifications.Service
+	mail          *mail.Service
+	turnstile     *turnstile.Service
+	verification  *verification.Service
+	session       *session.Manager
+	authLimiter   *requestLimiter
+	publicPaths   map[string]struct{}
 }
 
 func NewServer(cfg config.Config, db *gorm.DB) *Server {
@@ -98,6 +100,7 @@ func (s *Server) applyRuntimeConfig(cfg config.Config, db *gorm.DB) {
 	s.admin = adminService
 	s.files = files.New(db, cfg)
 	s.users = users.New(db)
+	s.notifications = notifications.New(db)
 	s.mail = mail.New(adminService)
 	s.turnstile = turnstile.New(adminService)
 	s.verification = verification.New()

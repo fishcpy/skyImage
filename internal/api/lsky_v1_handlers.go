@@ -330,6 +330,7 @@ func (h *LskyV1Handler) UploadImage(c *gin.Context) {
 		return
 	}
 	thumbnailURL := imageURL
+	embeds := files.BuildImageEmbedCodes(asset.Name, imageURL)
 
 	c.Header("X-RateLimit-Limit", "60")
 	c.Header("X-RateLimit-Remaining", "59")
@@ -349,10 +350,10 @@ func (h *LskyV1Handler) UploadImage(c *gin.Context) {
 			"sha1":        asset.ChecksumSHA1,
 			"links": gin.H{
 				"url":                imageURL,
-				"html":               fmt.Sprintf(`<img src="%s" alt="%s" />`, imageURL, asset.Name),
+				"html":               embeds.HTML,
 				"bbcode":             fmt.Sprintf(`[img]%s[/img]`, imageURL),
-				"markdown":           fmt.Sprintf(`![%s](%s)`, asset.Name, imageURL),
-				"markdown_with_link": fmt.Sprintf(`[![%s](%s)](%s)`, asset.Name, imageURL, imageURL),
+				"markdown":           embeds.Markdown,
+				"markdown_with_link": embeds.MarkdownWithLink,
 				"thumbnail_url":      thumbnailURL,
 			},
 		},
@@ -421,6 +422,7 @@ func (h *LskyV1Handler) GetImages(c *gin.Context) {
 	var result []gin.H
 	for _, img := range images {
 		imageURL := h.resolveAssetPublicURL(c, img)
+		embeds := files.BuildImageEmbedCodes(img.Name, imageURL)
 		result = append(result, gin.H{
 			"key":         img.Key,
 			"name":        img.Name,
@@ -435,10 +437,10 @@ func (h *LskyV1Handler) GetImages(c *gin.Context) {
 			"date":        img.CreatedAt.Format("2006-01-02 15:04:05"),
 			"links": gin.H{
 				"url":                imageURL,
-				"html":               fmt.Sprintf(`<img src="%s" alt="%s" />`, imageURL, img.Name),
+				"html":               embeds.HTML,
 				"bbcode":             fmt.Sprintf(`[img]%s[/img]`, imageURL),
-				"markdown":           fmt.Sprintf(`![%s](%s)`, img.Name, imageURL),
-				"markdown_with_link": fmt.Sprintf(`[![%s](%s)](%s)`, img.Name, imageURL, imageURL),
+				"markdown":           embeds.Markdown,
+				"markdown_with_link": embeds.MarkdownWithLink,
 				"thumbnail_url":      imageURL,
 			},
 		})

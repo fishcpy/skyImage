@@ -409,6 +409,60 @@ export async function deleteAccount() {
   await apiClient.delete("/account/profile");
 }
 
+export type UserNotificationMetadata = {
+  fileId?: number;
+  fileKey?: string;
+  fileOriginalName?: string;
+  reasonType?: "audit_block_delete" | "audit_error_delete" | "admin_delete";
+  auditMessage?: string;
+  adminReason?: string;
+};
+
+export type UserNotificationRecord = {
+  id: number;
+  type: string;
+  title: string;
+  message: string;
+  metadata: UserNotificationMetadata;
+  readAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function fetchAccountNotifications(params?: {
+  status?: "all" | "unread" | "read";
+  limit?: number;
+  offset?: number;
+}) {
+  const res = await apiClient.get<{ data: UserNotificationRecord[] }>(
+    "/account/notifications",
+    { params }
+  );
+  return res.data.data;
+}
+
+export async function updateAccountNotificationRead(id: number, read = true) {
+  const res = await apiClient.patch<{ data: UserNotificationRecord }>(
+    `/account/notifications/${id}/read`,
+    { read }
+  );
+  return res.data.data;
+}
+
+export async function markAllAccountNotificationsRead() {
+  const res = await apiClient.post<{ data: { updated: number } }>(
+    "/account/notifications/read-all"
+  );
+  return res.data.data;
+}
+
+export async function clearAccountNotifications() {
+  const res = await apiClient.delete<{ data: { deleted: number } }>(
+    "/account/notifications"
+  );
+  return res.data.data;
+}
+
 export type GroupRecord = {
   id: number;
   name: string;
@@ -543,8 +597,10 @@ export async function fetchAdminImages(params?: {
   return res.data.data;
 }
 
-export async function deleteAdminImage(id: number) {
-  await apiClient.delete(`/admin/images/${id}`);
+export async function deleteAdminImage(id: number, reason?: string) {
+  await apiClient.delete(`/admin/images/${id}`, {
+    data: reason ? { reason } : undefined
+  });
 }
 
 export async function updateAdminImageVisibility(
@@ -580,10 +636,10 @@ export async function updateAdminImagesVisibilityBatch(
   return res.data.data;
 }
 
-export async function deleteAdminImagesBatch(ids: number[]) {
+export async function deleteAdminImagesBatch(ids: number[], reason?: string) {
   const res = await apiClient.post<{ data: { deleted: number } }>(
     "/admin/images/batch/delete",
-    { ids }
+    { ids, reason }
   );
   return res.data.data;
 }
@@ -637,6 +693,9 @@ export type SystemSettingsInput = {
   enableRegisterTurnstile: boolean;
   enableRegisterVerifyTurnstile: boolean;
   accountDisabledNotice: string;
+  userNotificationLimit: number;
+  adminImageDeleteDefaultReason: string;
+  systemAutoDeleteDefaultReason: string;
 };
 
 export type SystemSettingsResponse = SystemSettingsInput & {

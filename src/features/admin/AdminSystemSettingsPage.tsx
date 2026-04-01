@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   fetchSystemSettings,
   updateSystemSettings,
@@ -14,6 +15,9 @@ import {
 } from "@/lib/api";
 import { SplashScreen } from "@/components/SplashScreen";
 import { useI18n } from "@/i18n";
+
+const defaultAdminImageDeleteReasonText = "图片已被管理员删除";
+const defaultSystemAutoDeleteReasonText = "图片已被系统自动删除";
 
 const defaultSystemSettingsForm: SystemSettingsInput = {
   siteTitle: "",
@@ -63,7 +67,10 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
   enableLoginTurnstile: false,
   enableRegisterTurnstile: false,
   enableRegisterVerifyTurnstile: false,
-  accountDisabledNotice: ""
+  accountDisabledNotice: "",
+  userNotificationLimit: 50,
+  adminImageDeleteDefaultReason: defaultAdminImageDeleteReasonText,
+  systemAutoDeleteDefaultReason: defaultSystemAutoDeleteReasonText
 };
 
 export function AdminSystemSettingsPage() {
@@ -160,6 +167,57 @@ export function AdminSystemSettingsPage() {
           <p className="text-xs text-muted-foreground">
             {t("admin.systemSettings.imageLoadRowsHint")}
           </p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("admin.systemSettings.notifications")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>{t("admin.systemSettings.userNotificationLimit")}</Label>
+            <Input
+              type="number"
+              min={1}
+              max={500}
+              value={form.userNotificationLimit}
+              onChange={(e) => {
+                const value = Number.parseInt(e.target.value, 10);
+                handleChange("userNotificationLimit", Number.isNaN(value) ? 50 : value);
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t("admin.systemSettings.userNotificationLimitHint")}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>{t("admin.systemSettings.adminDeleteReason")}</Label>
+            <Textarea
+              rows={3}
+              value={form.adminImageDeleteDefaultReason}
+              onChange={(e) =>
+                handleChange("adminImageDeleteDefaultReason", e.target.value)
+              }
+              placeholder={t("admin.systemSettings.adminDeleteReasonPlaceholder")}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t("admin.systemSettings.adminDeleteReasonHint")}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>{t("admin.systemSettings.systemAutoDeleteReason")}</Label>
+            <Textarea
+              rows={3}
+              value={form.systemAutoDeleteDefaultReason}
+              onChange={(e) =>
+                handleChange("systemAutoDeleteDefaultReason", e.target.value)
+              }
+              placeholder={t("admin.systemSettings.systemAutoDeleteReasonPlaceholder")}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t("admin.systemSettings.systemAutoDeleteReasonHint")}
+            </p>
+          </div>
         </CardContent>
       </Card>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

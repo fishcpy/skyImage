@@ -57,7 +57,8 @@ export function AdminImagesPage() {
   const files = data?.pages.flatMap((page) => page) ?? [];
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteAdminImage(id),
+    mutationFn: (payload: { id: number; reason?: string }) =>
+      deleteAdminImage(payload.id, payload.reason),
     onSuccess: () => {
       toast.success(t("admin.images.deleted"));
       queryClient.invalidateQueries({ queryKey: ["admin", "images"] });
@@ -85,7 +86,8 @@ export function AdminImagesPage() {
   });
 
   const batchDeleteMutation = useMutation({
-    mutationFn: (ids: number[]) => deleteAdminImagesBatch(ids),
+    mutationFn: (payload: { ids: number[]; reason?: string }) =>
+      deleteAdminImagesBatch(payload.ids, payload.reason),
     onSuccess: () => {
       toast.success(t("images.batchDeleteSuccess"));
       queryClient.invalidateQueries({ queryKey: ["admin", "images"] });
@@ -104,8 +106,8 @@ export function AdminImagesPage() {
   });
 
   const deletingId =
-    typeof deleteMutation.variables === "number"
-      ? deleteMutation.variables
+    typeof deleteMutation.variables?.id === "number"
+      ? deleteMutation.variables.id
       : undefined;
 
   return (
@@ -140,7 +142,7 @@ export function AdminImagesPage() {
           await fetchNextPage();
         }}
         loadRowsPerBatch={siteConfig?.imageLoadRows ?? 4}
-        onDelete={(id) => deleteMutation.mutateAsync(id)}
+        onDelete={(id, reason) => deleteMutation.mutateAsync({ id, reason })}
         deletingId={deletingId}
         showOwner
         onVisibilityChange={(id, visibility) => {
@@ -149,9 +151,10 @@ export function AdminImagesPage() {
         onBatchVisibilityChange={(ids, visibility) => {
           void batchVisibilityMutation.mutateAsync({ ids, visibility });
         }}
-        onBatchDelete={(ids) => {
-          void batchDeleteMutation.mutateAsync(ids);
+        onBatchDelete={(ids, reason) => {
+          void batchDeleteMutation.mutateAsync({ ids, reason });
         }}
+        enableDeleteReason
         onAuditApprove={(id) => {
           void approveAuditMutation.mutateAsync(id);
         }}

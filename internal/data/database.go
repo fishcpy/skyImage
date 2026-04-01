@@ -79,6 +79,7 @@ func NewDatabase(cfg config.Config) (*gorm.DB, error) {
 	if err := db.AutoMigrate(
 		&Group{},
 		&User{},
+		&UserNotification{},
 		&FileAsset{},
 		&ConfigEntry{},
 		&AuditProfile{},
