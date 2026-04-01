@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table";
 import type { FileRecord } from "@/lib/api";
 import { normalizeFileUrl } from "@/lib/file-url";
+import { FileAuditBadge } from "@/features/files/components/FileAuditBadge";
 
 type Props = {
   files?: FileRecord[];
@@ -77,9 +78,10 @@ export function FileTable({
                 </TableCell>
                 <TableCell className="max-w-[220px]">
                   <p className="truncate font-medium">{item.originalName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {item.strategyName ? `策略：${item.strategyName}` : "策略：默认"}
-                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span>{item.strategyName ? `策略：${item.strategyName}` : "策略：默认"}</span>
+                    <FileAuditBadge audit={item.audit} />
+                  </div>
                 </TableCell>
                 <TableCell>
                   {item.visibility === "public" ? "公开" : "私有"}
@@ -154,9 +156,10 @@ export function FileTable({
               />
               <div className="flex-1 min-w-0">
                 <p className="truncate font-medium text-sm">{item.originalName}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {item.strategyName ? `策略：${item.strategyName}` : "策略：默认"}
-                </p>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>{item.strategyName ? `策略：${item.strategyName}` : "策略：默认"}</span>
+                  <FileAuditBadge audit={item.audit} />
+                </div>
                 <div className="flex gap-2 mt-1 text-xs text-muted-foreground">
                   <span>{item.visibility === "public" ? "公开" : "私有"}</span>
                   <span>·</span>

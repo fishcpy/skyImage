@@ -91,6 +91,7 @@ func (s *Server) handleGalleryPublic(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+		dto.Audit = nil
 		dtos = append(dtos, dto)
 	}
 	c.JSON(http.StatusOK, gin.H{"data": dtos})

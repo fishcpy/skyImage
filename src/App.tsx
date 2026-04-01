@@ -23,6 +23,7 @@ import { ApiTokenEditorPage } from "@/features/api/ApiTokenEditorPage";
 import { AdminConsolePage } from "@/features/admin/AdminDashboard";
 import { AdminGroupsPage } from "@/features/admin/AdminGroupsPage";
 import { AdminImagesPage } from "@/features/admin/AdminImagesPage";
+import { AdminAuditsPage } from "@/features/admin/AdminAuditsPage";
 import { AdminStrategiesPage } from "@/features/admin/AdminStrategiesPage";
 import { AdminSystemSettingsPage } from "@/features/admin/AdminSystemSettingsPage";
 import { AdminSiteSettingsPage } from "@/features/admin/AdminSiteSettingsPage";
@@ -30,6 +31,7 @@ import { AdminSmtpSettingsPage } from "@/features/admin/AdminSmtpSettingsPage";
 import { AdminTurnstileSettingsPage } from "@/features/admin/AdminTurnstileSettingsPage";
 import { AdminGroupEditorPage } from "@/features/admin/AdminGroupEditorPage";
 import { AdminStrategyEditorPage } from "@/features/admin/AdminStrategyEditorPage";
+import { AdminAuditEditorPage } from "@/features/admin/AdminAuditEditorPage";
 import { AdminUserCreatePage } from "@/features/users/AdminUserCreatePage";
 import { AdminUserDetailPage } from "@/features/users/AdminUserDetailPage";
 import { AboutPage } from "@/features/about/AboutPage";
@@ -143,6 +145,9 @@ export default function App() {
                 <Route path="admin/users/new" element={<AdminUserCreatePage />} />
                 <Route path="admin/users/:id" element={<AdminUserDetailPage />} />
                 <Route path="admin/images" element={<AdminImagesPage />} />
+                <Route path="admin/audits" element={<AdminAuditsPage />} />
+                <Route path="admin/audits/new" element={<AdminAuditEditorPage />} />
+                <Route path="admin/audits/:id" element={<AdminAuditEditorPage />} />
                 <Route path="admin/strategies" element={<AdminStrategiesPage />} />
                 <Route path="admin/strategies/new" element={<AdminStrategyEditorPage />} />
                 <Route path="admin/strategies/:id" element={<AdminStrategyEditorPage />} />

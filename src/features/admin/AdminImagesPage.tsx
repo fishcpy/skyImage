@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -8,14 +9,23 @@ import {
   deleteAdminImage,
   deleteAdminImagesBatch,
   updateAdminImageVisibility,
-  updateAdminImagesVisibilityBatch
+  updateAdminImagesVisibilityBatch,
+  updateAdminImageAuditStatus
 } from "@/lib/api";
 import { useI18n } from "@/i18n";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 
 export function AdminImagesPage() {
   const { t } = useI18n();
   const pageSize = 80;
   const queryClient = useQueryClient();
+  const [auditStatus, setAuditStatus] = useState("all");
   const { data: siteConfig } = useQuery({
     queryKey: ["site-config"],
     queryFn: fetchSiteConfig,
@@ -28,9 +38,13 @@ export function AdminImagesPage() {
     fetchNextPage,
     isFetchingNextPage
   } = useInfiniteQuery({
-    queryKey: ["admin", "images"],
+    queryKey: ["admin", "images", auditStatus],
     queryFn: ({ pageParam = 0 }) =>
-      fetchAdminImages({ limit: pageSize, offset: pageParam }),
+      fetchAdminImages({
+        limit: pageSize,
+        offset: pageParam,
+        auditStatus: auditStatus === "all" ? undefined : auditStatus
+      }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       if (lastPage.length < pageSize) {
@@ -79,6 +93,16 @@ export function AdminImagesPage() {
     onError: (error) => toast.error(error.message || t("images.batchDeleteFailed"))
   });
 
+  const approveAuditMutation = useMutation({
+    mutationFn: (id: number) => updateAdminImageAuditStatus(id, "approved"),
+    onSuccess: () => {
+      toast.success(t("admin.images.auditApproved"));
+      queryClient.invalidateQueries({ queryKey: ["admin", "images"] });
+      queryClient.invalidateQueries({ queryKey: ["files"] });
+    },
+    onError: (error) => toast.error(error.message || t("admin.images.auditApproveFailed"))
+  });
+
   const deletingId =
     typeof deleteMutation.variables === "number"
       ? deleteMutation.variables
@@ -91,6 +115,21 @@ export function AdminImagesPage() {
         <p className="text-muted-foreground">
           {t("admin.images.description")}
         </p>
+      </div>
+      <div className="max-w-xs">
+        <Select value={auditStatus} onValueChange={setAuditStatus}>
+          <SelectTrigger>
+            <SelectValue placeholder={t("admin.images.auditFilter")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("admin.images.auditFilterAll")}</SelectItem>
+            <SelectItem value="approved">{t("audit.status.approved")}</SelectItem>
+            <SelectItem value="pending">{t("audit.status.pending")}</SelectItem>
+            <SelectItem value="rejected">{t("audit.status.rejected")}</SelectItem>
+            <SelectItem value="error">{t("audit.status.error")}</SelectItem>
+            <SelectItem value="none">{t("audit.status.none")}</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <ImageGrid
         files={files}
@@ -113,6 +152,14 @@ export function AdminImagesPage() {
         onBatchDelete={(ids) => {
           void batchDeleteMutation.mutateAsync(ids);
         }}
+        onAuditApprove={(id) => {
+          void approveAuditMutation.mutateAsync(id);
+        }}
+        approvingAuditId={
+          approveAuditMutation.isPending && typeof approveAuditMutation.variables === "number"
+            ? approveAuditMutation.variables
+            : undefined
+        }
       />
     </div>
   );

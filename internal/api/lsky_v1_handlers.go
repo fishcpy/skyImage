@@ -311,7 +311,7 @@ func (h *LskyV1Handler) UploadImage(c *gin.Context) {
 		Visibility: visibility,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(statusCodeFromError(err, http.StatusInternalServerError), gin.H{
 			"status":  false,
 			"message": err.Error(),
 			"data":    gin.H{},

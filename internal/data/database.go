@@ -81,6 +81,7 @@ func NewDatabase(cfg config.Config) (*gorm.DB, error) {
 		&User{},
 		&FileAsset{},
 		&ConfigEntry{},
+		&AuditProfile{},
 		&Strategy{},
 		&GroupStrategy{},
 		&InstallerState{},

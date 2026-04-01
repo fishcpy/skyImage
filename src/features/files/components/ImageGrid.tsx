@@ -6,6 +6,7 @@ import "@fancyapps/ui/dist/fancybox/fancybox.css";
 import type { FileRecord } from "@/lib/api";
 import { normalizeFileUrl } from "@/lib/file-url";
 import { useI18n } from "@/i18n";
+import { FileAuditBadge } from "@/features/files/components/FileAuditBadge";
 
 // 固定行高（像素）
 const ROW_HEIGHT = 240;
@@ -43,6 +44,8 @@ type Props = {
     visibility: "public" | "private"
   ) => void | Promise<void>;
   onBatchDelete?: (ids: number[]) => void | Promise<void>;
+  onAuditApprove?: (id: number) => void | Promise<void>;
+  approvingAuditId?: number;
 };
 
 type MenuState = {
@@ -65,7 +68,9 @@ export function ImageGrid({
   onPreview,
   onVisibilityChange,
   onBatchVisibilityChange,
-  onBatchDelete
+  onBatchDelete,
+  onAuditApprove,
+  approvingAuditId
 }: Props) {
   const { t } = useI18n();
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -418,6 +423,10 @@ export function ImageGrid({
       ? Boolean(onBatchVisibilityChange)
       : Boolean(onVisibilityChange);
     const selectionLabelSuffix = isMulti ? t("grid.selectionSuffix", { count: activeIds.length }) : "";
+    const canApproveAudit =
+      !isMulti &&
+      Boolean(onAuditApprove) &&
+      ["pending", "rejected", "error"].includes(file.audit?.status ?? "");
 
     return [
       {
@@ -475,6 +484,19 @@ export function ImageGrid({
         enabled: canToggleVisibility
       },
       {
+        label: t("grid.approveAudit"),
+        action: async () => {
+          if (!onAuditApprove || batchBusy) return;
+          setBatchBusy(true);
+          try {
+            await onAuditApprove(file.id);
+          } finally {
+            setBatchBusy(false);
+          }
+        },
+        enabled: canApproveAudit
+      },
+      {
         label: `${t("grid.deleteSelected")}${selectionLabelSuffix}`,
         action: () => {
           setPendingDeleteIds(activeIds);
@@ -495,6 +517,7 @@ export function ImageGrid({
     menu,
     onBatchVisibilityChange,
     onBatchDelete,
+    onAuditApprove,
     onDelete,
     onPreview,
     onVisibilityChange,
@@ -656,10 +679,11 @@ export function ImageGrid({
                   <p className="flex-1 truncate text-sm font-semibold">
                     {item.originalName}
                   </p>
-                  <span className="rounded-full bg-black/50 px-2 py-0.5 text-[11px]">
-                    {visibilityLabel}
-                  </span>
-                </div>
+                    <span className="rounded-full bg-black/50 px-2 py-0.5 text-[11px]">
+                      {visibilityLabel}
+                    </span>
+                    <FileAuditBadge audit={item.audit} />
+                  </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/80">
                   <span>{(item.size / 1024).toFixed(1)} KB</span>
                   {showOwner && (
@@ -714,6 +738,11 @@ export function ImageGrid({
               {deletingId === item.id && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-sm text-white">
                   {t("grid.deleting")}
+                </div>
+              )}
+              {approvingAuditId === item.id && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-sm text-white">
+                  {t("grid.approvingAudit")}
                 </div>
               )}
                   </div>

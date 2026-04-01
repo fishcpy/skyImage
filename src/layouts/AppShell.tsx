@@ -13,6 +13,7 @@ import {
   MoreHorizontal,
   ServerCog,
   Settings2,
+  ShieldAlert,
   Users,
   Users2
 } from "lucide-react";
@@ -264,6 +265,7 @@ export function AppShell() {
         items: [
           { to: "/dashboard/admin/console", label: t("nav.console"), icon: Activity },
           { to: "/dashboard/admin/images", label: t("nav.adminImages"), icon: ImageIcon },
+          { to: "/dashboard/admin/audits", label: t("nav.audits"), icon: ShieldAlert },
           { to: "/dashboard/admin/groups", label: t("nav.groups"), icon: Users },
           { to: "/dashboard/admin/users", label: t("nav.users"), icon: Users2 },
           { to: "/dashboard/admin/strategies", label: t("nav.strategies"), icon: Layers3 },

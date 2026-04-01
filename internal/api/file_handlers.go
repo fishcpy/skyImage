@@ -97,15 +97,10 @@ func (s *Server) handleUploadFile(c *gin.Context) {
 		StrategyID: strategyID,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(statusCodeFromError(err, http.StatusInternalServerError), gin.H{"error": err.Error()})
 		return
 	}
-	created, err := s.files.FindByID(c.Request.Context(), record.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	dto, err := s.files.ToDTO(c.Request.Context(), created)
+	dto, err := s.files.ToDTO(c.Request.Context(), record)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

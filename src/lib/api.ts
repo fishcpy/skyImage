@@ -356,6 +356,19 @@ export async function uploadFile(payload: {
   return res.data.data;
 }
 
+export type FileAuditRecord = {
+  status: "none" | "approved" | "pending" | "rejected" | "error";
+  decision?: "pass" | "review" | "block" | "error";
+  provider?: string;
+  riskLevel?: string;
+  label?: string;
+  nsfwScore?: number;
+  confidence?: number;
+  message?: string;
+  checkedAt?: string;
+  reviewedAt?: string;
+};
+
 export type FileRecord = {
   id: number;
   key: string;
@@ -373,6 +386,7 @@ export type FileRecord = {
   strategyName?: string;
   relativePath?: string;
   storageDriver?: string;
+  audit?: FileAuditRecord;
 };
 
 export async function fetchAccountProfile() {
@@ -475,6 +489,36 @@ export async function deleteStrategy(id: number) {
   await apiClient.delete(`/admin/strategies/${id}`);
 }
 
+export type AuditProfileRecord = {
+  id: number;
+  name: string;
+  provider: string;
+  configs: Record<string, any>;
+};
+
+export async function fetchAuditProfiles() {
+  const res = await apiClient.get<{ data: AuditProfileRecord[] }>("/admin/audits");
+  return res.data.data;
+}
+
+export async function saveAuditProfile(
+  input: Partial<AuditProfileRecord> & { name: string }
+) {
+  if (input.id) {
+    const res = await apiClient.put<{ data: AuditProfileRecord }>(
+      `/admin/audits/${input.id}`,
+      input
+    );
+    return res.data.data;
+  }
+  const res = await apiClient.post<{ data: AuditProfileRecord }>("/admin/audits", input);
+  return res.data.data;
+}
+
+export async function deleteAuditProfile(id: number) {
+  await apiClient.delete(`/admin/audits/${id}`);
+}
+
 export async function fetchUserDetail(userId: number) {
   const res = await apiClient.get<{ data: any }>(`/admin/users/${userId}`);
   return res.data.data;
@@ -488,7 +532,11 @@ export async function assignUserGroup(userId: number, groupId: number | null) {
   return res.data.data;
 }
 
-export async function fetchAdminImages(params?: { limit?: number; offset?: number }) {
+export async function fetchAdminImages(params?: {
+  limit?: number;
+  offset?: number;
+  auditStatus?: string;
+}) {
   const res = await apiClient.get<{ data: FileRecord[] }>("/admin/images", {
     params
   });
@@ -506,6 +554,17 @@ export async function updateAdminImageVisibility(
   const res = await apiClient.patch<{ data: FileRecord }>(
     `/admin/images/${id}/visibility`,
     { visibility }
+  );
+  return res.data.data;
+}
+
+export async function updateAdminImageAuditStatus(
+  id: number,
+  status: "approved"
+) {
+  const res = await apiClient.patch<{ data: FileRecord }>(
+    `/admin/images/${id}/audit-status`,
+    { status }
   );
   return res.data.data;
 }

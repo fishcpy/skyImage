@@ -276,6 +276,9 @@ func (s *Service) CreateStrategy(ctx context.Context, payload StrategyPayload) (
 	if err := validateStrategyConfigs(payload.Configs); err != nil {
 		return data.Strategy{}, err
 	}
+	if err := s.ensureAuditProfileExistsInConfigs(ctx, payload.Configs); err != nil {
+		return data.Strategy{}, err
+	}
 	cfgBytes, _ := json.Marshal(payload.Configs)
 	strategy := data.Strategy{
 		Key:     payload.Key,
@@ -295,6 +298,9 @@ func (s *Service) CreateStrategy(ctx context.Context, payload StrategyPayload) (
 
 func (s *Service) UpdateStrategy(ctx context.Context, id uint, payload StrategyPayload) (data.Strategy, error) {
 	if err := validateStrategyConfigs(payload.Configs); err != nil {
+		return data.Strategy{}, err
+	}
+	if err := s.ensureAuditProfileExistsInConfigs(ctx, payload.Configs); err != nil {
 		return data.Strategy{}, err
 	}
 	var strategy data.Strategy
@@ -319,7 +325,7 @@ func (s *Service) DeleteStrategy(ctx context.Context, id uint) error {
 	return s.db.WithContext(ctx).Delete(&data.Strategy{}, id).Error
 }
 
-func (s *Service) ListAllFiles(ctx context.Context, limit, offset int) ([]data.FileAsset, error) {
+func (s *Service) ListAllFiles(ctx context.Context, limit, offset int, auditStatus string) ([]data.FileAsset, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -330,13 +336,15 @@ func (s *Service) ListAllFiles(ctx context.Context, limit, offset int) ([]data.F
 		offset = 0
 	}
 	var files []data.FileAsset
-	err := s.db.WithContext(ctx).
+	query := s.db.WithContext(ctx).
 		Preload("User").
 		Preload("Strategy").
-		Order("created_at DESC").
-		Limit(limit).
-		Offset(offset).
-		Find(&files).Error
+		Order("created_at DESC")
+	normalizedAuditStatus := normalizeAuditStatusFilter(auditStatus)
+	if normalizedAuditStatus != "" {
+		query = query.Where("audit_status = ?", normalizedAuditStatus)
+	}
+	err := query.Limit(limit).Offset(offset).Find(&files).Error
 	return files, err
 }
 
@@ -491,6 +499,18 @@ func validateStrategyConfigs(configs map[string]interface{}) error {
 	if template != "" && !strings.Contains(template, "{uuid}") {
 		return fmt.Errorf("路径模板必须包含 {uuid} 以确保唯一性")
 	}
+	if raw, ok := configs["image_audit_block_action"]; ok {
+		action := strings.ToLower(strings.TrimSpace(firstConfigString(map[string]interface{}{"value": raw}, "value")))
+		if action != "" && action != "delete" && action != "keep" {
+			return fmt.Errorf("image_audit_block_action 仅支持 delete 或 keep")
+		}
+	}
+	if raw, ok := configs["image_audit_error_action"]; ok {
+		action := strings.ToLower(strings.TrimSpace(firstConfigString(map[string]interface{}{"value": raw}, "value")))
+		if action != "" && action != "delete" && action != "keep" {
+			return fmt.Errorf("image_audit_error_action 仅支持 delete 或 keep")
+		}
+	}
 	return nil
 }
 
@@ -641,4 +661,15 @@ func validateFTPConfigs(configs map[string]interface{}) error {
 		}
 	}
 	return nil
+}
+
+func normalizeAuditStatusFilter(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "all":
+		return ""
+	case "none", "approved", "pending", "rejected", "error":
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return ""
+	}
 }

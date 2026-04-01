@@ -48,30 +48,34 @@ func (User) TableName() string {
 }
 
 type FileAsset struct {
-	ID              uint      `gorm:"primaryKey" json:"id"`
-	UserID          uint      `gorm:"index" json:"userId"`
-	GroupID         *uint     `gorm:"index" json:"groupId"`
-	StrategyID      uint      `gorm:"index" json:"strategyId"`
-	Key             string    `gorm:"size:64;uniqueIndex;not null" json:"key"`
-	Path            string    `gorm:"size:512;not null" json:"path"`
-	RelativePath    string    `gorm:"size:512;default:''" json:"relativePath"`
-	PublicURL       string    `gorm:"size:2048;default:''" json:"publicUrl"`
-	Name            string    `gorm:"size:255;not null" json:"name"`
-	OriginalName    string    `gorm:"size:255" json:"originalName"`
-	Size            int64     `gorm:"not null" json:"size"`
-	MimeType        string    `gorm:"size:64" json:"mimeType"`
-	Extension       string    `gorm:"size:32" json:"extension"`
-	ChecksumMD5     string    `gorm:"size:32" json:"checksumMd5"`
-	ChecksumSHA1    string    `gorm:"size:40" json:"checksumSha1"`
-	Width           int       `gorm:"default:0" json:"width"`
-	Height          int       `gorm:"default:0" json:"height"`
-	Visibility      string    `gorm:"size:16;default:'private'" json:"visibility"`
-	StorageProvider string    `gorm:"size:32;default:'local'" json:"storageProvider"`
-	UploadedIP      string    `gorm:"size:64" json:"uploadedIp"`
-	CreatedAt       time.Time `json:"createdAt"`
-	UpdatedAt       time.Time `json:"updatedAt"`
-	User            User      `gorm:"foreignKey:UserID" json:"-"`
-	Strategy        Strategy  `gorm:"foreignKey:StrategyID" json:"strategy"`
+	ID              uint           `gorm:"primaryKey" json:"id"`
+	UserID          uint           `gorm:"index" json:"userId"`
+	GroupID         *uint          `gorm:"index" json:"groupId"`
+	StrategyID      uint           `gorm:"index" json:"strategyId"`
+	Key             string         `gorm:"size:64;uniqueIndex;not null" json:"key"`
+	Path            string         `gorm:"size:512;not null" json:"path"`
+	RelativePath    string         `gorm:"size:512;default:''" json:"relativePath"`
+	PublicURL       string         `gorm:"size:2048;default:''" json:"publicUrl"`
+	Name            string         `gorm:"size:255;not null" json:"name"`
+	OriginalName    string         `gorm:"size:255" json:"originalName"`
+	Size            int64          `gorm:"not null" json:"size"`
+	MimeType        string         `gorm:"size:64" json:"mimeType"`
+	Extension       string         `gorm:"size:32" json:"extension"`
+	ChecksumMD5     string         `gorm:"size:32" json:"checksumMd5"`
+	ChecksumSHA1    string         `gorm:"size:40" json:"checksumSha1"`
+	Width           int            `gorm:"default:0" json:"width"`
+	Height          int            `gorm:"default:0" json:"height"`
+	Visibility      string         `gorm:"size:16;default:'private'" json:"visibility"`
+	StorageProvider string         `gorm:"size:32;default:'local'" json:"storageProvider"`
+	AuditStatus     string         `gorm:"size:16;default:'none'" json:"auditStatus"`
+	AuditResult     datatypes.JSON `gorm:"type:json" json:"auditResult"`
+	AuditCheckedAt  *time.Time     `json:"auditCheckedAt"`
+	AuditReviewedAt *time.Time     `json:"auditReviewedAt"`
+	UploadedIP      string         `gorm:"size:64" json:"uploadedIp"`
+	CreatedAt       time.Time      `json:"createdAt"`
+	UpdatedAt       time.Time      `json:"updatedAt"`
+	User            User           `gorm:"foreignKey:UserID" json:"-"`
+	Strategy        Strategy       `gorm:"foreignKey:StrategyID" json:"strategy"`
 }
 
 func (FileAsset) TableName() string {

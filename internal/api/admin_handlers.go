@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/tls"
+	"errors"
 	"net/http"
 	"net/smtp"
 	"strconv"
@@ -43,10 +44,15 @@ func (s *Server) registerAdminRoutes(r *gin.RouterGroup) {
 	adminGroup.POST("/strategies", s.handleAdminCreateStrategy)
 	adminGroup.PUT("/strategies/:id", s.handleAdminUpdateStrategy)
 	adminGroup.DELETE("/strategies/:id", s.handleAdminDeleteStrategy)
+	adminGroup.GET("/audits", s.handleAdminListAuditProfiles)
+	adminGroup.POST("/audits", s.handleAdminCreateAuditProfile)
+	adminGroup.PUT("/audits/:id", s.handleAdminUpdateAuditProfile)
+	adminGroup.DELETE("/audits/:id", s.handleAdminDeleteAuditProfile)
 
 	adminGroup.GET("/images", s.handleAdminImages)
 	adminGroup.DELETE("/images/:id", s.handleAdminDeleteImage)
 	adminGroup.PATCH("/images/:id/visibility", s.handleAdminUpdateImageVisibility)
+	adminGroup.PATCH("/images/:id/audit-status", s.handleAdminUpdateImageAuditStatus)
 	adminGroup.PATCH("/images/batch/visibility", s.handleAdminBatchUpdateImageVisibility)
 	adminGroup.POST("/images/batch/delete", s.handleAdminBatchDeleteImages)
 
@@ -365,9 +371,70 @@ func (s *Server) handleAdminDeleteStrategy(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": "deleted"})
 }
 
+func (s *Server) handleAdminListAuditProfiles(c *gin.Context) {
+	items, err := s.admin.ListAuditProfiles(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": items})
+}
+
+func (s *Server) handleAdminCreateAuditProfile(c *gin.Context) {
+	var payload admin.AuditProfilePayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	item, err := s.admin.CreateAuditProfile(c.Request.Context(), payload)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": item})
+}
+
+func (s *Server) handleAdminUpdateAuditProfile(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var payload admin.AuditProfilePayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	item, err := s.admin.UpdateAuditProfile(c.Request.Context(), uint(id), payload)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": item})
+}
+
+func (s *Server) handleAdminDeleteAuditProfile(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	err = s.admin.DeleteAuditProfile(c.Request.Context(), uint(id))
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if errors.Is(err, admin.ErrAuditProfileInUse) {
+			statusCode = http.StatusBadRequest
+		}
+		c.JSON(statusCode, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": "deleted"})
+}
+
 func (s *Server) handleAdminImages(c *gin.Context) {
 	limit, offset := parsePagination(c, 50, 100)
-	filesList, err := s.admin.ListAllFiles(c.Request.Context(), limit, offset)
+	auditStatus := strings.TrimSpace(c.Query("auditStatus"))
+	filesList, err := s.admin.ListAllFiles(c.Request.Context(), limit, offset, auditStatus)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -413,6 +480,32 @@ func (s *Server) handleAdminUpdateImageVisibility(c *gin.Context) {
 	file, err := s.files.UpdateVisibilityByAdmin(c.Request.Context(), uint(id), payload.Visibility)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	dto, err := s.files.ToDTO(c.Request.Context(), file)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": dto})
+}
+
+func (s *Server) handleAdminUpdateImageAuditStatus(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var payload struct {
+		Status string `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	file, err := s.files.UpdateAuditStatusByAdmin(c.Request.Context(), uint(id), payload.Status)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	dto, err := s.files.ToDTO(c.Request.Context(), file)

@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,9 +30,11 @@ import (
 )
 
 type Service struct {
-	db      *gorm.DB
-	cfg     config.Config
-	limiter *uploadLimiter
+	db             *gorm.DB
+	cfg            config.Config
+	limiter        *uploadLimiter
+	auditLimiterMu sync.Mutex
+	auditLimiters  map[uint]*auditLimiterEntry
 }
 
 func New(db *gorm.DB, cfg config.Config) *Service {
@@ -48,27 +51,28 @@ type UploadOptions struct {
 }
 
 type FileDTO struct {
-	ID            uint      `json:"id"`
-	Key           string    `json:"key"`
-	Name          string    `json:"name"`
-	OriginalName  string    `json:"originalName"`
-	Size          int64     `json:"size"`
-	MimeType      string    `json:"mimeType"`
-	Extension     string    `json:"extension"`
-	Visibility    string    `json:"visibility"`
-	Storage       string    `json:"storage"`
-	StrategyID    uint      `json:"strategyId"`
-	StrategyName  string    `json:"strategyName"`
-	CreatedAt     time.Time `json:"createdAt"`
-	ViewURL       string    `json:"viewUrl"`
-	DirectURL     string    `json:"directUrl"`
-	Markdown      string    `json:"markdown"`
-	HTML          string    `json:"html"`
-	OwnerID       uint      `json:"ownerId,omitempty"`
-	OwnerName     string    `json:"ownerName,omitempty"`
-	OwnerEmail    string    `json:"ownerEmail,omitempty"`
-	RelativePath  string    `json:"relativePath"`
-	StorageDriver string    `json:"storageDriver"`
+	ID            uint          `json:"id"`
+	Key           string        `json:"key"`
+	Name          string        `json:"name"`
+	OriginalName  string        `json:"originalName"`
+	Size          int64         `json:"size"`
+	MimeType      string        `json:"mimeType"`
+	Extension     string        `json:"extension"`
+	Visibility    string        `json:"visibility"`
+	Storage       string        `json:"storage"`
+	StrategyID    uint          `json:"strategyId"`
+	StrategyName  string        `json:"strategyName"`
+	CreatedAt     time.Time     `json:"createdAt"`
+	ViewURL       string        `json:"viewUrl"`
+	DirectURL     string        `json:"directUrl"`
+	Markdown      string        `json:"markdown"`
+	HTML          string        `json:"html"`
+	OwnerID       uint          `json:"ownerId,omitempty"`
+	OwnerName     string        `json:"ownerName,omitempty"`
+	OwnerEmail    string        `json:"ownerEmail,omitempty"`
+	RelativePath  string        `json:"relativePath"`
+	StorageDriver string        `json:"storageDriver"`
+	Audit         *FileAuditDTO `json:"audit,omitempty"`
 }
 
 type ProxyObject struct {
@@ -84,37 +88,40 @@ var ErrProxyDisabled = errors.New("proxy disabled for this storage strategy")
 var ErrProxyUnsupported = errors.New("proxy not supported for this storage driver")
 
 type strategyConfig struct {
-	Driver             string
-	Root               string
-	Base               string
-	Pattern            string
-	Query              string
-	Exts               []string
-	WebDAVEndpoint     string
-	WebDAVUsername     string
-	WebDAVPassword     string
-	WebDAVBasePath     string
-	WebDAVSkipTLSCert  bool
-	FTPHost            string
-	FTPPort            int
-	FTPUsername        string
-	FTPPassword        string
-	FTPBasePath        string
-	FTPTLS             bool
-	FTPSkipTLSVerify   bool
-	FTPTimeoutSeconds  int
-	S3Endpoint         string
-	S3Region           string
-	S3Bucket           string
-	S3AccessKey        string
-	S3SecretKey        string
-	S3SessionToken     string
-	S3ForcePathStyle   bool
-	S3Proxy            bool
-	EnableCompression  bool
-	CompressionQuality int
-	TargetFormat       string
-	ProcessFormats     []string
+	Driver                string
+	Root                  string
+	Base                  string
+	Pattern               string
+	Query                 string
+	Exts                  []string
+	WebDAVEndpoint        string
+	WebDAVUsername        string
+	WebDAVPassword        string
+	WebDAVBasePath        string
+	WebDAVSkipTLSCert     bool
+	FTPHost               string
+	FTPPort               int
+	FTPUsername           string
+	FTPPassword           string
+	FTPBasePath           string
+	FTPTLS                bool
+	FTPSkipTLSVerify      bool
+	FTPTimeoutSeconds     int
+	S3Endpoint            string
+	S3Region              string
+	S3Bucket              string
+	S3AccessKey           string
+	S3SecretKey           string
+	S3SessionToken        string
+	S3ForcePathStyle      bool
+	S3Proxy               bool
+	EnableCompression     bool
+	CompressionQuality    int
+	TargetFormat          string
+	ProcessFormats        []string
+	ImageAuditProfileID   uint
+	ImageAuditBlockAction string
+	ImageAuditErrorAction string
 }
 
 func isS3CompatibleDriver(driver string) bool {
@@ -296,6 +303,19 @@ func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.Fi
 		}
 	}
 
+	if shouldAuditImage(cfg, contentType) && len(fullData) == 0 {
+		handle3, err := file.Open()
+		if err != nil {
+			return data.FileAsset{}, err
+		}
+		defer handle3.Close()
+
+		fullData, err = io.ReadAll(handle3)
+		if err != nil {
+			return data.FileAsset{}, err
+		}
+	}
+
 	var storeResult storeObjectResult
 	if len(fullData) > 0 {
 		// 使用处理后的数据
@@ -324,6 +344,7 @@ func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.Fi
 		ChecksumSHA1:    hex.EncodeToString(storeResult.SHA1),
 		Visibility:      users.NormalizeVisibility(opts.Visibility),
 		StorageProvider: cfg.Driver,
+		AuditStatus:     initialAuditStatus(cfg, contentType),
 	}
 
 	if fileAsset.MimeType == "" {
@@ -343,6 +364,8 @@ func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.Fi
 	_ = s.db.WithContext(ctx).Model(&data.User{}).
 		Where("id = ?", user.ID).
 		UpdateColumn("use_capacity", gorm.Expr("use_capacity + ?", fileAsset.Size))
+
+	s.queueAuditUpload(fileAsset, cfg, file.Filename, fullData)
 
 	return fileAsset, nil
 }
@@ -388,6 +411,7 @@ func (s *Service) ToDTO(ctx context.Context, file data.FileAsset) (FileDTO, erro
 		StrategyName:  file.Strategy.Name,
 		RelativePath:  file.RelativePath,
 		StorageDriver: file.StorageProvider,
+		Audit:         buildFileAuditDTO(file),
 	}, nil
 }
 
@@ -1035,6 +1059,9 @@ func (s *Service) parseStrategyConfig(strategy data.Strategy) strategyConfig {
 			}
 			cfg.TargetFormat = strings.ToLower(strings.TrimSpace(stringFromAny(raw["target_format"])))
 			cfg.ProcessFormats = parseExtensionsFromAny(raw["process_formats"])
+			cfg.ImageAuditProfileID = uint(intFromAny(raw["image_audit_profile_id"]))
+			cfg.ImageAuditBlockAction = stringFromAny(raw["image_audit_block_action"])
+			cfg.ImageAuditErrorAction = stringFromAny(raw["image_audit_error_action"])
 		}
 	}
 	if cfg.Pattern == "" {
@@ -1071,6 +1098,8 @@ func (s *Service) parseStrategyConfig(strategy data.Strategy) strategyConfig {
 	if isMinIODriver(cfg.Driver) {
 		cfg.S3ForcePathStyle = true
 	}
+	cfg.ImageAuditBlockAction = normalizeAuditAction(cfg.ImageAuditBlockAction, auditActionDelete)
+	cfg.ImageAuditErrorAction = normalizeAuditAction(cfg.ImageAuditErrorAction, auditActionKeep)
 	return cfg
 }
 

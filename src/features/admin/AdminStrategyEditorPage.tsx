@@ -10,9 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
+  fetchAuditProfiles,
   fetchGroups,
   fetchStrategies,
   saveStrategy,
+  type AuditProfileRecord,
   type GroupRecord,
   type StrategyRecord
 } from "@/lib/api";
@@ -40,6 +42,10 @@ export function AdminStrategyEditorPage() {
   const { data: groups } = useQuery({
     queryKey: ["admin", "groups"],
     queryFn: fetchGroups
+  });
+  const { data: auditProfiles } = useQuery({
+    queryKey: ["admin", "audits"],
+    queryFn: fetchAuditProfiles
   });
 
   const [form, setForm] = useState<Partial<StrategyRecord>>({
@@ -69,9 +75,12 @@ export function AdminStrategyEditorPage() {
         s3_access_key: "",
       s3_secret_key: "",
       s3_session_token: "",
-      s3_force_path_style: false,
+        s3_force_path_style: false,
       proxy: false,
-      path_template: "{year}/{month}/{day}/{uuid}"
+      path_template: "{year}/{month}/{day}/{uuid}",
+      image_audit_profile_id: "",
+      image_audit_block_action: "delete",
+      image_audit_error_action: "keep"
     }
   });
   const [selectedGroups, setSelectedGroups] = useState<number[]>([]);
@@ -159,7 +168,13 @@ export function AdminStrategyEditorPage() {
             enable_compression: target.configs?.enable_compression || false,
             compression_quality: target.configs?.compression_quality || 85,
             target_format: target.configs?.target_format || "",
-            process_formats: target.configs?.process_formats || ""
+            process_formats: target.configs?.process_formats || "",
+            image_audit_profile_id:
+              target.configs?.image_audit_profile_id
+                ? String(target.configs?.image_audit_profile_id)
+                : "",
+            image_audit_block_action: target.configs?.image_audit_block_action || "delete",
+            image_audit_error_action: target.configs?.image_audit_error_action || "keep"
           }
         });
         setSelectedGroups(target.groups?.map((group) => group.id) || []);
@@ -195,7 +210,10 @@ export function AdminStrategyEditorPage() {
           s3_force_path_style: false,
           proxy: false,
           allowed_extensions: "",
-          path_template: "{year}/{month}/{day}/{uuid}"
+          path_template: "{year}/{month}/{day}/{uuid}",
+          image_audit_profile_id: "",
+          image_audit_block_action: "delete",
+          image_audit_error_action: "keep"
         }
       });
       setSelectedGroups([]);
@@ -280,7 +298,12 @@ export function AdminStrategyEditorPage() {
         enable_compression: (form.configs as any)?.enable_compression || false,
         compression_quality: (form.configs as any)?.compression_quality || 85,
         target_format: (form.configs as any)?.target_format || "",
-        process_formats: (form.configs as any)?.process_formats || ""
+        process_formats: (form.configs as any)?.process_formats || "",
+        image_audit_profile_id: (form.configs as any)?.image_audit_profile_id
+          ? Number((form.configs as any)?.image_audit_profile_id)
+          : null,
+        image_audit_block_action: (form.configs as any)?.image_audit_block_action || "delete",
+        image_audit_error_action: (form.configs as any)?.image_audit_error_action || "keep"
       }
     } as StrategyRecord);
   };
@@ -791,6 +814,78 @@ export function AdminStrategyEditorPage() {
               <p className="text-xs text-muted-foreground">
                 {t("admin.strategyEditor.processFormatsHint")}
               </p>
+            </div>
+          </div>
+          <div className="space-y-4 rounded-lg border p-4">
+            <h3 className="text-sm font-medium">{t("admin.strategyEditor.imageAudit")}</h3>
+            <div className="space-y-2">
+              <Label>{t("admin.strategyEditor.imageAuditProfile")}</Label>
+              <Select
+                value={String((form.configs as any)?.image_audit_profile_id || "none")}
+                onValueChange={(value) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    configs: {
+                      ...prev.configs,
+                      image_audit_profile_id: value === "none" ? "" : value
+                    }
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t("admin.strategyEditor.imageAuditProfilePlaceholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t("admin.strategyEditor.imageAuditDisabled")}</SelectItem>
+                  {auditProfiles?.map((profile: AuditProfileRecord) => (
+                    <SelectItem key={profile.id} value={profile.id.toString()}>
+                      {profile.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>{t("admin.strategyEditor.imageAuditBlockAction")}</Label>
+                <Select
+                  value={(form.configs as any)?.image_audit_block_action || "delete"}
+                  onValueChange={(value) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: { ...prev.configs, image_audit_block_action: value }
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="delete">{t("admin.strategyEditor.auditActionDelete")}</SelectItem>
+                    <SelectItem value="keep">{t("admin.strategyEditor.auditActionKeep")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{t("admin.strategyEditor.imageAuditErrorAction")}</Label>
+                <Select
+                  value={(form.configs as any)?.image_audit_error_action || "keep"}
+                  onValueChange={(value) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: { ...prev.configs, image_audit_error_action: value }
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="delete">{t("admin.strategyEditor.auditActionDelete")}</SelectItem>
+                    <SelectItem value="keep">{t("admin.strategyEditor.auditActionKeep")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <div className="space-y-2">
