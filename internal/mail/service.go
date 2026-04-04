@@ -190,65 +190,20 @@ func (s *Service) SendLoginNotification(ctx context.Context, email, userName, ip
 		return fmt.Errorf("SMTP 配置不完整或未配置")
 	}
 
-	// 获取站点标题
-	settings, err := s.admin.GetSettings(ctx)
+	content, err := s.renderConfiguredTemplate(ctx, TemplateLoginNotification, TemplateVariables{
+		UserName: userName,
+		Email:    email,
+		LoginIP:  ip,
+	})
 	if err != nil {
-		return fmt.Errorf("获取站点设置失败: %w", err)
-	}
-	siteTitle := settings["site.title"]
-	if siteTitle == "" {
-		siteTitle = "skyImage"
+		return err
 	}
 
-	subject := siteTitle + " 登录提醒"
-	body := fmt.Sprintf(`您好 %s,
-
-您的账号刚刚登录了 %s。
-
-登录信息：
-- 登录 IP：%s
-
-如果这不是您本人的操作，请立即修改密码并联系管理员。
-
-此邮件由系统自动发送，请勿回复。`, userName, siteTitle, ip)
-
-	return s.SendMail(ctx, email, subject, body)
+	return s.SendMail(ctx, email, content.Subject, content.Body)
 }
 
 func (s *Service) SendWelcomeEmail(ctx context.Context, email, userName string) error {
-	// 检查是否启用注册验证
-	enabled := s.IsRegisterVerifyEnabled(ctx)
-	if !enabled {
-		return fmt.Errorf("注册邮件验证未启用")
-	}
-
-	// 检查 SMTP 配置
-	if !s.IsEnabled(ctx) {
-		return fmt.Errorf("SMTP 配置不完整或未配置")
-	}
-
-	// 获取站点标题
-	settings, err := s.admin.GetSettings(ctx)
-	if err != nil {
-		return fmt.Errorf("获取站点设置失败: %w", err)
-	}
-	siteTitle := settings["site.title"]
-	if siteTitle == "" {
-		siteTitle = "skyImage"
-	}
-
-	subject := "欢迎注册 " + siteTitle
-	body := fmt.Sprintf(`您好 %s,
-
-欢迎注册 %s
-
-您的账号已成功创建，现在可以开始使用我们的服务了。
-
-如有任何问题，请联系管理员。
-
-此邮件由系统自动发送，请勿回复。`, userName, siteTitle)
-
-	return s.SendMail(ctx, email, subject, body)
+	return s.SendRegistrationSuccessEmail(ctx, email, userName)
 }
 
 // 获取客户端 IP 地址
@@ -276,30 +231,15 @@ func (s *Service) SendVerificationCode(ctx context.Context, email, code string) 
 		return fmt.Errorf("SMTP 配置不完整或未配置")
 	}
 
-	// 获取站点标题
-	settings, err := s.admin.GetSettings(ctx)
+	content, err := s.renderConfiguredTemplate(ctx, TemplateRegisterVerify, TemplateVariables{
+		Email:            email,
+		VerificationCode: code,
+	})
 	if err != nil {
-		return fmt.Errorf("获取站点设置失败: %w", err)
-	}
-	siteTitle := settings["site.title"]
-	if siteTitle == "" {
-		siteTitle = "skyImage"
+		return err
 	}
 
-	subject := siteTitle + " 注册验证码"
-	body := fmt.Sprintf(`您好，
-
-您正在注册 %s
-
-您的验证码是：%s
-
-验证码有效期为 5 分钟，请尽快完成验证。
-
-如果这不是您本人的操作，请忽略此邮件。
-
-此邮件由系统自动发送，请勿回复。`, siteTitle, code)
-
-	return s.SendMail(ctx, email, subject, body)
+	return s.SendMail(ctx, email, content.Subject, content.Body)
 }
 
 func (s *Service) SendRegistrationSuccessEmail(ctx context.Context, email, userName string) error {
@@ -308,53 +248,42 @@ func (s *Service) SendRegistrationSuccessEmail(ctx context.Context, email, userN
 		return fmt.Errorf("SMTP 配置不完整或未配置")
 	}
 
-	// 获取站点标题
-	settings, err := s.admin.GetSettings(ctx)
+	content, err := s.renderConfiguredTemplate(ctx, TemplateRegisterSuccess, TemplateVariables{
+		UserName: userName,
+		Email:    email,
+	})
 	if err != nil {
-		return fmt.Errorf("获取站点设置失败: %w", err)
-	}
-	siteTitle := settings["site.title"]
-	if siteTitle == "" {
-		siteTitle = "skyImage"
+		return err
 	}
 
-	subject := "欢迎注册 " + siteTitle
-	body := fmt.Sprintf(`您好 %s,
-
-恭喜您成功注册 %s 成功！
-
-您的账号已激活，现在可以开始使用我们的服务了。
-
-如有任何问题，请联系管理员。
-
-此邮件由系统自动发送，请勿回复。`, userName, siteTitle)
-
-	return s.SendMail(ctx, email, subject, body)
+	return s.SendMail(ctx, email, content.Subject, content.Body)
 }
 
 func (s *Service) SendPasswordResetEmail(ctx context.Context, email, code, resetLink string) error {
 	if !s.IsEnabled(ctx) {
 		return fmt.Errorf("SMTP 配置不完整或未配置")
 	}
+	content, err := s.renderConfiguredTemplate(ctx, TemplateForgotPassword, TemplateVariables{
+		Email:            email,
+		VerificationCode: code,
+		ResetLink:        resetLink,
+	})
+	if err != nil {
+		return err
+	}
+	return s.SendMail(ctx, email, content.Subject, content.Body)
+}
+
+func (s *Service) renderConfiguredTemplate(ctx context.Context, key TemplateKey, vars TemplateVariables) (TemplateContent, error) {
 	settings, err := s.admin.GetSettings(ctx)
 	if err != nil {
-		return fmt.Errorf("获取站点设置失败: %w", err)
+		return TemplateContent{}, fmt.Errorf("获取站点设置失败: %w", err)
 	}
-	siteTitle := settings["site.title"]
-	if siteTitle == "" {
-		siteTitle = "skyImage"
+
+	if strings.TrimSpace(vars.SiteName) == "" {
+		vars.SiteName = settings["site.title"]
 	}
-	subject := siteTitle + " 密码重置验证码"
-	body := fmt.Sprintf(`您好，
 
-您正在重置 %s 的登录密码。
-
-验证码：%s
-重置链接：%s
-
-验证码和链接有效期为 15 分钟。
-如果这不是您本人的操作，请忽略此邮件。
-
-此邮件由系统自动发送，请勿回复。`, siteTitle, code, resetLink)
-	return s.SendMail(ctx, email, subject, body)
+	content := ResolveTemplateContent(settings, key)
+	return RenderTemplateContent(content, vars), nil
 }

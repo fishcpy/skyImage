@@ -680,6 +680,16 @@ export type SystemSettingsInput = {
   smtpPassword: string;
   smtpFrom: string;
   smtpSecure: boolean;
+  mailTestSubject: string;
+  mailTestBody: string;
+  mailRegisterVerifySubject: string;
+  mailRegisterVerifyBody: string;
+  mailRegisterSuccessSubject: string;
+  mailRegisterSuccessBody: string;
+  mailLoginNotificationSubject: string;
+  mailLoginNotificationBody: string;
+  mailForgotPasswordSubject: string;
+  mailForgotPasswordBody: string;
   enableRegisterVerify: boolean;
   enableLoginNotification: boolean;
   enableForgotPassword: boolean;
@@ -716,12 +726,15 @@ export async function updateSystemSettings(input: SystemSettingsInput) {
 
 export type TestSmtpPayload = {
   testEmail: string;
+  siteTitle: string;
   smtpHost: string;
   smtpPort: string;
   smtpUsername: string;
   smtpPassword: string;
   smtpFrom: string;
   smtpSecure: boolean;
+  mailTestSubject: string;
+  mailTestBody: string;
 };
 
 export type TestSmtpResponse = {

@@ -14,6 +14,7 @@ import (
 
 	"skyimage/internal/admin"
 	"skyimage/internal/files"
+	mailservice "skyimage/internal/mail"
 	"skyimage/internal/middleware"
 	"skyimage/internal/notifications"
 	"skyimage/internal/turnstile"
@@ -623,6 +624,16 @@ type systemSettingsPayload struct {
 	SMTPPassword                         string `json:"smtpPassword"`
 	SMTPFrom                             string `json:"smtpFrom"`
 	SMTPSecure                           bool   `json:"smtpSecure"`
+	MailTestSubject                      string `json:"mailTestSubject"`
+	MailTestBody                         string `json:"mailTestBody"`
+	MailRegisterVerifySubject            string `json:"mailRegisterVerifySubject"`
+	MailRegisterVerifyBody               string `json:"mailRegisterVerifyBody"`
+	MailRegisterSuccessSubject           string `json:"mailRegisterSuccessSubject"`
+	MailRegisterSuccessBody              string `json:"mailRegisterSuccessBody"`
+	MailLoginNotificationSubject         string `json:"mailLoginNotificationSubject"`
+	MailLoginNotificationBody            string `json:"mailLoginNotificationBody"`
+	MailForgotPasswordSubject            string `json:"mailForgotPasswordSubject"`
+	MailForgotPasswordBody               string `json:"mailForgotPasswordBody"`
 	EnableRegisterVerify                 bool   `json:"enableRegisterVerify"`
 	EnableLoginNotification              bool   `json:"enableLoginNotification"`
 	EnableForgotPassword                 bool   `json:"enableForgotPassword"`
@@ -723,6 +734,16 @@ func (s *Server) handleAdminSystemSettings(c *gin.Context) {
 			SMTPPassword:                         settings["mail.smtp.password"],
 			SMTPFrom:                             settings["mail.smtp.from"],
 			SMTPSecure:                           settings["mail.smtp.secure"] == "true",
+			MailTestSubject:                      settings["mail.template.test.subject"],
+			MailTestBody:                         settings["mail.template.test.body"],
+			MailRegisterVerifySubject:            settings["mail.template.register_verify.subject"],
+			MailRegisterVerifyBody:               settings["mail.template.register_verify.body"],
+			MailRegisterSuccessSubject:           settings["mail.template.register_success.subject"],
+			MailRegisterSuccessBody:              settings["mail.template.register_success.body"],
+			MailLoginNotificationSubject:         settings["mail.template.login_notification.subject"],
+			MailLoginNotificationBody:            settings["mail.template.login_notification.body"],
+			MailForgotPasswordSubject:            settings["mail.template.forgot_password.subject"],
+			MailForgotPasswordBody:               settings["mail.template.forgot_password.body"],
 			EnableRegisterVerify:                 settings["mail.register.verify"] == "true",
 			EnableLoginNotification:              settings["mail.login.notification"] == "true",
 			EnableForgotPassword:                 settings["mail.forgot_password.enabled"] == "true",
@@ -825,6 +846,16 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 		"mail.smtp.password":                       smtpPassword,
 		"mail.smtp.from":                           payload.SMTPFrom,
 		"mail.smtp.secure":                         strconv.FormatBool(payload.SMTPSecure),
+		"mail.template.test.subject":               payload.MailTestSubject,
+		"mail.template.test.body":                  payload.MailTestBody,
+		"mail.template.register_verify.subject":    payload.MailRegisterVerifySubject,
+		"mail.template.register_verify.body":       payload.MailRegisterVerifyBody,
+		"mail.template.register_success.subject":   payload.MailRegisterSuccessSubject,
+		"mail.template.register_success.body":      payload.MailRegisterSuccessBody,
+		"mail.template.login_notification.subject": payload.MailLoginNotificationSubject,
+		"mail.template.login_notification.body":    payload.MailLoginNotificationBody,
+		"mail.template.forgot_password.subject":    payload.MailForgotPasswordSubject,
+		"mail.template.forgot_password.body":       payload.MailForgotPasswordBody,
 		"mail.register.verify":                     strconv.FormatBool(payload.EnableRegisterVerify),
 		"mail.login.notification":                  strconv.FormatBool(payload.EnableLoginNotification),
 		"mail.forgot_password.enabled":             strconv.FormatBool(payload.EnableForgotPassword),
@@ -896,13 +927,16 @@ func (s *Server) handleAdminTestTurnstile(c *gin.Context) {
 }
 
 type testSMTPPayload struct {
-	TestEmail    string `json:"testEmail" binding:"required,email"`
-	SMTPHost     string `json:"smtpHost" binding:"required"`
-	SMTPPort     string `json:"smtpPort" binding:"required"`
-	SMTPUsername string `json:"smtpUsername" binding:"required"`
-	SMTPPassword string `json:"smtpPassword"`
-	SMTPFrom     string `json:"smtpFrom"`
-	SMTPSecure   bool   `json:"smtpSecure"`
+	TestEmail       string `json:"testEmail" binding:"required,email"`
+	SiteTitle       string `json:"siteTitle"`
+	SMTPHost        string `json:"smtpHost" binding:"required"`
+	SMTPPort        string `json:"smtpPort" binding:"required"`
+	SMTPUsername    string `json:"smtpUsername" binding:"required"`
+	SMTPPassword    string `json:"smtpPassword"`
+	SMTPFrom        string `json:"smtpFrom"`
+	SMTPSecure      bool   `json:"smtpSecure"`
+	MailTestSubject string `json:"mailTestSubject"`
+	MailTestBody    string `json:"mailTestBody"`
 }
 
 func (s *Server) handleAdminTestSMTP(c *gin.Context) {
@@ -915,14 +949,29 @@ func (s *Server) handleAdminTestSMTP(c *gin.Context) {
 		return
 	}
 
+	siteTitle := strings.TrimSpace(payload.SiteTitle)
+	if siteTitle == "" {
+		settings, err := s.admin.GetSettings(c.Request.Context())
+		if err == nil {
+			siteTitle = settings["site.title"]
+		}
+	}
+	template := mailservice.RenderTemplateContent(
+		mailservice.MergeTemplateContent(mailservice.TemplateTestSMTP, payload.MailTestSubject, payload.MailTestBody),
+		mailservice.TemplateVariables{
+			SiteName:  siteTitle,
+			TestEmail: payload.TestEmail,
+		},
+	)
+
 	// 构建邮件内容
 	from := payload.SMTPFrom
 	if from == "" {
 		from = payload.SMTPUsername
 	}
 	to := []string{payload.TestEmail}
-	subject := "skyImage邮件测试"
-	body := "如果你看到这条消息代表邮件已正常可用"
+	subject := template.Subject
+	body := template.Body
 
 	// 构建邮件消息（符合 RFC 5322 标准）
 	message := []byte("From: " + from + "\r\n" +
