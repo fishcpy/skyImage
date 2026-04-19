@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 
@@ -44,6 +44,39 @@ import { Button } from "@/components/ui/button";
 import { NotFoundPage } from "@/features/misc/NotFoundPage";
 import { HomePage } from "@/features/home/HomePage";
 import { useI18n } from "@/i18n";
+
+const noIndexPaths = [
+  "/installer",
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/dashboard"
+];
+
+function NoIndexMetaWatcher() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const path = location.pathname;
+    const shouldNoIndex = noIndexPaths.some(p => path === p || path.startsWith(p + "/"));
+
+    let meta = document.querySelector('meta[name="robots"]');
+
+    if (shouldNoIndex) {
+      if (!meta) {
+        meta = document.createElement("meta");
+        meta.setAttribute("name", "robots");
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute("content", "noindex, nofollow");
+    } else {
+      meta?.remove();
+    }
+  }, [location.pathname]);
+
+  return null;
+}
 
 function HomeEntry() {
   const getCachedConfig = () => {
@@ -113,6 +146,7 @@ export default function App() {
   return (
     <>
       <SiteMetaWatcher active={Boolean(installed)} />
+      <NoIndexMetaWatcher />
       <Routes>
         {!installed && <Route path="/installer" element={<InstallerPage />} />}
         <Route path="/login" element={<LoginPage />} />

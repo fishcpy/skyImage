@@ -150,6 +150,20 @@ func (s *Server) healthHandler(c *gin.Context) {
 	})
 }
 
+func (s *Server) robotsHandler(c *gin.Context) {
+	robotsTxt := `User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /installer
+
+	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(robotsTxt))
+}
+
 func (s *Server) registerRoutes() {
 	apiGroup := s.engine.Group("/api")
 	apiGroup.GET("/health", s.healthHandler)
@@ -162,6 +176,7 @@ func (s *Server) registerRoutes() {
 	s.registerLskyV1Routes(apiGroup)
 	s.registerStaticAssets()
 	s.registerFrontend()
+	s.engine.GET("/robots.txt", s.robotsHandler)
 }
 
 func (s *Server) registerFrontend() {
