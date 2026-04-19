@@ -160,7 +160,7 @@ Disallow: /register
 Disallow: /forgot-password
 Disallow: /reset-password
 Disallow: /installer
-
+`
 	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(robotsTxt))
 }
 
