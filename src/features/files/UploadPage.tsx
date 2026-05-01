@@ -87,6 +87,36 @@ export function UploadPage() {
     }
   }, []);
 
+  const handlePaste = useCallback((event: ClipboardEvent) => {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          files.push(file);
+        }
+      }
+    }
+
+    if (files.length > 0) {
+      const dataTransfer = new DataTransfer();
+      files.forEach(file => dataTransfer.items.add(file));
+      handleFiles(dataTransfer.files);
+      toast.success(t("upload.pasteSuccess", { count: files.length }));
+    }
+  }, [handleFiles, t]);
+
+  useEffect(() => {
+    window.addEventListener('paste', handlePaste);
+    return () => {
+      window.removeEventListener('paste', handlePaste);
+    };
+  }, [handlePaste]);
+
   const removeItem = (id: string) => {
     setQueue((prev) => {
       const target = prev.find((item) => item.id === id);
@@ -246,6 +276,9 @@ export function UploadPage() {
             </p>
             <p className="text-xs text-muted-foreground">
               {t("upload.pickHint")}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {t("upload.pasteHint")}
             </p>
             <Input
               ref={fileInputRef}
