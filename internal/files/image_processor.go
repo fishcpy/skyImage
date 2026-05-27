@@ -10,9 +10,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/chai2010/webp"
 	"golang.org/x/image/bmp"
 	"golang.org/x/image/tiff"
+	webpdecode "golang.org/x/image/webp"
 )
 
 // ImageProcessConfig 图片处理配置
@@ -77,7 +77,7 @@ func decodeImage(r io.Reader, mimeType string) (image.Image, string, error) {
 		img, err := gif.Decode(r)
 		return img, "gif", err
 	case "image/webp":
-		img, err := webp.Decode(r)
+		img, err := webpdecode.Decode(r)
 		return img, "webp", err
 	case "image/bmp":
 		img, err := bmp.Decode(r)
@@ -110,8 +110,7 @@ func encodeImage(w io.Writer, img image.Image, format string, quality int) (stri
 		err := gif.Encode(w, img, nil)
 		return "image/gif", err
 	case "webp":
-		err := webp.Encode(w, img, &webp.Options{Lossless: false, Quality: float32(quality)})
-		return "image/webp", err
+		return "", fmt.Errorf("webp encode is not supported in current build")
 	case "bmp":
 		err := bmp.Encode(w, img)
 		return "image/bmp", err

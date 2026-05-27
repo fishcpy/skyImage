@@ -1,29 +1,11 @@
-import {
-  Activity,
-  Bell,
-  Brush,
-  ChevronDown,
-  CloudUpload,
-  GaugeCircle,
-  Image as ImageIcon,
-  Info,
-  Key,
-  Layers3,
-  LinkIcon,
-  LogOut,
-  MoreHorizontal,
-  ServerCog,
-  Settings2,
-  ShieldAlert,
-  Users,
-  Users2
-} from "lucide-react";
+import { ChevronDown, LogOut, MoreHorizontal } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 
 import { CapacityMeter } from "@/components/CapacityMeter";
+import { ConfigDrawer, type SidebarCollapsibleMode, type SidebarVariantMode } from "@/components/ConfigDrawer";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
@@ -44,27 +26,17 @@ import {
 import { useAuthStore } from "@/state/auth";
 import { fetchSiteConfig, logout } from "@/lib/api";
 import { useI18n } from "@/i18n";
-
-type NavItem = {
-  to?: string;
-  label: string;
-  icon?: React.ComponentType<{ className?: string }>;
-  children?: NavItem[];
-};
-
-type NavSection = {
-  title?: string;
-  items: NavItem[];
-};
+import { Search } from "@/components/Search";
+import { buildNavSections, type NavNode, type NavSection } from "@/lib/navigation";
 
 function SidebarNavSections({ sections }: { sections: NavSection[] }) {
   const { isMobile, setOpenMobile } = useSidebar();
   const location = useLocation();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
 
-  const isItemActive = (item: NavItem) => {
-    if (!item.to) return false;
-    return location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+  const isItemActive = (item: NavNode) => {
+    if (!item.url) return false;
+    return location.pathname === item.url || location.pathname.startsWith(`${item.url}/`);
   };
 
   return (
@@ -75,35 +47,36 @@ function SidebarNavSections({ sections }: { sections: NavSection[] }) {
           <SidebarGroupContent>
             <SidebarMenu>
               {section.items.map((item, index) => (
-                <SidebarMenuItem key={item.to ?? item.label}>
-                  {item.children?.length ? (
+                <SidebarMenuItem key={item.url ?? item.title}>
+                  {item.items?.length ? (
                     <>
                       <button
                         type="button"
                         onClick={() =>
                           setExpandedMenus((prev) => ({
                             ...prev,
-                            [item.label]:
-                              prev[item.label] === undefined
-                                ? !item.children?.some((child) => isItemActive(child))
-                                : !prev[item.label]
+                            [item.title]:
+                              prev[item.title] === undefined
+                                ? !item.items?.some((child) => isItemActive(child))
+                                : !prev[item.title]
                           }))
                         }
                         className={cn(
                           "flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm transition-colors",
                           "text-foreground hover:bg-accent hover:text-accent-foreground",
-                          item.children.some((child) => isItemActive(child)) &&
+                          "group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+                          item.items.some((child) => isItemActive(child)) &&
                             "bg-accent text-accent-foreground"
                         )}
                       >
                         {item.icon ? <item.icon className="h-4 w-4" /> : null}
-                        <span className="flex-1 text-left">{item.label}</span>
+                        <span className="flex-1 text-left group-data-[collapsible=icon]:hidden">{item.title}</span>
                         <ChevronDown
                           className={cn(
-                            "h-4 w-4 transition-transform",
+                            "h-4 w-4 transition-transform group-data-[collapsible=icon]:hidden",
                             (
-                              expandedMenus[item.label] ??
-                              item.children.some((child) => isItemActive(child))
+                              expandedMenus[item.title] ??
+                              item.items.some((child) => isItemActive(child))
                             )
                               ? "rotate-180"
                               : ""
@@ -112,20 +85,20 @@ function SidebarNavSections({ sections }: { sections: NavSection[] }) {
                       </button>
                       <div
                         className={cn(
-                          "ml-4 overflow-hidden border-l border-border pl-3 transition-all",
+                          "ml-4 overflow-hidden border-l border-border pl-3 transition-all group-data-[collapsible=icon]:hidden",
                           (
-                            expandedMenus[item.label] ??
-                            item.children.some((child) => isItemActive(child))
+                            expandedMenus[item.title] ??
+                            item.items.some((child) => isItemActive(child))
                           )
                             ? "mt-1 max-h-40"
                             : "max-h-0"
                         )}
                       >
                         <SidebarMenu className="space-y-1 py-1">
-                          {item.children.map((child) => (
-                            <SidebarMenuItem key={child.to}>
+                          {item.items.map((child) => (
+                            <SidebarMenuItem key={child.url}>
                               <NavLink
-                                to={child.to!}
+                                to={child.url!}
                                 onClick={() => {
                                   if (isMobile) {
                                     setOpenMobile(false);
@@ -140,7 +113,7 @@ function SidebarNavSections({ sections }: { sections: NavSection[] }) {
                                   )
                                 }
                               >
-                                {child.label}
+                                {child.title}
                               </NavLink>
                             </SidebarMenuItem>
                           ))}
@@ -149,7 +122,7 @@ function SidebarNavSections({ sections }: { sections: NavSection[] }) {
                     </>
                   ) : (
                     <NavLink
-                      to={item.to!}
+                      to={item.url!}
                       end={section.title === undefined && index === 0}
                       onClick={() => {
                         if (isMobile) {
@@ -159,6 +132,7 @@ function SidebarNavSections({ sections }: { sections: NavSection[] }) {
                       className={({ isActive }) =>
                         cn(
                           "flex h-9 items-center gap-2 rounded-md px-2 text-sm transition-colors",
+                          "group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
                           isActive
                             ? "bg-accent text-accent-foreground"
                             : "text-foreground hover:bg-accent hover:text-accent-foreground"
@@ -166,7 +140,7 @@ function SidebarNavSections({ sections }: { sections: NavSection[] }) {
                       }
                     >
                       {item.icon ? <item.icon className="h-4 w-4" /> : null}
-                      <span>{item.label}</span>
+                      <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
                     </NavLink>
                   )}
                 </SidebarMenuItem>
@@ -182,11 +156,31 @@ function SidebarNavSections({ sections }: { sections: NavSection[] }) {
 export function AppShell() {
   const { t } = useI18n();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const clear = useAuthStore((state) => state.clear);
   const isAdmin = user?.isAdmin;
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
+  const [sidebarVariant, setSidebarVariant] = useState<SidebarVariantMode>(() => {
+    if (typeof window === "undefined") {
+      return "inset";
+    }
+    const stored = window.localStorage.getItem("skyimage-layout-variant");
+    return stored === "inset" || stored === "floating" || stored === "sidebar" ? stored : "inset";
+  });
+  const [sidebarCollapsible, setSidebarCollapsible] = useState<SidebarCollapsibleMode>(() => {
+    if (typeof window === "undefined") {
+      return "icon";
+    }
+    const stored = window.localStorage.getItem("skyimage-layout-collapsible");
+    return stored === "offcanvas" || stored === "icon" || stored === "none" ? stored : "icon";
+  });
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+    const stored = window.localStorage.getItem("skyimage-sidebar-open");
+    return stored == null ? true : stored === "true";
+  });
   
   const getCachedConfig = () => {
     try {
@@ -229,63 +223,31 @@ export function AppShell() {
     };
   }, [accountMenuOpen]);
 
-  const sections = useMemo<NavSection[]>(() => {
-    const enableGallery = siteConfig?.enableGallery ?? true;
-    const enableApi = siteConfig?.enableApi ?? true;
-    const base: NavSection[] = [
-      {
-        items: [{ to: "/dashboard", label: t("nav.dashboard"), icon: GaugeCircle }]
-      },
-      {
-        title: t("nav.mine"),
-        items: [
-          { to: "/dashboard/upload", label: t("nav.upload"), icon: CloudUpload },
-          { to: "/dashboard/images", label: t("nav.images"), icon: ImageIcon },
-          { to: "/dashboard/settings", label: t("nav.settings"), icon: Settings2 },
-          { to: "/dashboard/notifications", label: t("nav.notifications"), icon: Bell }
-        ]
-      },
-      {
-        title: t("nav.public"),
-        items: [
-          ...(enableGallery
-            ? [{ to: "/dashboard/gallery", label: t("nav.gallery"), icon: Brush }]
-            : []),
-          ...(enableApi
-            ? [
-                { to: "/dashboard/api", label: t("nav.apiDocs"), icon: LinkIcon },
-                { to: "/dashboard/api-tokens", label: t("nav.apiTokens"), icon: Key }
-              ]
-            : []),
-          { to: "/dashboard/about", label: t("nav.about"), icon: Info }
-        ]
-      }
-    ];
-    if (isAdmin) {
-      base.push({
-        title: t("nav.system"),
-        items: [
-          { to: "/dashboard/admin/console", label: t("nav.console"), icon: Activity },
-          { to: "/dashboard/admin/images", label: t("nav.adminImages"), icon: ImageIcon },
-          { to: "/dashboard/admin/audits", label: t("nav.audits"), icon: ShieldAlert },
-          { to: "/dashboard/admin/groups", label: t("nav.groups"), icon: Users },
-          { to: "/dashboard/admin/users", label: t("nav.users"), icon: Users2 },
-          { to: "/dashboard/admin/strategies", label: t("nav.strategies"), icon: Layers3 },
-          {
-            label: t("nav.systemSettings"),
-            icon: ServerCog,
-            children: [
-              { to: "/dashboard/admin/settings/site", label: t("nav.siteSettings") },
-              { to: "/dashboard/admin/settings/smtp", label: t("nav.smtpSettings") },
-              { to: "/dashboard/admin/settings/system", label: t("nav.systemSettings") },
-              { to: "/dashboard/admin/settings/turnstile", label: t("nav.turnstileSettings") }
-            ]
-          }
-        ]
-      });
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
     }
-    return base;
-  }, [isAdmin, siteConfig, t]);
+    window.localStorage.setItem("skyimage-layout-variant", sidebarVariant);
+  }, [sidebarVariant]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem("skyimage-layout-collapsible", sidebarCollapsible);
+  }, [sidebarCollapsible]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem("skyimage-sidebar-open", String(sidebarOpen));
+  }, [sidebarOpen]);
+
+  const sections = useMemo<NavSection[]>(
+    () => buildNavSections({ t, isAdmin: Boolean(isAdmin || user?.isSuperAdmin), siteConfig }),
+    [isAdmin, siteConfig, t, user?.isSuperAdmin]
+  );
 
   const handleLogout = async () => {
     try {
@@ -308,18 +270,20 @@ export function AppShell() {
   };
 
   return (
-    <SidebarProvider>
-      <Sidebar>
+    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
+      <Sidebar variant={sidebarVariant} collapsible={sidebarCollapsible}>
         <SidebarHeader>
-          <p className="min-h-7 text-lg font-semibold">{siteConfig?.title ?? ""}</p>
-          <p className="min-h-5 text-sm text-muted-foreground">{siteConfig?.description ?? ""}</p>
+          <p className="min-h-7 text-lg font-semibold group-data-[collapsible=icon]:hidden">{siteConfig?.title ?? ""}</p>
+          <p className="min-h-5 text-sm text-muted-foreground group-data-[collapsible=icon]:hidden">{siteConfig?.description ?? ""}</p>
         </SidebarHeader>
         <SidebarContent>
           <SidebarNavSections sections={sections} />
         </SidebarContent>
-        <SidebarFooter className="space-y-3">
-          <CapacityMeter />
-          <div className="relative" ref={accountMenuRef}>
+        <SidebarFooter className="space-y-3 group-data-[collapsible=icon]:space-y-0">
+          <div className="group-data-[collapsible=icon]:hidden">
+            <CapacityMeter />
+          </div>
+          <div className="relative group-data-[collapsible=icon]:hidden" ref={accountMenuRef}>
             <button
               type="button"
               onClick={() => setAccountMenuOpen((prev) => !prev)}
@@ -349,16 +313,31 @@ export function AppShell() {
         </SidebarFooter>
       </Sidebar>
 
-      <SidebarInset>
-        <header className="flex h-14 items-center justify-between border-b bg-background px-3 sm:px-4">
-          <SidebarTrigger className="lg:hidden" />
+      <SidebarInset className="relative flex w-full min-w-0 flex-1 flex-col bg-background md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=floating]:m-3 md:peer-data-[variant=floating]:rounded-xl md:peer-data-[variant=floating]:border md:peer-data-[variant=floating]:border-border md:peer-data-[variant=floating]:shadow-sm">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-4">
+          <div className="flex items-center gap-3">
+            <SidebarTrigger className="md:hidden" />
+          </div>
+          <div className="mx-4 hidden w-full max-w-sm md:block">
+            <Search placeholder={t("search.placeholder")} />
+          </div>
           <div className="ml-auto flex items-center gap-2">
             <LanguageToggle />
             <ThemeToggle />
+            <ConfigDrawer
+              variant={sidebarVariant}
+              setVariant={setSidebarVariant}
+              collapsible={sidebarCollapsible}
+              setCollapsible={setSidebarCollapsible}
+              resetLayoutSettings={() => {
+                setSidebarVariant("inset");
+                setSidebarCollapsible("icon");
+              }}
+            />
           </div>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 lg:p-8">
-          <div key={location.pathname} className="animate-route-switch">
+          <div className="animate-route-switch">
             <Outlet />
           </div>
         </main>

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Turnstile, type TurnstileRef } from "@/components/Turnstile";
 import { fetchTurnstileConfig, loadTurnstileScript } from "@/lib/turnstile";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { PaletteToggle } from "@/components/PaletteToggle";
 import { useI18n } from "@/i18n";
 
 export function ResetPasswordPage() {
@@ -122,8 +123,9 @@ export function ResetPasswordPage() {
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
-      <div className="fixed right-4 top-4 z-10">
+      <div className="fixed right-4 top-4 z-10 flex items-center gap-2">
         <LanguageToggle />
+        <PaletteToggle />
       </div>
       <div className="w-full max-w-sm">
         <Card>

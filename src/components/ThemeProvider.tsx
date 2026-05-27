@@ -1,5 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
+import {
+  defaultThemePalette,
+  isThemePalette,
+  type ThemePalette
+} from "@/lib/theme-palettes";
 import { useAuthStore } from "@/state/auth";
 
 type Theme = "light" | "dark" | "system";
@@ -7,16 +12,21 @@ type Theme = "light" | "dark" | "system";
 type ThemeContextValue = {
   theme: Theme;
   resolvedTheme: "light" | "dark";
+  palette: ThemePalette;
   setTheme: (theme: Theme) => void;
+  setPalette: (palette: ThemePalette) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue>({
   theme: "system",
   resolvedTheme: "light",
-  setTheme: () => {}
+  palette: defaultThemePalette,
+  setTheme: () => {},
+  setPalette: () => {}
 });
 
 const storageKey = "skyimage-theme";
+const paletteStorageKey = "skyimage-theme-palette";
 
 const readStoredTheme = (): Theme | null => {
   if (typeof window === "undefined") return null;
@@ -27,6 +37,12 @@ const readStoredTheme = (): Theme | null => {
   return null;
 };
 
+const readStoredPalette = (): ThemePalette => {
+  if (typeof window === "undefined") return defaultThemePalette;
+  const value = window.localStorage.getItem(paletteStorageKey);
+  return isThemePalette(value) ? value : defaultThemePalette;
+};
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const userTheme = useAuthStore((state) => state.user?.themePreference as Theme | undefined);
   
@@ -35,6 +51,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Don't use stored theme on initial load, wait for user theme
     return "system";
   });
+  const [palette, setPaletteState] = useState<ThemePalette>(readStoredPalette);
   
   const [systemTheme, setSystemTheme] = useState<"light" | "dark">(() => {
     if (typeof window === "undefined") {
@@ -82,18 +99,32 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     root.style.colorScheme = resolvedTheme;
   }, [resolvedTheme]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const root = document.documentElement;
+    root.dataset.palette = palette;
+    window.localStorage.setItem(paletteStorageKey, palette);
+  }, [palette]);
+
   const value = useMemo(
     () => ({
       theme,
       resolvedTheme,
+      palette,
       setTheme: (next: Theme) => {
         setThemeState(next);
         if (typeof window !== "undefined") {
           window.localStorage.setItem(storageKey, next);
         }
+      },
+      setPalette: (next: ThemePalette) => {
+        setPaletteState(next);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(paletteStorageKey, next);
+        }
       }
     }),
-    [theme, resolvedTheme]
+    [theme, resolvedTheme, palette]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

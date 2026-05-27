@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RegisterForm } from "@/components/register-form";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { PaletteToggle } from "@/components/PaletteToggle";
 import { useI18n } from "@/i18n";
 
 export function RegisterPage() {
@@ -53,8 +54,9 @@ export function RegisterPage() {
   if (statusError || !registrationStatus?.allowed) {
     return (
       <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
-        <div className="fixed right-4 top-4 z-10">
+        <div className="fixed right-4 top-4 z-10 flex items-center gap-2">
           <LanguageToggle />
+          <PaletteToggle />
         </div>
         <div className="flex w-full max-w-sm flex-col gap-6">
           <a href="/" className="self-center font-medium text-xl">
@@ -80,8 +82,9 @@ export function RegisterPage() {
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
-      <div className="fixed right-4 top-4 z-10">
+      <div className="fixed right-4 top-4 z-10 flex items-center gap-2">
         <LanguageToggle />
+        <PaletteToggle />
       </div>
       <div className="flex w-full max-w-sm flex-col gap-6">
         <a href="/" className="self-center font-medium text-xl">

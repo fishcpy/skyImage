@@ -3,6 +3,7 @@ import { ArrowRight, Images, Lock, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { PaletteToggle } from "@/components/PaletteToggle";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ export function HomePage({ siteConfig }: { siteConfig?: SiteConfig }) {
         </div>
         <div className="flex items-center gap-2">
           <LanguageToggle />
+          <PaletteToggle />
           <ThemeToggle />
         </div>
       </header>

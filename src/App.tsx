@@ -40,9 +40,11 @@ import { TermsPage } from "@/features/legal/TermsPage";
 import { PrivacyPage } from "@/features/legal/PrivacyPage";
 import { AdminRoute } from "@/components/AdminRoute";
 import { SiteMetaWatcher } from "@/components/SiteMetaWatcher";
+import { NavigationProgress } from "@/components/NavigationProgress";
 import { Button } from "@/components/ui/button";
 import { NotFoundPage } from "@/features/misc/NotFoundPage";
 import { HomePage } from "@/features/home/HomePage";
+import { SearchProvider } from "@/context/search-provider";
 import { useI18n } from "@/i18n";
 
 const noIndexPaths = [
@@ -145,6 +147,7 @@ export default function App() {
 
   return (
     <>
+      <NavigationProgress />
       <SiteMetaWatcher active={Boolean(installed)} />
       <NoIndexMetaWatcher />
       <Routes>
@@ -158,7 +161,7 @@ export default function App() {
         {installed && <Route path="/" element={<HomeEntry />} />}
         {installed && (
           <Route element={<ProtectedRoute />}>
-            <Route path="/dashboard/*" element={<AppShell />}>
+            <Route path="/dashboard/*" element={<SearchProvider><AppShell /></SearchProvider>}>
               <Route index element={<DashboardPage />} />
               <Route path="upload" element={<UploadPage />} />
               <Route path="images" element={<MyImagesPage />} />

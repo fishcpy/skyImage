@@ -46,7 +46,7 @@ const normalizeUser = (user: any): User | null => {
     name: user.name,
     email: user.email,
     url: typeof user.url === "string" ? user.url : "",
-    isAdmin: user.isAdmin ?? user.is_adminer ?? user.IsAdmin ?? false,
+    isAdmin: user.isAdmin ?? user.is_admin ?? user.is_adminer ?? user.IsAdmin ?? false,
     isSuperAdmin:
       user.isSuperAdmin ??
       user.is_super_admin ??
