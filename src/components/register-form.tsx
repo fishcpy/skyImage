@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -329,7 +329,7 @@ export function RegisterForm({
                   {mutation.isPending ? t("register.submitting") : t("register.submit")}
                 </Button>
                 <FieldDescription className="text-center">
-                  {t("register.hasAccount")} <a href="/login" className="text-primary hover:underline">{t("register.loginNow")}</a>
+                  {t("register.hasAccount")} <Link to="/login" className="text-primary hover:underline">{t("register.loginNow")}</Link>
                 </FieldDescription>
               </Field>
             </FieldGroup>
@@ -337,8 +337,8 @@ export function RegisterForm({
         </CardContent>
       </Card>
       <FieldDescription className="px-6 text-center">
-        {t("legal.continuePrefix")} <a href="/terms" className="underline hover:text-primary">{t("legal.terms")}</a>{" "}
-        {t("legal.and")} <a href="/privacy" className="underline hover:text-primary">{t("legal.privacy")}</a>{t("legal.period")}
+        {t("legal.continuePrefix")} <Link to="/terms" className="underline hover:text-primary">{t("legal.terms")}</Link>{" "}
+        {t("legal.and")} <Link to="/privacy" className="underline hover:text-primary">{t("legal.privacy")}</Link>{t("legal.period")}
       </FieldDescription>
     </div>
   );

@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 import { fetchSiteConfig } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { useMemo } from "react";
 import { useI18n } from "@/i18n";
+import { PublicTopNav } from "@/components/PublicTopNav";
 
 export function PrivacyPage() {
   const { t } = useI18n();
@@ -13,6 +13,7 @@ export function PrivacyPage() {
     queryKey: ["site-config"],
     queryFn: fetchSiteConfig,
   });
+  const siteName = siteConfig?.title;
 
   const privacyContent = useMemo(() => {
     const content = siteConfig?.privacyPolicy || "";
@@ -25,38 +26,45 @@ export function PrivacyPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30">
-        <Card className="w-full max-w-4xl mx-4">
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">{t("common.loading")}</p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-muted">
+        <PublicTopNav title={siteName} description="" compact />
+        <div className="flex min-h-[calc(100svh-88px)] items-center justify-center px-4 pb-8">
+          <Card className="w-full max-w-4xl mx-4">
+            <CardContent className="pt-6">
+              <div className="flex justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
   if (!privacyContent) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30">
-        <Card className="w-full max-w-4xl mx-4">
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">{t("legal.notConfiguredPrivacy")}</p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-muted">
+        <PublicTopNav title={siteName} description="" compact />
+        <div className="flex min-h-[calc(100svh-88px)] items-center justify-center px-4 pb-8">
+          <Card className="w-full max-w-4xl mx-4">
+            <CardContent className="pt-6">
+              <p className="text-center text-muted-foreground">{t("legal.notConfiguredPrivacy")}</p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-muted/30 py-8 px-4">
+    <div className="min-h-screen bg-muted">
+      <PublicTopNav title={siteName} description={siteConfig?.description || ""} compact />
+      <div className="py-8 px-4">
       <div className="max-w-4xl mx-auto">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-2xl">{t("legal.privacy")}</CardTitle>
-              <Button asChild variant="outline" size="sm">
-                <Link to="/">{t("legal.backHome")}</Link>
-              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -66,6 +74,7 @@ export function PrivacyPage() {
             />
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );

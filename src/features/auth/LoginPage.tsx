@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { Navigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
+import { Link, Navigate } from "react-router-dom";
 
 import { fetchHasUsers, fetchSiteConfig } from "@/lib/api";
 import { useAuthStore } from "@/state/auth";
 import { Button } from "@/components/ui/button";
 import { LoginForm } from "@/components/login-form";
-import { LanguageToggle } from "@/components/LanguageToggle";
-import { PaletteToggle } from "@/components/PaletteToggle";
+import { PublicTopNav } from "@/components/PublicTopNav";
 import { useI18n } from "@/i18n";
 
 export function LoginPage() {
@@ -28,7 +28,7 @@ export function LoginPage() {
     queryFn: fetchSiteConfig,
   });
 
-  const siteName = siteConfig?.title || "SkyImage";
+  const siteName = siteConfig?.title;
 
   if (token) {
     return <Navigate to="/dashboard" replace />;
@@ -51,22 +51,21 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
-      <div className="fixed right-4 top-4 z-10 flex items-center gap-2">
-        <LanguageToggle />
-        <PaletteToggle />
-      </div>
-      <div className="flex w-full max-w-sm flex-col gap-6">
-        <a href="/" className="self-center font-medium text-xl">
-          {siteName}
-        </a>
-        {checkingUsers ? (
-          <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
-            {t("login.page.checking")}
+    <div className="min-h-svh bg-muted">
+      <PublicTopNav title={siteName} description={siteConfig?.description || ""} compact />
+      <div className="flex min-h-[calc(100svh-88px)] flex-col items-center justify-center gap-6 px-6 pb-10 md:px-10">
+        <div className="flex w-full max-w-sm flex-col gap-6">
+          <div className="self-center font-medium text-xl">
+            {siteName ? siteName : <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
           </div>
-        ) : (
-          <LoginForm forgotPasswordEnabled={siteConfig?.forgotPasswordEnabled === true} />
-        )}
+          {checkingUsers ? (
+            <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
+              {t("login.page.checking")}
+            </div>
+          ) : (
+            <LoginForm forgotPasswordEnabled={siteConfig?.forgotPasswordEnabled === true} />
+          )}
+        </div>
       </div>
     </div>
   );

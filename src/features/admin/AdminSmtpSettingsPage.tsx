@@ -211,17 +211,6 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
   siteDescription: "",
   siteSlogan: "",
   siteLogo: "",
-  homeBadgeText: "",
-  homeIntroText: "",
-  homePrimaryCtaText: "",
-  homeDashboardCtaText: "",
-  homeSecondaryCtaText: "",
-  homeFeature1Title: "",
-  homeFeature1Desc: "",
-  homeFeature2Title: "",
-  homeFeature2Desc: "",
-  homeFeature3Title: "",
-  homeFeature3Desc: "",
   about: "",
   aboutTitle: "",
   notFoundMode: "template",
@@ -230,6 +219,8 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
   notFoundHtml: "",
   termsOfService: "",
   privacyPolicy: "",
+  homePageMode: "default",
+  homeCustomHtml: "",
   enableGallery: true,
   enableHome: true,
   enableApi: true,
@@ -365,7 +356,14 @@ export function AdminSmtpSettingsPage() {
   }, [data]);
 
   const mutation = useMutation({
-    mutationFn: (input: SystemSettingsInput) => updateSystemSettings(normalizeTemplateFieldsForSave(input)),
+    mutationFn: async (input: SystemSettingsInput) => {
+      const latest = await fetchSystemSettings();
+      const merged = { ...latest } as SystemSettingsInput;
+      for (const key of smtpFields) {
+        merged[key] = input[key] as never;
+      }
+      await updateSystemSettings(normalizeTemplateFieldsForSave(merged));
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "system-settings"] });
       queryClient.invalidateQueries({ queryKey: ["site-config"] });

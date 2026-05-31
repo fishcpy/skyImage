@@ -185,18 +185,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   refreshUser: async () => {
     const token = get().token;
     if (!token) {
-      console.log('[Auth] No token, skipping refresh');
       return;
     }
     
-    console.log('[Auth] Refreshing user...');
     try {
       const userData = await fetchProfile();
-      console.log('[Auth] Fetched user data:', userData);
       const normalizedUser = normalizeUser(userData);
-      console.log('[Auth] Normalized user:', normalizedUser);
       if (!normalizedUser) {
-        console.warn('[Auth] Missing normalized user, clearing session');
         get().clear();
         return;
       }
@@ -207,9 +202,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           JSON.stringify({ token, user: normalizedUser })
         );
       }
-      console.log('[Auth] User refreshed successfully');
     } catch (error) {
-      console.error('[Auth] Failed to refresh user:', error);
       const status = (error as any)?.status;
       const message = (error as Error)?.message?.toLowerCase?.();
       if (status === 401) {

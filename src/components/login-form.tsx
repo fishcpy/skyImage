@@ -166,7 +166,7 @@ export function LoginForm({
                   {mutation.isPending ? t("login.submitting") : t("login.submit")}
                 </Button>
                 <FieldDescription className="text-center">
-                  {t("login.noAccount")} <a href="/register" className="text-primary hover:underline">{t("login.registerNow")}</a>
+                  {t("login.noAccount")} <Link to="/register" className="text-primary hover:underline">{t("login.registerNow")}</Link>
                 </FieldDescription>
               </Field>
             </FieldGroup>
@@ -174,8 +174,8 @@ export function LoginForm({
         </CardContent>
       </Card>
       <FieldDescription className="px-6 text-center">
-        {t("legal.continuePrefix")} <a href="/terms" className="underline hover:text-primary">{t("legal.terms")}</a>{" "}
-        {t("legal.and")} <a href="/privacy" className="underline hover:text-primary">{t("legal.privacy")}</a>{t("legal.period")}
+        {t("legal.continuePrefix")} <Link to="/terms" className="underline hover:text-primary">{t("legal.terms")}</Link>{" "}
+        {t("legal.and")} <Link to="/privacy" className="underline hover:text-primary">{t("legal.privacy")}</Link>{t("legal.period")}
       </FieldDescription>
     </div>
   );

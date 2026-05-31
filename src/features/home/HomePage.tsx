@@ -1,16 +1,31 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Images, Lock, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  Database,
+  Images,
+  KeyRound,
+  Lock,
+  Server,
+  ShieldCheck,
+  Sparkles
+} from "lucide-react";
 import { Link } from "react-router-dom";
 
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { PaletteToggle } from "@/components/PaletteToggle";
-import { LanguageToggle } from "@/components/LanguageToggle";
+import { PublicTopNav } from "@/components/PublicTopNav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { fetchRegistrationStatus, type SiteConfig } from "@/lib/api";
 import { useAuthStore } from "@/state/auth";
 import { useI18n } from "@/i18n";
+
+const homeSectionAnimation = [
+  "animate-enter animate-enter-1",
+  "animate-enter animate-enter-2"
+];
+
+
 
 export function HomePage({ siteConfig }: { siteConfig?: SiteConfig }) {
   const { t } = useI18n();
@@ -25,47 +40,62 @@ export function HomePage({ siteConfig }: { siteConfig?: SiteConfig }) {
   const title = siteConfig?.title ?? "";
   const description = siteConfig?.description ?? "";
   const slogan = siteConfig?.slogan?.trim() ?? "";
-  const badgeText = siteConfig?.homeBadgeText?.trim() || t("home.defaultBadge");
-  const introText = siteConfig?.homeIntroText?.trim() || t("home.defaultIntro");
-  const primaryCtaText = siteConfig?.homePrimaryCtaText?.trim() || t("home.defaultPrimaryCta");
-  const dashboardCtaText = siteConfig?.homeDashboardCtaText?.trim() || t("home.defaultDashboardCta");
-  const secondaryCtaText = siteConfig?.homeSecondaryCtaText?.trim() || t("home.defaultSecondaryCta");
-  const feature1Title = siteConfig?.homeFeature1Title?.trim() || t("home.defaultFeature1Title");
-  const feature1Desc = siteConfig?.homeFeature1Desc?.trim() || t("home.defaultFeature1Desc");
-  const feature2Title = siteConfig?.homeFeature2Title?.trim() || t("home.defaultFeature2Title");
-  const feature2Desc = siteConfig?.homeFeature2Desc?.trim() || t("home.defaultFeature2Desc");
-  const feature3Title = siteConfig?.homeFeature3Title?.trim() || t("home.defaultFeature3Title");
-  const feature3Desc = siteConfig?.homeFeature3Desc?.trim() || t("home.defaultFeature3Desc");
+  const homePageMode = siteConfig?.homePageMode ?? "default";
+  const homeCustomHtml = siteConfig?.homeCustomHtml ?? "";
+
+  if (homePageMode === "custom_html" && homeCustomHtml.trim() !== "") {
+    return (
+      <div className="relative min-h-screen">
+        <PublicTopNav title={title} description={description} compact floating />
+        <main className="min-h-screen" dangerouslySetInnerHTML={{ __html: homeCustomHtml }} />
+      </div>
+    );
+  }
+
+  const badgeText = t("home.defaultBadge");
+  const introText = t("home.defaultIntro");
+  const highlightTitle = t("home.defaultHighlightTitle");
+  const highlightDesc = t("home.defaultHighlightDesc");
+  const primaryCtaText = t("home.defaultPrimaryCta");
+  const dashboardCtaText = t("home.defaultDashboardCta");
+  const secondaryCtaText = t("home.defaultSecondaryCta");
+  const feature1Title = t("home.defaultFeature1Title");
+  const feature1Desc = t("home.defaultFeature1Desc");
+  const feature2Title = t("home.defaultFeature2Title");
+  const feature2Desc = t("home.defaultFeature2Desc");
+  const feature3Title = t("home.defaultFeature3Title");
+  const feature3Desc = t("home.defaultFeature3Desc");
+  const feature4Title = t("home.defaultFeature4Title");
+  const feature4Desc = t("home.defaultFeature4Desc");
+  const sceneTitle = t("home.defaultSceneTitle");
+  const sceneItems = [t("home.defaultScene1"), t("home.defaultScene2"), t("home.defaultScene3")];
   const displaySlogan = slogan || t("home.defaultSlogan");
 
-  return (
-    <div className="relative min-h-screen overflow-hidden bg-background">
-      <div className="pointer-events-none absolute inset-0 -z-10 animate-float-slow bg-[radial-gradient(circle_at_15%_15%,hsl(var(--primary)/0.12),transparent_38%),radial-gradient(circle_at_90%_70%,hsl(var(--muted-foreground)/0.1),transparent_45%)]" />
-      <header className="mx-auto flex w-full max-w-6xl animate-enter items-center justify-between px-4 py-6 sm:px-8">
-        <div>
-          <p className="text-xl font-semibold">{title}</p>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <LanguageToggle />
-          <PaletteToggle />
-          <ThemeToggle />
-        </div>
-      </header>
+  const featureCards = [
+    { icon: Images, title: feature1Title, desc: feature1Desc },
+    { icon: Lock, title: feature2Title, desc: feature2Desc },
+    { icon: Sparkles, title: feature3Title, desc: feature3Desc },
+    { icon: ShieldCheck, title: feature4Title, desc: feature4Desc }
+  ];
 
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 pb-16 pt-6 sm:px-8">
-        <Badge variant="secondary" className="animate-enter animate-enter-1 w-fit">
-          <Sparkles className="mr-1 h-3.5 w-3.5" />
-          {badgeText}
-        </Badge>
-        <section className="max-w-3xl animate-enter animate-enter-2 space-y-5">
-          <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-6xl">
+  return (
+    <div className="flex min-h-screen flex-col bg-muted">
+      <PublicTopNav title={title} description={description} compact />
+
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 pb-20 pt-6 sm:px-8">
+        <section className={homeSectionAnimation[0]}>
+          <Badge variant="secondary" className="mb-4 w-fit">
+            <Sparkles className="mr-1 h-3.5 w-3.5" />
+            {badgeText}
+          </Badge>
+
+          <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-6xl lg:text-7xl">
             {displaySlogan}
           </h1>
-          <p className="text-base text-muted-foreground sm:text-lg">
-            {introText}
-          </p>
-          <div className="flex flex-wrap gap-3">
+
+          <p className="mt-4 max-w-4xl text-base text-muted-foreground sm:text-lg">{introText}</p>
+
+          <div className="mt-5 flex flex-wrap gap-3">
             <Button asChild size="lg" className="gap-2">
               <Link to={token ? "/dashboard" : "/login"}>
                 {token ? dashboardCtaText : primaryCtaText}
@@ -78,32 +108,42 @@ export function HomePage({ siteConfig }: { siteConfig?: SiteConfig }) {
               </Button>
             )}
           </div>
+
         </section>
 
-        <section className="grid gap-4 animate-enter animate-enter-3 md:grid-cols-3">
-          <Card className="transition-transform duration-300 hover:-translate-y-1 hover:shadow-lg">
-            <CardContent className="space-y-2 p-5">
-              <Images className="h-5 w-5 text-primary animate-gentle-pulse" />
-              <p className="text-sm font-medium">{feature1Title}</p>
-              <p className="text-sm text-muted-foreground">{feature1Desc}</p>
-            </CardContent>
-          </Card>
-          <Card className="transition-transform duration-300 hover:-translate-y-1 hover:shadow-lg">
-            <CardContent className="space-y-2 p-5">
-              <Lock className="h-5 w-5 text-primary" />
-              <p className="text-sm font-medium">{feature2Title}</p>
-              <p className="text-sm text-muted-foreground">{feature2Desc}</p>
-            </CardContent>
-          </Card>
-          <Card className="transition-transform duration-300 hover:-translate-y-1 hover:shadow-lg">
-            <CardContent className="space-y-2 p-5">
-              <Sparkles className="h-5 w-5 text-primary" />
-              <p className="text-sm font-medium">{feature3Title}</p>
-              <p className="text-sm text-muted-foreground">{feature3Desc}</p>
-            </CardContent>
-          </Card>
+        <section className={`${homeSectionAnimation[1]} grid gap-4 md:grid-cols-2`}>
+          {featureCards.map((feature, index) => (
+            <Card key={feature.title} className="transition-shadow duration-300 hover:shadow-lg">
+              <CardContent className="space-y-2 p-5">
+                <feature.icon className="h-5 w-5 text-primary" />
+                <p className="text-sm font-medium">{feature.title}</p>
+                <p className="text-sm text-muted-foreground">{feature.desc}</p>
+                <p className="text-xs text-muted-foreground/70">0{index + 1}</p>
+              </CardContent>
+            </Card>
+          ))}
         </section>
       </main>
+
+      <footer className="border-t bg-card/60">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6 sm:px-8">
+          <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <p className="font-medium text-foreground">{title.trim() || "SkyImage"}</p>
+            <p>{description.trim() || "Image hosting platform"}</p>
+          </div>
+          <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <p>© {new Date().getFullYear()} {title.trim() || "SkyImage"}</p>
+            <div className="flex gap-4">
+              <Link to="/privacy" className="hover:text-foreground transition-colors">
+                隐私政策
+              </Link>
+              <Link to="/terms" className="hover:text-foreground transition-colors">
+                服务条款
+              </Link>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

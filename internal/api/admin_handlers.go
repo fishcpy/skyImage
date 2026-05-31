@@ -594,17 +594,6 @@ type systemSettingsPayload struct {
 	SiteDescription                      string `json:"siteDescription"`
 	SiteSlogan                           string `json:"siteSlogan"`
 	SiteLogo                             string `json:"siteLogo"`
-	HomeBadgeText                        string `json:"homeBadgeText"`
-	HomeIntroText                        string `json:"homeIntroText"`
-	HomePrimaryCtaText                   string `json:"homePrimaryCtaText"`
-	HomeDashboardCtaText                 string `json:"homeDashboardCtaText"`
-	HomeSecondaryCtaText                 string `json:"homeSecondaryCtaText"`
-	HomeFeature1Title                    string `json:"homeFeature1Title"`
-	HomeFeature1Desc                     string `json:"homeFeature1Desc"`
-	HomeFeature2Title                    string `json:"homeFeature2Title"`
-	HomeFeature2Desc                     string `json:"homeFeature2Desc"`
-	HomeFeature3Title                    string `json:"homeFeature3Title"`
-	HomeFeature3Desc                     string `json:"homeFeature3Desc"`
 	About                                string `json:"about"`
 	AboutTitle                           string `json:"aboutTitle"`
 	NotFoundMode                         string `json:"notFoundMode"`
@@ -613,6 +602,8 @@ type systemSettingsPayload struct {
 	NotFoundHtml                         string `json:"notFoundHtml"`
 	TermsOfService                       string `json:"termsOfService"`
 	PrivacyPolicy                        string `json:"privacyPolicy"`
+	HomePageMode                         string `json:"homePageMode"`
+	HomeCustomHTML                       string `json:"homeCustomHtml"`
 	EnableGallery                        bool   `json:"enableGallery"`
 	EnableHome                           bool   `json:"enableHome"`
 	EnableApi                            bool   `json:"enableApi"`
@@ -697,6 +688,14 @@ func (s *Server) handleAdminSystemSettings(c *gin.Context) {
 	if strings.TrimSpace(disabledNotice) == "" {
 		disabledNotice = defaultAccountDisabledNotice
 	}
+	homePageMode := strings.TrimSpace(settings["site.home_page_mode"])
+	if homePageMode != "custom_html" {
+		homePageMode = "default"
+	}
+	homeCustomHTML := ""
+	if homePageMode == "custom_html" {
+		homeCustomHTML = settings["site.home_custom_html"]
+	}
 	payload := systemSettingsResponse{
 		systemSettingsPayload: systemSettingsPayload{
 			SiteTitle:                            settings["site.title"],
@@ -704,17 +703,6 @@ func (s *Server) handleAdminSystemSettings(c *gin.Context) {
 			SiteDescription:                      settings["site.description"],
 			SiteSlogan:                           settings["site.slogan"],
 			SiteLogo:                             settings["site.logo"],
-			HomeBadgeText:                        settings["home.badge_text"],
-			HomeIntroText:                        settings["home.intro_text"],
-			HomePrimaryCtaText:                   settings["home.primary_cta_text"],
-			HomeDashboardCtaText:                 settings["home.dashboard_cta_text"],
-			HomeSecondaryCtaText:                 settings["home.secondary_cta_text"],
-			HomeFeature1Title:                    settings["home.feature1_title"],
-			HomeFeature1Desc:                     settings["home.feature1_desc"],
-			HomeFeature2Title:                    settings["home.feature2_title"],
-			HomeFeature2Desc:                     settings["home.feature2_desc"],
-			HomeFeature3Title:                    settings["home.feature3_title"],
-			HomeFeature3Desc:                     settings["home.feature3_desc"],
 			About:                                settings["site.about"],
 			AboutTitle:                           settings["site.about_title"],
 			NotFoundMode:                         settings["site.notfound_mode"],
@@ -723,6 +711,8 @@ func (s *Server) handleAdminSystemSettings(c *gin.Context) {
 			NotFoundHtml:                         settings["site.notfound_html"],
 			TermsOfService:                       settings["site.terms_of_service"],
 			PrivacyPolicy:                        settings["site.privacy_policy"],
+			HomePageMode:                         homePageMode,
+			HomeCustomHTML:                       homeCustomHTML,
 			EnableGallery:                        settings["features.gallery"] != "false",
 			EnableHome:                           settings["features.home"] != "false",
 			EnableApi:                            settings["features.api"] != "false",
@@ -794,7 +784,13 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 		turnstileSecretKey = settings["turnstile.secret_key"]
 	}
 	newSignature := turnstile.GenerateSignature(payload.TurnstileSiteKey, turnstileSecretKey)
-	if payload.EnableTurnstile {
+	currentTurnstileEnabled := settings["turnstile.enabled"] == "true"
+	currentTurnstileSiteKey := settings["turnstile.site_key"]
+	currentTurnstileSecretKey := settings["turnstile.secret_key"]
+	turnstileConfigChanged := payload.TurnstileSiteKey != currentTurnstileSiteKey || turnstileSecretKey != currentTurnstileSecretKey
+	enablingTurnstileNow := payload.EnableTurnstile && !currentTurnstileEnabled
+	requireTurnstileVerification := payload.EnableTurnstile && (enablingTurnstileNow || turnstileConfigChanged)
+	if requireTurnstileVerification {
 		if payload.TurnstileSiteKey == "" || turnstileSecretKey == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "启用 Turnstile 时必须填写 Site Key 和 Secret Key"})
 			return
@@ -808,6 +804,14 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 	if notice == "" {
 		notice = defaultAccountDisabledNotice
 	}
+	homePageMode := strings.TrimSpace(payload.HomePageMode)
+	if homePageMode != "custom_html" {
+		homePageMode = "default"
+	}
+	homeCustomHTML := ""
+	if homePageMode == "custom_html" {
+		homeCustomHTML = payload.HomeCustomHTML
+	}
 	adminDeleteReason := notifications.NormalizeAdminDeleteReason(payload.AdminImageDeleteDefaultReason)
 	systemAutoDeleteReason := notifications.NormalizeSystemAutoDeleteReason(payload.SystemAutoDeleteDefaultReason)
 	values := map[string]string{
@@ -816,17 +820,6 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 		"site.description":                         payload.SiteDescription,
 		"site.slogan":                              payload.SiteSlogan,
 		"site.logo":                                payload.SiteLogo,
-		"home.badge_text":                          payload.HomeBadgeText,
-		"home.intro_text":                          payload.HomeIntroText,
-		"home.primary_cta_text":                    payload.HomePrimaryCtaText,
-		"home.dashboard_cta_text":                  payload.HomeDashboardCtaText,
-		"home.secondary_cta_text":                  payload.HomeSecondaryCtaText,
-		"home.feature1_title":                      payload.HomeFeature1Title,
-		"home.feature1_desc":                       payload.HomeFeature1Desc,
-		"home.feature2_title":                      payload.HomeFeature2Title,
-		"home.feature2_desc":                       payload.HomeFeature2Desc,
-		"home.feature3_title":                      payload.HomeFeature3Title,
-		"home.feature3_desc":                       payload.HomeFeature3Desc,
 		"site.about":                               payload.About,
 		"site.about_title":                         payload.AboutTitle,
 		"site.notfound_mode":                       payload.NotFoundMode,
@@ -835,6 +828,8 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 		"site.notfound_html":                       payload.NotFoundHtml,
 		"site.terms_of_service":                    payload.TermsOfService,
 		"site.privacy_policy":                      payload.PrivacyPolicy,
+		"site.home_page_mode":                      homePageMode,
+		"site.home_custom_html":                    homeCustomHTML,
 		"features.gallery":                         strconv.FormatBool(payload.EnableGallery),
 		"features.home":                            strconv.FormatBool(payload.EnableHome),
 		"features.api":                             strconv.FormatBool(payload.EnableApi),

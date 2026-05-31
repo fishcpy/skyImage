@@ -82,7 +82,14 @@ export function AdminTurnstileSettingsPage() {
   }, [data]);
 
   const mutation = useMutation({
-    mutationFn: (input: SystemSettingsInput) => updateSystemSettings(input),
+    mutationFn: async (input: typeof form) => {
+      const latest = await fetchSystemSettings();
+      const next: SystemSettingsInput = {
+        ...latest,
+        ...input
+      };
+      await updateSystemSettings(next);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["site-config"] });
       queryClient.invalidateQueries({ queryKey: ["site-meta"] });
@@ -185,11 +192,7 @@ export function AdminTurnstileSettingsPage() {
     : false;
 
   const handleSave = () => {
-    if (!data) return;
-    mutation.mutate({
-      ...data,
-      ...form
-    });
+    mutation.mutate(form);
   };
 
   return (

@@ -12,7 +12,11 @@ import { useAuthStore } from "@/state/auth";
 import { updateAccountProfile } from "@/lib/api";
 import { useI18n } from "@/i18n";
 
-export function ThemeToggle() {
+type ThemeToggleProps = {
+  iconOnly?: boolean;
+};
+
+export function ThemeToggle({ iconOnly = false }: ThemeToggleProps) {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const user = useAuthStore((state) => state.user);
   const { t } = useI18n();
@@ -45,9 +49,12 @@ export function ThemeToggle() {
 
   return (
     <Select value={currentValue} onValueChange={handleThemeChange}>
-      <SelectTrigger className="h-9 w-[140px] gap-2 px-3">
-        <Icon className="h-4 w-4 text-muted-foreground" />
-        <SelectValue placeholder={t("theme.placeholder")} />
+      <SelectTrigger
+        className={iconOnly ? "h-9 w-9 justify-center px-0 border-0 shadow-none" : "h-9 w-[140px] gap-2 px-3"}
+        aria-label={t("theme.placeholder")}
+      >
+        <Icon className="h-4 w-4" />
+        {!iconOnly ? <SelectValue placeholder={t("theme.placeholder")} /> : null}
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="system">{t("theme.system")}</SelectItem>

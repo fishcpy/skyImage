@@ -39,23 +39,20 @@ func (s *Server) handleSiteConfig(c *gin.Context) {
 	if strings.TrimSpace(aboutText) == "" {
 		aboutText = status.About
 	}
+	homePageMode := strings.TrimSpace(settings["site.home_page_mode"])
+	if homePageMode != "custom_html" {
+		homePageMode = "default"
+	}
+	homeCustomHTML := ""
+	if homePageMode == "custom_html" {
+		homeCustomHTML = settings["site.home_custom_html"]
+	}
 
 	response := gin.H{
 		"title":                          settings["site.title"],
 		"description":                    settings["site.description"],
 		"slogan":                         settings["site.slogan"],
 		"logo":                           settings["site.logo"],
-		"homeBadgeText":                  settings["home.badge_text"],
-		"homeIntroText":                  settings["home.intro_text"],
-		"homePrimaryCtaText":             settings["home.primary_cta_text"],
-		"homeDashboardCtaText":           settings["home.dashboard_cta_text"],
-		"homeSecondaryCtaText":           settings["home.secondary_cta_text"],
-		"homeFeature1Title":              settings["home.feature1_title"],
-		"homeFeature1Desc":               settings["home.feature1_desc"],
-		"homeFeature2Title":              settings["home.feature2_title"],
-		"homeFeature2Desc":               settings["home.feature2_desc"],
-		"homeFeature3Title":              settings["home.feature3_title"],
-		"homeFeature3Desc":               settings["home.feature3_desc"],
 		"about":                          aboutText,
 		"aboutTitle":                     settings["site.about_title"],
 		"notFoundMode":                   settings["site.notfound_mode"],
@@ -64,6 +61,8 @@ func (s *Server) handleSiteConfig(c *gin.Context) {
 		"notFoundHtml":                   settings["site.notfound_html"],
 		"termsOfService":                 settings["site.terms_of_service"],
 		"privacyPolicy":                  settings["site.privacy_policy"],
+		"homePageMode":                   homePageMode,
+		"homeCustomHtml":                 homeCustomHTML,
 		"enableGallery":                  enableGallery,
 		"enableHome":                     enableHome,
 		"enableApi":                      enableAPI,

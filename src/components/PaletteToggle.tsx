@@ -11,15 +11,22 @@ import { useTheme } from "@/components/ThemeProvider";
 import { useI18n } from "@/i18n";
 import { themePalettes } from "@/lib/theme-palettes";
 
-export function PaletteToggle() {
+type PaletteToggleProps = {
+  iconOnly?: boolean;
+};
+
+export function PaletteToggle({ iconOnly = false }: PaletteToggleProps) {
   const { palette, setPalette } = useTheme();
   const { t } = useI18n();
 
   return (
     <Select value={palette} onValueChange={setPalette}>
-      <SelectTrigger className="h-9 w-[148px] gap-2 px-3">
+      <SelectTrigger
+        className={iconOnly ? "h-9 w-9 justify-center px-0 border-0 shadow-none" : "h-9 w-[148px] gap-2 px-3"}
+        aria-label={t("theme.palette.title")}
+      >
         <Palette className="h-4 w-4 text-muted-foreground" />
-        <SelectValue placeholder={t("theme.palette.title")} />
+        {!iconOnly ? <SelectValue placeholder={t("theme.palette.title")} /> : null}
       </SelectTrigger>
       <SelectContent>
         {themePalettes.map((item) => (

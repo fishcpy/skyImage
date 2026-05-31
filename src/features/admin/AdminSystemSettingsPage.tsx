@@ -25,17 +25,6 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
   siteDescription: "",
   siteSlogan: "",
   siteLogo: "",
-  homeBadgeText: "",
-  homeIntroText: "",
-  homePrimaryCtaText: "",
-  homeDashboardCtaText: "",
-  homeSecondaryCtaText: "",
-  homeFeature1Title: "",
-  homeFeature1Desc: "",
-  homeFeature2Title: "",
-  homeFeature2Desc: "",
-  homeFeature3Title: "",
-  homeFeature3Desc: "",
   about: "",
   aboutTitle: "",
   notFoundMode: "template",
@@ -44,6 +33,8 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
   notFoundHtml: "",
   termsOfService: "",
   privacyPolicy: "",
+  homePageMode: "default",
+  homeCustomHtml: "",
   enableGallery: true,
   enableHome: true,
   enableApi: true,
@@ -114,7 +105,17 @@ export function AdminSystemSettingsPage() {
   }, [data]);
 
   const mutation = useMutation({
-    mutationFn: updateSystemSettings,
+    mutationFn: async (input: SystemSettingsInput) => {
+      const latest = await fetchSystemSettings();
+      const next: SystemSettingsInput = {
+        ...latest,
+        imageLoadRows: input.imageLoadRows,
+        userNotificationLimit: input.userNotificationLimit,
+        adminImageDeleteDefaultReason: input.adminImageDeleteDefaultReason,
+        systemAutoDeleteDefaultReason: input.systemAutoDeleteDefaultReason
+      };
+      await updateSystemSettings(next);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["site-config"] });
       queryClient.invalidateQueries({ queryKey: ["site-meta"] });

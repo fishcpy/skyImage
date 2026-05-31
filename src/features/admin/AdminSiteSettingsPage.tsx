@@ -35,17 +35,6 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
   siteDescription: "",
   siteSlogan: "",
   siteLogo: "",
-  homeBadgeText: "",
-  homeIntroText: "",
-  homePrimaryCtaText: "",
-  homeDashboardCtaText: "",
-  homeSecondaryCtaText: "",
-  homeFeature1Title: "",
-  homeFeature1Desc: "",
-  homeFeature2Title: "",
-  homeFeature2Desc: "",
-  homeFeature3Title: "",
-  homeFeature3Desc: "",
   about: "",
   aboutTitle: "",
   notFoundMode: "template",
@@ -54,6 +43,8 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
   notFoundHtml: "",
   termsOfService: "",
   privacyPolicy: "",
+  homePageMode: "default",
+  homeCustomHtml: "",
   enableGallery: true,
   enableHome: true,
   enableApi: true,
@@ -99,17 +90,6 @@ const siteFields: (keyof SystemSettingsInput)[] = [
   "siteDescription",
   "siteSlogan",
   "siteLogo",
-  "homeBadgeText",
-  "homeIntroText",
-  "homePrimaryCtaText",
-  "homeDashboardCtaText",
-  "homeSecondaryCtaText",
-  "homeFeature1Title",
-  "homeFeature1Desc",
-  "homeFeature2Title",
-  "homeFeature2Desc",
-  "homeFeature3Title",
-  "homeFeature3Desc",
   "about",
   "aboutTitle",
   "notFoundMode",
@@ -118,6 +98,8 @@ const siteFields: (keyof SystemSettingsInput)[] = [
   "notFoundHtml",
   "termsOfService",
   "privacyPolicy",
+  "homePageMode",
+  "homeCustomHtml",
   "enableGallery",
   "enableHome",
   "enableApi",
@@ -154,7 +136,14 @@ export function AdminSiteSettingsPage() {
   }, [data]);
 
   const mutation = useMutation({
-    mutationFn: updateSystemSettings,
+    mutationFn: async (input: SystemSettingsInput) => {
+      const latest = await fetchSystemSettings();
+      const merged = { ...latest } as SystemSettingsInput;
+      for (const key of siteFields) {
+        merged[key] = input[key] as never;
+      }
+      await updateSystemSettings(merged);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["site-config"] });
       queryClient.invalidateQueries({ queryKey: ["site-meta"] });
@@ -246,93 +235,6 @@ export function AdminSiteSettingsPage() {
             </p>
           </div>
           <div className="space-y-2">
-            <Label>{t("admin.siteSettings.homeBadge")}</Label>
-            <Input
-              value={form.homeBadgeText}
-              onChange={(e) => handleChange("homeBadgeText", e.target.value)}
-              placeholder={t("admin.siteSettings.homeBadgePlaceholder")}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>{t("admin.siteSettings.homeIntro")}</Label>
-            <Textarea
-              value={form.homeIntroText}
-              onChange={(e) => handleChange("homeIntroText", e.target.value)}
-              rows={3}
-              placeholder={t("admin.siteSettings.homeIntroPlaceholder")}
-            />
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>{t("admin.siteSettings.homePrimaryCta")}</Label>
-              <Input
-                value={form.homePrimaryCtaText}
-                onChange={(e) => handleChange("homePrimaryCtaText", e.target.value)}
-                placeholder={t("admin.siteSettings.homePrimaryCtaPlaceholder")}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t("admin.siteSettings.homeDashboardCta")}</Label>
-              <Input
-                value={form.homeDashboardCtaText}
-                onChange={(e) => handleChange("homeDashboardCtaText", e.target.value)}
-                placeholder={t("admin.siteSettings.homeDashboardCtaPlaceholder")}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>{t("admin.siteSettings.homeSecondaryCta")}</Label>
-            <Input
-              value={form.homeSecondaryCtaText}
-              onChange={(e) => handleChange("homeSecondaryCtaText", e.target.value)}
-              placeholder={t("admin.siteSettings.homeSecondaryCtaPlaceholder")}
-            />
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>{t("admin.siteSettings.feature1Title")}</Label>
-              <Input
-                value={form.homeFeature1Title}
-                onChange={(e) => handleChange("homeFeature1Title", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t("admin.siteSettings.feature1Desc")}</Label>
-              <Input
-                value={form.homeFeature1Desc}
-                onChange={(e) => handleChange("homeFeature1Desc", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t("admin.siteSettings.feature2Title")}</Label>
-              <Input
-                value={form.homeFeature2Title}
-                onChange={(e) => handleChange("homeFeature2Title", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t("admin.siteSettings.feature2Desc")}</Label>
-              <Input
-                value={form.homeFeature2Desc}
-                onChange={(e) => handleChange("homeFeature2Desc", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t("admin.siteSettings.feature3Title")}</Label>
-              <Input
-                value={form.homeFeature3Title}
-                onChange={(e) => handleChange("homeFeature3Title", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t("admin.siteSettings.feature3Desc")}</Label>
-              <Input
-                value={form.homeFeature3Desc}
-                onChange={(e) => handleChange("homeFeature3Desc", e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
             <Label>{t("admin.siteSettings.aboutTitle")}</Label>
             <Input
               value={form.aboutTitle}
@@ -414,6 +316,42 @@ export function AdminSiteSettingsPage() {
             <p className="text-xs text-muted-foreground">
               {t("admin.siteSettings.legalHint")}
             </p>
+          </div>
+          
+          <div className="space-y-4 rounded-lg border p-4">
+            <div className="space-y-2">
+              <Label>{t("admin.siteSettings.homePageMode")}</Label>
+              <Select
+                value={form.homePageMode}
+                onValueChange={(value) => handleChange("homePageMode", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t("admin.siteSettings.homePageModePlaceholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">{t("admin.siteSettings.homePageModeDefault")}</SelectItem>
+                  <SelectItem value="custom_html">{t("admin.siteSettings.homePageModeCustomHtml")}</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {t("admin.siteSettings.homePageModeHint")}
+              </p>
+            </div>
+
+            {form.homePageMode === "custom_html" && (
+              <div className="space-y-2">
+                <Label>{t("admin.siteSettings.homeCustomHtml")}</Label>
+                <Textarea
+                  rows={10}
+                  value={form.homeCustomHtml}
+                  onChange={(e) => handleChange("homeCustomHtml", e.target.value)}
+                  placeholder={t("admin.siteSettings.homeCustomHtmlPlaceholder")}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("admin.siteSettings.homeCustomHtmlHint")}
+                </p>
+              </div>
+            )}
           </div>
           
           <div className="space-y-4 rounded-lg border p-4">
