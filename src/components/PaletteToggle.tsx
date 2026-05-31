@@ -1,4 +1,5 @@
 import { Palette } from "lucide-react";
+import { useLocation } from "react-router-dom";
 
 import {
   Select,
@@ -18,6 +19,8 @@ type PaletteToggleProps = {
 export function PaletteToggle({ iconOnly = false }: PaletteToggleProps) {
   const { palette, setPalette } = useTheme();
   const { t } = useI18n();
+  const location = useLocation();
+  const isHome = location.pathname === "/";
 
   return (
     <Select value={palette} onValueChange={setPalette}>
@@ -25,7 +28,7 @@ export function PaletteToggle({ iconOnly = false }: PaletteToggleProps) {
         className={iconOnly ? "h-9 w-9 justify-center px-0 border-0 shadow-none" : "h-9 w-[148px] gap-2 px-3"}
         aria-label={t("theme.palette.title")}
       >
-        <Palette className="h-4 w-4 text-muted-foreground" />
+        <Palette className={`h-4 w-4 ${isHome ? "text-foreground" : "text-muted-foreground"}`} />
         {!iconOnly ? <SelectValue placeholder={t("theme.palette.title")} /> : null}
       </SelectTrigger>
       <SelectContent>

@@ -2,8 +2,9 @@ import { Loader2 } from "lucide-react";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { PaletteToggle } from "@/components/PaletteToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/state/auth";
+import { useI18n } from "@/i18n";
 
 type PublicTopNavProps = {
   title?: string;
@@ -13,7 +14,11 @@ type PublicTopNavProps = {
 };
 
 export function PublicTopNav({ title, description, compact = false, floating = false }: PublicTopNavProps) {
+  const { t } = useI18n();
   const token = useAuthStore((state) => state.token);
+  const location = useLocation();
+  const isHome = location.pathname === "/";
+  const isDashboard = location.pathname.startsWith("/dashboard");
 
   return (
     <header
@@ -39,16 +44,20 @@ export function PublicTopNav({ title, description, compact = false, floating = f
           <nav className="hidden items-center gap-3 text-sm sm:flex">
             <Link
               to="/"
-              className="text-muted-foreground transition-colors hover:text-foreground"
+              className={`transition-colors hover:text-foreground ${
+                isHome ? "font-medium text-foreground" : "text-muted-foreground"
+              }`}
             >
-              首页
+              {t("nav.home")}
             </Link>
             {token && (
               <Link
                 to="/dashboard"
-                className="text-muted-foreground transition-colors hover:text-foreground"
+                className={`transition-colors hover:text-foreground ${
+                  isDashboard ? "font-medium text-foreground" : "text-muted-foreground"
+                }`}
               >
-                控制台
+                {t("nav.dashboard")}
               </Link>
             )}
           </nav>

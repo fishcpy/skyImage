@@ -1,12 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
-  CheckCircle2,
-  Database,
   Images,
-  KeyRound,
   Lock,
-  Server,
   ShieldCheck,
   Sparkles
 } from "lucide-react";
@@ -39,7 +35,6 @@ export function HomePage({ siteConfig }: { siteConfig?: SiteConfig }) {
 
   const title = siteConfig?.title ?? "";
   const description = siteConfig?.description ?? "";
-  const slogan = siteConfig?.slogan?.trim() ?? "";
   const homePageMode = siteConfig?.homePageMode ?? "default";
   const homeCustomHtml = siteConfig?.homeCustomHtml ?? "";
 
@@ -52,10 +47,10 @@ export function HomePage({ siteConfig }: { siteConfig?: SiteConfig }) {
     );
   }
 
+  // 使用翻译而不是数据库配置
   const badgeText = t("home.defaultBadge");
   const introText = t("home.defaultIntro");
-  const highlightTitle = t("home.defaultHighlightTitle");
-  const highlightDesc = t("home.defaultHighlightDesc");
+  const displaySlogan = t("home.defaultSlogan");
   const primaryCtaText = t("home.defaultPrimaryCta");
   const dashboardCtaText = t("home.defaultDashboardCta");
   const secondaryCtaText = t("home.defaultSecondaryCta");
@@ -67,9 +62,6 @@ export function HomePage({ siteConfig }: { siteConfig?: SiteConfig }) {
   const feature3Desc = t("home.defaultFeature3Desc");
   const feature4Title = t("home.defaultFeature4Title");
   const feature4Desc = t("home.defaultFeature4Desc");
-  const sceneTitle = t("home.defaultSceneTitle");
-  const sceneItems = [t("home.defaultScene1"), t("home.defaultScene2"), t("home.defaultScene3")];
-  const displaySlogan = slogan || t("home.defaultSlogan");
 
   const featureCards = [
     { icon: Images, title: feature1Title, desc: feature1Desc },
@@ -135,10 +127,10 @@ export function HomePage({ siteConfig }: { siteConfig?: SiteConfig }) {
             <p>© {new Date().getFullYear()} {title.trim() || "SkyImage"}</p>
             <div className="flex gap-4">
               <Link to="/privacy" className="hover:text-foreground transition-colors">
-                隐私政策
+                {t("footer.privacy")}
               </Link>
               <Link to="/terms" className="hover:text-foreground transition-colors">
-                服务条款
+                {t("footer.terms")}
               </Link>
             </div>
           </div>
