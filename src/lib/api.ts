@@ -332,7 +332,7 @@ export async function uploadFile(payload: {
   strategyId?: number;
 }) {
   const formData = new FormData();
-  formData.append("file", payload.file);
+  formData.append("file", payload.file, payload.file.name);
   formData.append("visibility", payload.visibility);
   if (payload.strategyId) {
     formData.append("strategyId", String(payload.strategyId));

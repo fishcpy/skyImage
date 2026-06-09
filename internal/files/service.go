@@ -291,7 +291,10 @@ func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.Fi
 		}
 
 		processedData, newMimeType, err := ProcessImage(fullData, contentType, processConfig)
-		if err == nil && len(processedData) > 0 {
+		if err != nil {
+			return data.FileAsset{}, fmt.Errorf("image processing failed: %w", err)
+		}
+		if len(processedData) > 0 {
 			fullData = processedData
 			if newMimeType != "" && newMimeType != contentType {
 				contentType = newMimeType

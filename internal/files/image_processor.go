@@ -10,61 +10,51 @@ import (
 	"io"
 	"strings"
 
+	webp "github.com/HugoSmits86/nativewebp"
 	"golang.org/x/image/bmp"
 	"golang.org/x/image/tiff"
 	webpdecode "golang.org/x/image/webp"
 )
 
-// ImageProcessConfig 图片处理配置
 type ImageProcessConfig struct {
-	EnableCompression  bool     // 是否启用压缩
-	CompressionQuality int      // 压缩质量 (1-100)
-	TargetFormat       string   // 目标格式 (webp, png, jpeg 等)
-	SupportedFormats   []string // 支持处理的格式
+	EnableCompression  bool
+	CompressionQuality int
+	TargetFormat       string
+	SupportedFormats   []string
 }
 
-// ProcessImage 处理图片：压缩和格式转换
 func ProcessImage(data []byte, mimeType string, config ImageProcessConfig) ([]byte, string, error) {
-	// 如果没有启用任何处理，直接返回原始数据
 	if !config.EnableCompression && config.TargetFormat == "" {
 		return data, mimeType, nil
 	}
 
-	// 检查是否是支持的格式
 	if !isSupportedImageFormat(mimeType, config.SupportedFormats) {
 		return data, mimeType, nil
 	}
 
-	// 解码图片
 	img, format, err := decodeImage(bytes.NewReader(data), mimeType)
 	if err != nil {
-		// 如果解码失败，返回原始数据
-		return data, mimeType, nil
+		return nil, "", fmt.Errorf("failed to decode image: %w", err)
 	}
 
-	// 确定目标格式
-	targetFormat := strings.ToLower(strings.TrimSpace(config.TargetFormat))
+	targetFormat := normalizeImageFormat(config.TargetFormat)
 	if targetFormat == "" {
-		targetFormat = format
+		targetFormat = normalizeImageFormat(format)
 	}
 
-	// 检查目标格式是否在支持列表中
 	if !isSupportedTargetFormat(targetFormat, config.SupportedFormats) {
-		targetFormat = format
+		return nil, "", fmt.Errorf("unsupported target image format: %s", targetFormat)
 	}
 
-	// 编码图片
 	var buf bytes.Buffer
 	newMimeType, err := encodeImage(&buf, img, targetFormat, config.CompressionQuality)
 	if err != nil {
-		// 败，返回原始数据
-		return data, mimeType, nil
+		return nil, "", err
 	}
 
 	return buf.Bytes(), newMimeType, nil
 }
 
-// decodeImage 解码图片
 func decodeImage(r io.Reader, mimeType string) (image.Image, string, error) {
 	switch mimeType {
 	case "image/jpeg":
@@ -86,20 +76,19 @@ func decodeImage(r io.Reader, mimeType string) (image.Image, string, error) {
 		img, err := tiff.Decode(r)
 		return img, "tiff", err
 	default:
-		// 尝试自动检测
 		img, format, err := image.Decode(r)
-		return img, format, err
+		return img, normalizeImageFormat(format), err
 	}
 }
 
-// encodeImage 编码图片
 func encodeImage(w io.Writer, img image.Image, format string, quality int) (string, error) {
+	format = normalizeImageFormat(format)
 	if quality <= 0 || quality > 100 {
 		quality = 85
 	}
 
 	switch format {
-	case "jpeg", "jpg":
+	case "jpeg":
 		err := jpeg.Encode(w, img, &jpeg.Options{Quality: quality})
 		return "image/jpeg", err
 	case "png":
@@ -110,7 +99,8 @@ func encodeImage(w io.Writer, img image.Image, format string, quality int) (stri
 		err := gif.Encode(w, img, nil)
 		return "image/gif", err
 	case "webp":
-		return "", fmt.Errorf("webp encode is not supported in current build")
+		err := webp.Encode(w, img, &webp.Options{CompressionLevel: webpCompressionLevel(quality)})
+		return "image/webp", err
 	case "bmp":
 		err := bmp.Encode(w, img)
 		return "image/bmp", err
@@ -118,15 +108,12 @@ func encodeImage(w io.Writer, img image.Image, format string, quality int) (stri
 		err := tiff.Encode(w, img, nil)
 		return "image/tiff", err
 	default:
-		return "", fmt.Errorf("unsupported format: %s", format)
+		return "", fmt.Errorf("unsupported image format: %s", format)
 	}
 }
 
-// isSupportedImageFormat 检查是否是支持的图片格式
 func isSupportedImageFormat(mimeType string, supportedFormats []string) bool {
 	mimeType = strings.ToLower(strings.TrimSpace(mimeType))
-
-	// 如果没有指定支持的格式，则支持所有常见图片格式
 	if len(supportedFormats) == 0 {
 		switch mimeType {
 		case "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff":
@@ -137,13 +124,11 @@ func isSupportedImageFormat(mimeType string, supportedFormats []string) bool {
 	}
 
 	for _, format := range supportedFormats {
-		format = strings.ToLower(strings.TrimSpace(format))
-		// 支持 "jpeg" 或 "image/jpeg" 格式
-		if format == mimeType || "image/"+format == mimeType {
-			return true
+		format = normalizeImageFormat(format)
+		if format == "" {
+			continue
 		}
-		// 特殊处理 jpg
-		if format == "jpg" && mimeType == "image/jpeg" {
+		if mimeType == "image/"+format {
 			return true
 		}
 		if format == "jpeg" && mimeType == "image/jpeg" {
@@ -153,34 +138,40 @@ func isSupportedImageFormat(mimeType string, supportedFormats []string) bool {
 	return false
 }
 
-// isSupportedTargetFormat 检查目标格式是否支持
 func isSupportedTargetFormat(targetFormat string, supportedFormats []string) bool {
-	targetFormat = strings.ToLower(strings.TrimSpace(targetFormat))
-
-	// 如果没有指定支持的格式，则支持所有常见图片格式
-	if len(supportedFormats) == 0 {
-		switch targetFormat {
-		case "jpeg", "jpg", "png", "gif", "webp", "bmp", "tiff":
-			return true
-		default:
-			return false
-		}
+	targetFormat = normalizeImageFormat(targetFormat)
+	switch targetFormat {
+	case "jpeg", "png", "gif", "webp", "bmp", "tiff":
+		return true
+	default:
+		return false
 	}
-
-	for _, format := range supportedFormats {
-		format = strings.ToLower(strings.TrimSpace(format))
-		if format == targetFormat {
-			return true
-		}
-		// 特殊处理 jpg/jpeg
-		if (format == "jpg" || format == "jpeg") && (targetFormat == "jpg" || targetFormat == "jpeg") {
-			return true
-		}
-	}
-	return false
 }
 
-// GetExtensionForMimeType 根据 MIME 类型获取文件扩展名
+func normalizeImageFormat(format string) string {
+	format = strings.ToLower(strings.TrimSpace(format))
+	format = strings.TrimPrefix(format, ".")
+	format = strings.TrimPrefix(format, "image/")
+	switch format {
+	case "jpg", "jpeg":
+		return "jpeg"
+	case "tif", "tiff":
+		return "tiff"
+	default:
+		return format
+	}
+}
+
+func webpCompressionLevel(quality int) webp.CompressionLevel {
+	if quality <= 70 {
+		return webp.BestCompression
+	}
+	if quality >= 95 {
+		return webp.BestSpeed
+	}
+	return webp.DefaultCompression
+}
+
 func GetExtensionForMimeType(mimeType string) string {
 	switch mimeType {
 	case "image/jpeg":

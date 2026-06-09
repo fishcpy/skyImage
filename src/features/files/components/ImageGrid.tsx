@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { Fancybox } from "@fancyapps/ui";
 import "@fancyapps/ui/dist/fancybox/fancybox.css";
@@ -135,7 +136,7 @@ export function ImageGrid({
     };
   }, [menu]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!menu || !menuRef.current) {
       return;
     }
@@ -151,7 +152,12 @@ export function ImageGrid({
     }
     if (nextX < padding) nextX = padding;
     if (nextY < padding) nextY = padding;
-    setMenuPos({ x: nextX, y: nextY });
+    setMenuPos((current) => {
+      if (current?.x === nextX && current.y === nextY) {
+        return current;
+      }
+      return { x: nextX, y: nextY };
+    });
   }, [menu]);
 
   // 提前测量容器宽度，避免先用错误默认值布局后再重排导致闪烁
@@ -557,6 +563,43 @@ export function ImageGrid({
   };
 
   const isAllSelected = items.length > 0 && selectedIds.size === items.length;
+  const contextMenu =
+    menu && menuPos && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            ref={menuRef}
+            className="fixed z-[70] min-w-[190px] overflow-hidden rounded-lg border bg-background shadow-2xl"
+            style={{ left: menuPos.x, top: menuPos.y }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="px-3 py-2 text-xs text-muted-foreground">
+              {menu.file.originalName}
+            </div>
+            <div className="h-px bg-border" />
+            <div className="py-1">
+              {menuItems.map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  className={[
+                    "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition",
+                    item.danger
+                      ? "text-destructive hover:bg-destructive/10"
+                      : "text-foreground hover:bg-muted"
+                  ].join(" ")}
+                  onClick={() => {
+                    item.action();
+                    setMenu(null);
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
 
   return (
     <div className="relative">
@@ -764,39 +807,7 @@ export function ImageGrid({
         <p className="text-sm text-muted-foreground">{t("grid.loadingMore")}</p>
       )}
 
-      {menu && menuPos && (
-        <div
-          ref={menuRef}
-          className="fixed z-[70] min-w-[190px] overflow-hidden rounded-lg border bg-background shadow-2xl"
-          style={{ left: menuPos.x, top: menuPos.y }}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="px-3 py-2 text-xs text-muted-foreground">
-            {menu.file.originalName}
-          </div>
-          <div className="h-px bg-border" />
-          <div className="py-1">
-            {menuItems.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                className={[
-                  "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition",
-                  item.danger
-                    ? "text-destructive hover:bg-destructive/10"
-                    : "text-foreground hover:bg-muted"
-                ].join(" ")}
-                onClick={() => {
-                  item.action();
-                  setMenu(null);
-                }}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {contextMenu}
 
       <AlertDialog
         open={Boolean(pendingDeleteIds)}

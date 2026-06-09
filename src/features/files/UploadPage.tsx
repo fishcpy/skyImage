@@ -72,7 +72,7 @@ export function UploadPage() {
     };
   }, []);
 
-  const handleFiles = useCallback((list: FileList | null) => {
+  const handleFiles = useCallback((list: FileList | File[] | null) => {
     if (!list) return;
     const next = Array.from(list).map((file) => ({
       id: `${file.name}-${file.size}-${Date.now()}-${Math.random()}`,
@@ -88,24 +88,26 @@ export function UploadPage() {
   }, []);
 
   const handlePaste = useCallback((event: ClipboardEvent) => {
-    const items = event.clipboardData?.items;
-    if (!items) return;
+    const clipboardData = event.clipboardData;
+    if (!clipboardData) return;
 
-    const files: File[] = [];
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.kind === 'file' && item.type.startsWith('image/')) {
-        const file = item.getAsFile();
-        if (file) {
-          files.push(file);
+    const files = Array.from(clipboardData.files).filter((file) => file.type.startsWith("image/"));
+
+    if (files.length === 0) {
+      for (let i = 0; i < clipboardData.items.length; i++) {
+        const item = clipboardData.items[i];
+        if (item.kind === "file" && item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) {
+            files.push(file);
+          }
         }
       }
     }
 
     if (files.length > 0) {
-      const dataTransfer = new DataTransfer();
-      files.forEach(file => dataTransfer.items.add(file));
-      handleFiles(dataTransfer.files);
+      event.preventDefault();
+      handleFiles(files);
       toast.success(t("upload.pasteSuccess", { count: files.length }));
     }
   }, [handleFiles, t]);
