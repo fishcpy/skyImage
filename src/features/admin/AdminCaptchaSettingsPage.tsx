@@ -239,12 +239,13 @@ export function AdminCaptchaSettingsPage() {
 
     // 如果要启用全局验证码，检查是否选择了提供商且已验证
     if (field === "enableCaptcha" && actualValue === true) {
-      if (!form.captchaProvider) {
-        toast.error("请先选择并测试一个人机验证提供商");
+      const provider = form.captchaProvider;
+      if (!provider) {
+        toast.error("请先选择一个人机验证提供商并完成测试");
         return;
       }
-      const status = providerStatus[form.captchaProvider];
-      if (!status.canUse) {
+      const status = providerStatus[provider as "cloudflare" | "geetest"];
+      if (!status?.canUse) {
         toast.error("请先完成选定提供商的配置测试");
         return;
       }
@@ -391,9 +392,8 @@ export function AdminCaptchaSettingsPage() {
           <div className="space-y-2">
             <Label>人机验证提供商</Label>
             <Select
-              value={form.captchaProvider}
-              onValueChange={(value) => handleChange("captchaProvider", value as CaptchaProvider)}
-              disabled={!form.enableCaptcha}
+              value={form.captchaProvider || "none"}
+              onValueChange={(value) => handleChange("captchaProvider", value === "none" ? "" : value as CaptchaProvider)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="请先配置并测试提供商" />
