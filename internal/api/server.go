@@ -20,6 +20,7 @@ import (
 	"gorm.io/gorm"
 
 	"skyimage/internal/admin"
+	"skyimage/internal/captcha"
 	"skyimage/internal/config"
 	"skyimage/internal/data"
 	"skyimage/internal/files"
@@ -28,7 +29,6 @@ import (
 	"skyimage/internal/middleware"
 	"skyimage/internal/notifications"
 	"skyimage/internal/session"
-	"skyimage/internal/turnstile"
 	"skyimage/internal/users"
 	"skyimage/internal/verification"
 )
@@ -44,7 +44,7 @@ type Server struct {
 	users         *users.Service
 	notifications *notifications.Service
 	mail          *mail.Service
-	turnstile     *turnstile.Service
+	captcha       *captcha.Service
 	verification  *verification.Service
 	session       *session.Manager
 	authLimiter   *requestLimiter
@@ -102,7 +102,7 @@ func (s *Server) applyRuntimeConfig(cfg config.Config, db *gorm.DB) {
 	s.users = users.New(db)
 	s.notifications = notifications.New(db)
 	s.mail = mail.New(adminService)
-	s.turnstile = turnstile.New(adminService)
+	s.captcha = captcha.New(adminService)
 	s.verification = verification.New()
 	if s.session == nil {
 		s.session = session.NewManager(db, 24*time.Hour)

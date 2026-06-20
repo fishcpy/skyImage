@@ -10,10 +10,10 @@ func (s *Server) registerLskyV1Routes(apiGroup *gin.RouterGroup) {
 	userService := s.users
 	fileService := s.files
 	authLimiter := s.authLimiter
-	turnstileSvc := s.turnstile
+	captchaSvc := s.captcha
 	s.mu.RUnlock()
 
-	handler := NewLskyV1Handler(db, userService, fileService, authLimiter, turnstileSvc)
+	handler := NewLskyV1Handler(db, userService, fileService, authLimiter, captchaSvc)
 
 	v1 := apiGroup.Group("/v1")
 	{

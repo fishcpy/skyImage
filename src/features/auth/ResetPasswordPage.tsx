@@ -1,15 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useState, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
-import { fetchResetPasswordStatus, fetchSiteConfig, resetPasswordByEmail } from "@/lib/api";
+import { fetchResetPasswordStatus, fetchSiteConfig, resetPasswordByEmail, fetchCaptchaConfig, type CaptchaConfig } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Turnstile, type TurnstileRef } from "@/components/Turnstile";
-import { fetchTurnstileConfig, loadTurnstileScript } from "@/lib/turnstile";
+import { UnifiedCaptcha, type UnifiedCaptchaRef } from "@/components/UnifiedCaptcha";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { PaletteToggle } from "@/components/PaletteToggle";
 import { useI18n } from "@/i18n";
@@ -21,9 +20,9 @@ export function ResetPasswordPage() {
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [turnstileToken, setTurnstileToken] = useState("");
-  const [turnstileReady, setTurnstileReady] = useState(false);
-  const turnstileRef = useRef<TurnstileRef>(null);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaData, setCaptchaData] = useState<Record<string, string> | undefined>();
+  const captchaRef = useRef<UnifiedCaptchaRef>(null);
 
   const token = searchParams.get("token")?.trim() ?? "";
 
@@ -38,19 +37,7 @@ export function ResetPasswordPage() {
     enabled: Boolean(token)
   });
 
-  const { data: turnstileConfig } = useQuery({
-    queryKey: ["turnstile-config", "login"],
-    queryFn: () => fetchTurnstileConfig("login"),
-    enabled: !!resetStatus?.requiresTurnstile
-  });
-
-  useEffect(() => {
-    if (resetStatus?.requiresTurnstile && turnstileConfig?.enabled && turnstileConfig.siteKey) {
-      loadTurnstileScript()
-        .then(() => setTurnstileReady(true))
-        .catch(() => toast.error(t("resetPassword.loadTurnstileError")));
-    }
-  }, [resetStatus?.requiresTurnstile, t, turnstileConfig?.enabled, turnstileConfig?.siteKey]);
+  const captchaConfig = resetStatus?.captchaConfig as CaptchaConfig | undefined;
 
   const mutation = useMutation({
     mutationFn: resetPasswordByEmail,
@@ -109,7 +96,7 @@ export function ResetPasswordPage() {
       toast.error(t("resetPassword.passwordMismatch"));
       return;
     }
-    if (resetStatus?.requiresTurnstile && !turnstileToken) {
+    if (captchaConfig?.enabled && !captchaToken) {
       toast.error(t("resetPassword.turnstileRequired"));
       return;
     }
@@ -117,7 +104,9 @@ export function ResetPasswordPage() {
       token,
       code: code.trim(),
       password,
-      turnstileToken
+      captchaToken,
+      captchaData,
+      captchaProvider: captchaConfig?.provider || undefined,
     });
   };
 
@@ -151,23 +140,31 @@ export function ResetPasswordPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
               />
             </div>
-            <Button className="w-full" disabled={mutation.isPending} onClick={handleSubmit}>
-              {mutation.isPending ? t("resetPassword.submitting") : t("resetPassword.submit")}
-            </Button>
-            {resetStatus?.requiresTurnstile && turnstileConfig?.enabled && turnstileConfig.siteKey && turnstileReady && (
+            {captchaConfig?.enabled && captchaConfig.siteKey && captchaConfig.provider && (
               <div className="flex justify-center">
-                <Turnstile
-                  ref={turnstileRef}
-                  siteKey={turnstileConfig.siteKey}
-                  onVerify={setTurnstileToken}
+                <UnifiedCaptcha
+                  ref={captchaRef}
+                  provider={captchaConfig.provider as "cloudflare" | "geetest"}
+                  siteKey={captchaConfig.siteKey}
+                  onVerify={(token, extraData) => {
+                    setCaptchaToken(token);
+                    setCaptchaData(extraData);
+                  }}
                   onError={() => {
-                    setTurnstileToken("");
+                    setCaptchaToken("");
+                    setCaptchaData(undefined);
                     toast.error(t("resetPassword.turnstileError"));
                   }}
-                  onExpire={() => setTurnstileToken("")}
+                  onExpire={() => {
+                    setCaptchaToken("");
+                    setCaptchaData(undefined);
+                  }}
                 />
               </div>
             )}
+            <Button className="w-full" disabled={mutation.isPending} onClick={handleSubmit}>
+              {mutation.isPending ? t("resetPassword.submitting") : t("resetPassword.submit")}
+            </Button>
           </CardContent>
         </Card>
       </div>

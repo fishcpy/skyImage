@@ -104,7 +104,14 @@ export async function runInstaller(payload: {
   return res.data.data;
 }
 
-export async function login(payload: { email: string; password: string; turnstileToken?: string }) {
+export async function login(payload: {
+  email: string;
+  password: string;
+  turnstileToken?: string;
+  captchaToken?: string;
+  captchaData?: Record<string, string>;
+  captchaProvider?: string;
+}) {
   const res = await apiClient.post<{ data: { user: any } }>(
     "/auth/login",
     payload
@@ -112,7 +119,13 @@ export async function login(payload: { email: string; password: string; turnstil
   return res.data.data;
 }
 
-export async function sendVerificationCode(payload: { email: string; turnstileToken?: string }) {
+export async function sendVerificationCode(payload: {
+  email: string;
+  turnstileToken?: string;
+  captchaToken?: string;
+  captchaData?: Record<string, string>;
+  captchaProvider?: string;
+}) {
   const res = await apiClient.post<{ data: { message: string } }>("/auth/send-verification-code", payload);
   return res.data.data;
 }
@@ -123,6 +136,9 @@ export async function register(payload: {
   password: string;
   verificationCode: string;
   turnstileToken?: string;
+  captchaToken?: string;
+  captchaData?: Record<string, string>;
+  captchaProvider?: string;
 }) {
   const res = await apiClient.post<{ data: { user: any } }>("/auth/register", payload);
   return res.data.data;
@@ -137,7 +153,13 @@ export async function fetchRegistrationStatus() {
   return res.data.data;
 }
 
-export async function requestPasswordReset(payload: { email: string; turnstileToken?: string }) {
+export async function requestPasswordReset(payload: {
+  email: string;
+  turnstileToken?: string;
+  captchaToken?: string;
+  captchaData?: Record<string, string>;
+  captchaProvider?: string;
+}) {
   const res = await apiClient.post<{ data: { message: string } }>("/auth/forgot-password", payload);
   return res.data.data;
 }
@@ -147,6 +169,9 @@ export async function resetPasswordByEmail(payload: {
   code: string;
   password: string;
   turnstileToken?: string;
+  captchaToken?: string;
+  captchaData?: Record<string, string>;
+  captchaProvider?: string;
 }) {
   const res = await apiClient.post<{ data: { message: string } }>("/auth/reset-password", payload);
   return res.data.data;
@@ -154,7 +179,8 @@ export async function resetPasswordByEmail(payload: {
 
 export type ResetPasswordStatus = {
   valid: boolean;
-  requiresTurnstile: boolean;
+  captchaEnabled: boolean;
+  captchaConfig?: CaptchaConfig;
 };
 
 export async function fetchResetPasswordStatus(token: string) {
@@ -688,11 +714,28 @@ export type SystemSettingsInput = {
   userNotificationLimit: number;
   adminImageDeleteDefaultReason: string;
   systemAutoDeleteDefaultReason: string;
+  // 新的统一验证码配置
+  enableCaptcha?: boolean;
+  captchaProvider?: "cloudflare" | "geetest" | "";
+  cloudflareSiteKey?: string;
+  cloudflareSecretKey?: string;
+  geetestCaptchaId?: string;
+  geetestCaptchaKey?: string;
+  enableLoginCaptcha?: boolean;
+  enableRegisterCaptcha?: boolean;
+  enableRegisterVerifyCaptcha?: boolean;
+  enableForgotPasswordRequestCaptcha?: boolean;
+  enableForgotPasswordResetCaptcha?: boolean;
 };
 
 export type SystemSettingsResponse = SystemSettingsInput & {
   turnstileVerified: boolean;
   turnstileLastVerifiedAt?: string;
+  // 新的验证状态
+  cloudflareVerified?: boolean;
+  cloudflareLastVerifiedAt?: string;
+  geetestVerified?: boolean;
+  geetestLastVerifiedAt?: string;
 };
 
 export async function fetchSystemSettings() {
@@ -738,7 +781,23 @@ export type TestTurnstilePayload = {
   token: string;
 };
 
+export type TestCaptchaPayload = {
+  provider: "cloudflare" | "geetest";
+  siteKey?: string;
+  secretKey?: string;
+  captchaId?: string;
+  captchaKey?: string;
+  token: string;
+  extraData?: Record<string, string>;
+};
+
 export type TestTurnstileResponse = {
+  success: boolean;
+  verifiedAt?: string;
+  message?: string;
+};
+
+export type TestCaptchaResponse = {
   success: boolean;
   verifiedAt?: string;
   message?: string;
@@ -747,6 +806,14 @@ export type TestTurnstileResponse = {
 export async function testTurnstileConfig(payload: TestTurnstilePayload) {
   const res = await apiClient.post<{ data: TestTurnstileResponse }>(
     "/admin/system/test-turnstile",
+    payload
+  );
+  return res.data.data;
+}
+
+export async function testCaptchaConfig(payload: TestCaptchaPayload) {
+  const res = await apiClient.post<{ data: TestCaptchaResponse }>(
+    "/admin/system/test-captcha",
     payload
   );
   return res.data.data;
@@ -844,4 +911,18 @@ export async function updateApiToken(id: number, input: { expiresAt: string }) {
 
 export async function deleteApiTokens() {
   await apiClient.delete("/account/api-token");
+}
+
+// Captcha configuration API
+export type CaptchaConfig = {
+  enabled: boolean;
+  provider: "cloudflare" | "geetest" | "";
+  siteKey?: string;
+};
+
+export async function fetchCaptchaConfig(context: string): Promise<CaptchaConfig> {
+  const res = await apiClient.get<{ data: CaptchaConfig }>("/auth/captcha-config", {
+    params: { context }
+  });
+  return res.data.data;
 }

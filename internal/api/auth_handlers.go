@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"skyimage/internal/captcha"
 	"skyimage/internal/data"
 	"skyimage/internal/middleware"
 	"skyimage/internal/session"
@@ -35,10 +36,48 @@ func (s *Server) registerAuthRoutes(r *gin.RouterGroup) {
 	auth.POST("/logout", s.authMiddleware(), middleware.RequireCSRF(), s.handleLogout)
 	auth.GET("/needs-setup", s.handleNeedsSetup)
 	auth.GET("/registration-status", s.handleRegistrationStatus)
+	auth.GET("/captcha-config", s.handleCaptchaConfig)
 
 	protected := auth.Group("/")
 	protected.Use(s.authMiddleware())
 	protected.GET("/me", s.handleMe)
+}
+
+func (s *Server) handleCaptchaConfig(c *gin.Context) {
+	context := c.Query("context")
+	if context == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "context parameter required"})
+		return
+	}
+
+	config, err := s.captcha.GetConfig(c.Request.Context(), context)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get captcha config"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": config})
+}
+
+func (s *Server) verifyCaptcha(ctx context.Context, provider captcha.Provider, token string, remoteIP string, extraData map[string]string) error {
+	// Check if captcha is enabled for the system
+	enabled, err := s.captcha.IsEnabled(ctx)
+	if err != nil {
+		return err
+	}
+	if !enabled {
+		return nil // Captcha not enabled, allow request
+	}
+
+	// Verify the captcha
+	valid, err := s.captcha.Verify(ctx, provider, token, remoteIP, extraData)
+	if err != nil {
+		return err
+	}
+	if !valid {
+		return errors.New("captcha verification failed")
+	}
+	return nil
 }
 
 func (s *Server) handleSendVerificationCode(c *gin.Context) {
@@ -55,8 +94,10 @@ func (s *Server) handleSendVerificationCode(c *gin.Context) {
 	}
 
 	var input struct {
-		Email          string `json:"email" binding:"required,email"`
-		TurnstileToken string `json:"turnstileToken"`
+		Email          string            `json:"email" binding:"required,email"`
+		CaptchaToken   string            `json:"captchaToken"`
+		CaptchaData    map[string]string `json:"captchaData"`
+		CaptchaProvider string           `json:"captchaProvider"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请输入有效的邮箱地址"})
@@ -73,21 +114,19 @@ func (s *Server) handleSendVerificationCode(c *gin.Context) {
 		return
 	}
 
-	// Verify Turnstile token if enabled for register_verify
-	// 重新获取最新配置以确保实时性
-	latestSettings, err := s.admin.GetSettings(c.Request.Context())
+	// 检查是否需要验证码
+	captchaConfig, err := s.captcha.GetConfig(c.Request.Context(), "register_verify")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "系统错误"})
 		return
 	}
 
-	if latestSettings["turnstile.register_verify.enabled"] == "true" {
-		if input.TurnstileToken == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "请完成人机验证"})
-			return
+	if captchaConfig.Enabled {
+		provider := captcha.Provider(input.CaptchaProvider)
+		if provider == "" {
+			provider = captchaConfig.Provider
 		}
-		valid, verifyErr := s.turnstile.Verify(c.Request.Context(), input.TurnstileToken, c.ClientIP())
-		if verifyErr != nil || !valid {
+		if err := s.verifyCaptcha(c.Request.Context(), provider, input.CaptchaToken, clientIP, input.CaptchaData); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "人机验证失败，请重试"})
 			return
 		}
@@ -140,8 +179,10 @@ func (s *Server) handleRegister(c *gin.Context) {
 
 	var input struct {
 		users.RegisterInput
-		TurnstileToken   string `json:"turnstileToken"`
-		VerificationCode string `json:"verificationCode"`
+		CaptchaToken    string            `json:"captchaToken"`
+		CaptchaData     map[string]string `json:"captchaData"`
+		CaptchaProvider string            `json:"captchaProvider"`
+		VerificationCode string           `json:"verificationCode"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写完整信息"})
@@ -169,15 +210,20 @@ func (s *Server) handleRegister(c *gin.Context) {
 	// 设置注册IP
 	input.RegisterInput.RegisteredIP = c.ClientIP()
 
-	// Verify Turnstile token if enabled for register
-	if settings["turnstile.register.enabled"] == "true" {
-		if input.TurnstileToken == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "turnstile token required"})
-			return
+	// 检查是否需要验证码
+	captchaConfig, err := s.captcha.GetConfig(c.Request.Context(), "register")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "系统错误"})
+		return
+	}
+
+	if captchaConfig.Enabled {
+		provider := captcha.Provider(input.CaptchaProvider)
+		if provider == "" {
+			provider = captchaConfig.Provider
 		}
-		valid, err := s.turnstile.Verify(c.Request.Context(), input.TurnstileToken, c.ClientIP())
-		if err != nil || !valid {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "turnstile verification failed"})
+		if err := s.verifyCaptcha(c.Request.Context(), provider, input.CaptchaToken, c.ClientIP(), input.CaptchaData); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "人机验证失败，请重试"})
 			return
 		}
 	}
@@ -218,7 +264,9 @@ func (s *Server) handleRegister(c *gin.Context) {
 func (s *Server) handleLogin(c *gin.Context) {
 	var input struct {
 		users.LoginInput
-		TurnstileToken string `json:"turnstileToken"`
+		CaptchaToken    string            `json:"captchaToken"`
+		CaptchaData     map[string]string `json:"captchaData"`
+		CaptchaProvider string            `json:"captchaProvider"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -237,22 +285,20 @@ func (s *Server) handleLogin(c *gin.Context) {
 		}
 	}
 
-	// Get settings for Turnstile check
-	settings, err := s.admin.GetSettings(c.Request.Context())
+	// 检查是否需要验证码
+	captchaConfig, err := s.captcha.GetConfig(c.Request.Context(), "login")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "系统错误"})
 		return
 	}
 
-	// Verify Turnstile token if enabled for login
-	if settings["turnstile.login.enabled"] == "true" {
-		if input.TurnstileToken == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "turnstile token required"})
-			return
+	if captchaConfig.Enabled {
+		provider := captcha.Provider(input.CaptchaProvider)
+		if provider == "" {
+			provider = captchaConfig.Provider
 		}
-		valid, err := s.turnstile.Verify(c.Request.Context(), input.TurnstileToken, c.ClientIP())
-		if err != nil || !valid {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "turnstile verification failed"})
+		if err := s.verifyCaptcha(c.Request.Context(), provider, input.CaptchaToken, clientIP, input.CaptchaData); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "人机验证失败，请重试"})
 			return
 		}
 	}
@@ -300,7 +346,7 @@ func (s *Server) writeSessionCookie(c *gin.Context, sessionID string) {
 		MaxAge:   int(s.session.TTL().Seconds()),
 		HttpOnly: true,
 		Secure:   isSecureRequest(c),
-		SameSite: http.SameSiteStrictMode, // 修改为 Strict 模式以增强安全性
+		SameSite: http.SameSiteStrictMode,
 	})
 }
 
@@ -328,7 +374,7 @@ func (s *Server) clearSessionCookie(c *gin.Context) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   isSecureRequest(c),
-		SameSite: http.SameSiteStrictMode, // 修改为 Strict 模式以增强安全性
+		SameSite: http.SameSiteStrictMode,
 	})
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     middleware.CSRFCookieName,
@@ -406,8 +452,10 @@ func (s *Server) handleForgotPassword(c *gin.Context) {
 	}
 
 	var input struct {
-		Email          string `json:"email" binding:"required,email"`
-		TurnstileToken string `json:"turnstileToken"`
+		Email           string            `json:"email" binding:"required,email"`
+		CaptchaToken    string            `json:"captchaToken"`
+		CaptchaData     map[string]string `json:"captchaData"`
+		CaptchaProvider string            `json:"captchaProvider"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请输入有效的邮箱地址"})
@@ -423,22 +471,20 @@ func (s *Server) handleForgotPassword(c *gin.Context) {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "该邮箱请求过于频繁，请稍后再试", "retryAfterSeconds": int(retry.Seconds()) + 1})
 		return
 	}
-	if settings["mail.forgot_password.turnstile_request"] == "true" {
-		enabled, verifyErr := s.turnstile.IsEnabled(c.Request.Context())
-		if verifyErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check turnstile status"})
-			return
+
+	// 检查是否需要验证码
+	captchaConfig, err := s.captcha.GetConfig(c.Request.Context(), "forgot_password_request")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "系统错误"})
+		return
+	}
+
+	if captchaConfig.Enabled {
+		provider := captcha.Provider(input.CaptchaProvider)
+		if provider == "" {
+			provider = captchaConfig.Provider
 		}
-		if !enabled {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Turnstile 未启用，无法校验"})
-			return
-		}
-		if strings.TrimSpace(input.TurnstileToken) == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "请完成人机验证"})
-			return
-		}
-		valid, verifyErr := s.turnstile.Verify(c.Request.Context(), input.TurnstileToken, c.ClientIP())
-		if verifyErr != nil || !valid {
+		if err := s.verifyCaptcha(c.Request.Context(), provider, input.CaptchaToken, clientIP, input.CaptchaData); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "人机验证失败，请重试"})
 			return
 		}
@@ -482,32 +528,31 @@ func (s *Server) handleResetPassword(c *gin.Context) {
 	}
 
 	var input struct {
-		Token          string `json:"token" binding:"required"`
-		Code           string `json:"code" binding:"required"`
-		Password       string `json:"password" binding:"required"`
-		TurnstileToken string `json:"turnstileToken"`
+		Token           string            `json:"token" binding:"required"`
+		Code            string            `json:"code" binding:"required"`
+		Password        string            `json:"password" binding:"required"`
+		CaptchaToken    string            `json:"captchaToken"`
+		CaptchaData     map[string]string `json:"captchaData"`
+		CaptchaProvider string            `json:"captchaProvider"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写完整信息"})
 		return
 	}
 
-	if settings["mail.forgot_password.turnstile_reset"] == "true" {
-		enabled, verifyErr := s.turnstile.IsEnabled(c.Request.Context())
-		if verifyErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check turnstile status"})
-			return
+	// 检查是否需要验证码
+	captchaConfig, err := s.captcha.GetConfig(c.Request.Context(), "forgot_password_reset")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "系统错误"})
+		return
+	}
+
+	if captchaConfig.Enabled {
+		provider := captcha.Provider(input.CaptchaProvider)
+		if provider == "" {
+			provider = captchaConfig.Provider
 		}
-		if !enabled {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Turnstile 未启用，无法校验"})
-			return
-		}
-		if strings.TrimSpace(input.TurnstileToken) == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "请完成人机验证"})
-			return
-		}
-		valid, verifyErr := s.turnstile.Verify(c.Request.Context(), input.TurnstileToken, c.ClientIP())
-		if verifyErr != nil || !valid {
+		if err := s.verifyCaptcha(c.Request.Context(), provider, input.CaptchaToken, c.ClientIP(), input.CaptchaData); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "人机验证失败，请重试"})
 			return
 		}
@@ -562,13 +607,20 @@ func (s *Server) handleResetPasswordStatus(c *gin.Context) {
 	}
 	if token == "" || settings["mail.forgot_password.enabled"] != "true" {
 		c.JSON(http.StatusOK, gin.H{"data": gin.H{
-			"valid":             false,
-			"requiresTurnstile": false,
+			"valid": false,
 		}})
 		return
 	}
+
+	// Check if captcha is required for reset
+	captchaConfig, err := s.captcha.GetConfig(c.Request.Context(), "forgot_password_reset")
+	if err != nil {
+		captchaConfig = captcha.Config{Enabled: false}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
-		"valid":             s.verification.IsPasswordResetTokenValid(token),
-		"requiresTurnstile": settings["mail.forgot_password.turnstile_reset"] == "true",
+		"valid":          s.verification.IsPasswordResetTokenValid(token),
+		"captchaEnabled": captchaConfig.Enabled,
+		"captchaConfig":  captchaConfig,
 	}})
 }

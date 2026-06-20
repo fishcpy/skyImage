@@ -10,10 +10,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"skyimage/internal/captcha"
 	"skyimage/internal/data"
 	"skyimage/internal/files"
 	"skyimage/internal/middleware"
-	"skyimage/internal/turnstile"
 	"skyimage/internal/users"
 )
 
@@ -23,16 +23,16 @@ type LskyV1Handler struct {
 	userService *users.Service
 	fileService *files.Service
 	authLimiter *requestLimiter
-	turnstile   *turnstile.Service
+	captcha     *captcha.Service
 }
 
-func NewLskyV1Handler(db *gorm.DB, userService *users.Service, fileService *files.Service, authLimiter *requestLimiter, turnstileSvc *turnstile.Service) *LskyV1Handler {
+func NewLskyV1Handler(db *gorm.DB, userService *users.Service, fileService *files.Service, authLimiter *requestLimiter, captchaSvc *captcha.Service) *LskyV1Handler {
 	return &LskyV1Handler{
 		db:          db,
 		userService: userService,
 		fileService: fileService,
 		authLimiter: authLimiter,
-		turnstile:   turnstileSvc,
+		captcha:     captchaSvc,
 	}
 }
 
@@ -76,12 +76,12 @@ func (h *LskyV1Handler) CreateToken(c *gin.Context) {
 		}
 	}
 
-	if h.turnstile != nil {
-		enabled, err := h.turnstile.IsEnabled(c.Request.Context())
+	if h.captcha != nil {
+		enabled, err := h.captcha.IsEnabled(c.Request.Context())
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  false,
-				"message": "Failed to check turnstile status",
+				"message": "Failed to check captcha status",
 				"data":    gin.H{},
 			})
 			return
@@ -94,16 +94,26 @@ func (h *LskyV1Handler) CreateToken(c *gin.Context) {
 			if turnstileToken == "" {
 				c.JSON(http.StatusBadRequest, gin.H{
 					"status":  false,
-					"message": "Turnstile token required",
+					"message": "Captcha token required",
 					"data":    gin.H{},
 				})
 				return
 			}
-			valid, err := h.turnstile.Verify(c.Request.Context(), turnstileToken, clientIP)
+			// Get the active provider
+			provider, err := h.captcha.GetActiveProvider(c.Request.Context())
+			if err != nil || provider == "" {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"status":  false,
+					"message": "Failed to get captcha provider",
+					"data":    gin.H{},
+				})
+				return
+			}
+			valid, err := h.captcha.Verify(c.Request.Context(), provider, turnstileToken, clientIP, nil)
 			if err != nil || !valid {
 				c.JSON(http.StatusBadRequest, gin.H{
 					"status":  false,
-					"message": "Turnstile verification failed",
+					"message": "Captcha verification failed",
 					"data":    gin.H{},
 				})
 				return

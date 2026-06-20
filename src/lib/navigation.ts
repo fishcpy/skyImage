@@ -91,7 +91,7 @@ export const buildNavSections = ({
             { url: "/dashboard/admin/settings/site", title: t("nav.siteSettings") },
             { url: "/dashboard/admin/settings/smtp", title: t("nav.smtpSettings") },
             { url: "/dashboard/admin/settings/system", title: t("nav.systemSettings") },
-            { url: "/dashboard/admin/settings/turnstile", title: t("nav.turnstileSettings") }
+            { url: "/dashboard/admin/settings/captcha", title: t("nav.captchaSettings") }
           ]
         }
       ]

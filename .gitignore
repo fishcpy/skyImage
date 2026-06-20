@@ -41,3 +41,4 @@ src/**/*.js
 src/**/*.jsx
 src/*.js
 src/*.jsx
+.claude

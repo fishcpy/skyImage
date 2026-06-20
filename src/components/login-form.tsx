@@ -19,10 +19,9 @@ import {
   FieldSeparator,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { login } from "@/lib/api";
-import { fetchTurnstileConfig, loadTurnstileScript } from "@/lib/turnstile";
+import { login, fetchCaptchaConfig } from "@/lib/api";
 import { useAuthStore } from "@/state/auth";
-import { Turnstile, type TurnstileRef } from "@/components/Turnstile";
+import { UnifiedCaptcha, type UnifiedCaptchaRef } from "@/components/UnifiedCaptcha";
 import { useI18n } from "@/i18n";
 
 export function LoginForm({
@@ -35,9 +34,9 @@ export function LoginForm({
   const setAuth = useAuthStore((state) => state.setAuth);
   const { t } = useI18n();
   const [form, setForm] = useState({ email: "", password: "" });
-  const [turnstileToken, setTurnstileToken] = useState<string>("");
-  const [turnstileReady, setTurnstileReady] = useState(false);
-  const turnstileRef = useRef<TurnstileRef>(null);
+  const [captchaToken, setCaptchaToken] = useState<string>("");
+  const [captchaData, setCaptchaData] = useState<Record<string, string> | undefined>();
+  const captchaRef = useRef<UnifiedCaptchaRef>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -48,21 +47,10 @@ export function LoginForm({
     }
   }, [t]);
 
-  const { data: turnstileConfig } = useQuery({
-    queryKey: ["turnstile-config", "login"],
-    queryFn: () => fetchTurnstileConfig("login"),
+  const { data: captchaConfig } = useQuery({
+    queryKey: ["captcha-config", "login"],
+    queryFn: () => fetchCaptchaConfig("login"),
   });
-
-  useEffect(() => {
-    if (turnstileConfig?.enabled && turnstileConfig.siteKey) {
-      loadTurnstileScript()
-        .then(() => setTurnstileReady(true))
-        .catch((err) => {
-          console.error("Failed to load Turnstile:", err);
-          toast.error(t("login.turnstileLoadError"));
-        });
-    }
-  }, [t, turnstileConfig]);
 
   const mutation = useMutation({
     mutationFn: login,
@@ -78,18 +66,24 @@ export function LoginForm({
         message = t("login.error.accountDisabled");
       } else if (message === "invalid credentials") {
         message = t("login.error.invalidCredentials");
-      } else if (message === "turnstile token required") {
+      } else if (message === "turnstile token required" || message === "captcha token required") {
         message = t("login.error.turnstileRequired");
-      } else if (message === "turnstile verification failed") {
+      } else if (message === "turnstile verification failed" || message === "captcha verification failed") {
         message = t("login.error.turnstileFailed");
       }
       toast.error(message);
-      setTurnstileToken("");
-      if (turnstileRef.current) {
-        turnstileRef.current.reset();
+      setCaptchaToken("");
+      setCaptchaData(undefined);
+      if (captchaRef.current) {
+        captchaRef.current.reset();
       }
     }
   });
+
+  const handleCaptchaVerify = (token: string, extraData?: Record<string, string>) => {
+    setCaptchaToken(token);
+    setCaptchaData(extraData);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,11 +91,16 @@ export function LoginForm({
       toast.error(t("login.error.passwordLength"));
       return;
     }
-    if (turnstileConfig?.enabled && !turnstileToken) {
+    if (captchaConfig?.enabled && !captchaToken) {
       toast.error(t("login.error.turnstileRequired"));
       return;
     }
-    mutation.mutate({ ...form, turnstileToken });
+    mutation.mutate({
+      ...form,
+      captchaToken,
+      captchaData,
+      captchaProvider: captchaConfig?.provider || undefined,
+    });
   };
 
   return (
@@ -142,19 +141,22 @@ export function LoginForm({
                   required
                 />
               </Field>
-              {turnstileConfig?.enabled && turnstileConfig.siteKey && turnstileReady && (
+              {captchaConfig?.enabled && captchaConfig.siteKey && captchaConfig.provider && (
                 <Field>
                   <div className="flex justify-center">
-                    <Turnstile
-                      ref={turnstileRef}
-                      siteKey={turnstileConfig.siteKey}
-                      onVerify={setTurnstileToken}
+                    <UnifiedCaptcha
+                      ref={captchaRef}
+                      provider={captchaConfig.provider as "cloudflare" | "geetest"}
+                      siteKey={captchaConfig.siteKey}
+                      onVerify={handleCaptchaVerify}
                       onError={() => {
-                        setTurnstileToken("");
+                        setCaptchaToken("");
+                        setCaptchaData(undefined);
                         toast.error(t("login.turnstileError"));
                       }}
                       onExpire={() => {
-                        setTurnstileToken("");
+                        setCaptchaToken("");
+                        setCaptchaData(undefined);
                         toast.warning(t("login.turnstileExpired"));
                       }}
                     />

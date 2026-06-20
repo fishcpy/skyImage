@@ -18,10 +18,9 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { register, sendVerificationCode } from "@/lib/api";
-import { fetchTurnstileConfig, loadTurnstileScript } from "@/lib/turnstile";
+import { register, sendVerificationCode, fetchCaptchaConfig } from "@/lib/api";
 import { useAuthStore } from "@/state/auth";
-import { Turnstile, type TurnstileRef } from "@/components/Turnstile";
+import { UnifiedCaptcha, type UnifiedCaptchaRef } from "@/components/UnifiedCaptcha";
 import { useI18n } from "@/i18n";
 
 interface RegisterFormProps extends React.ComponentProps<"div"> {
@@ -43,39 +42,25 @@ export function RegisterForm({
     confirmPassword: "",
     verificationCode: ""
   });
-  const [turnstileToken, setTurnstileToken] = useState<string>("");
-  const [sendCodeTurnstileToken, setSendCodeTurnstileToken] = useState<string>("");
-  const [turnstileReady, setTurnstileReady] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string>("");
+  const [captchaData, setCaptchaData] = useState<Record<string, string> | undefined>();
+  const [sendCodeCaptchaToken, setSendCodeCaptchaToken] = useState<string>("");
+  const [sendCodeCaptchaData, setSendCodeCaptchaData] = useState<Record<string, string> | undefined>();
   const [codeSent, setCodeSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
-  const [showSendCodeTurnstile, setShowSendCodeTurnstile] = useState(false);
-  const turnstileRef = useRef<TurnstileRef>(null);
-  const sendCodeTurnstileRef = useRef<TurnstileRef>(null);
+  const [showSendCodeCaptcha, setShowSendCodeCaptcha] = useState(false);
+  const captchaRef = useRef<UnifiedCaptchaRef>(null);
+  const sendCodeCaptchaRef = useRef<UnifiedCaptchaRef>(null);
 
-  const { data: turnstileConfig } = useQuery({
-    queryKey: ["turnstile-config", "register"],
-    queryFn: () => fetchTurnstileConfig("register"),
+  const { data: captchaConfig } = useQuery({
+    queryKey: ["captcha-config", "register"],
+    queryFn: () => fetchCaptchaConfig("register"),
   });
 
-  const { data: sendCodeTurnstileConfig, refetch: refetchSendCodeConfig } = useQuery({
-    queryKey: ["turnstile-config", "register_verify"],
-    queryFn: () => fetchTurnstileConfig("register_verify"),
+  const { data: sendCodeCaptchaConfig, refetch: refetchSendCodeConfig } = useQuery({
+    queryKey: ["captcha-config", "register_verify"],
+    queryFn: () => fetchCaptchaConfig("register_verify"),
   });
-
-  useEffect(() => {
-    const needsTurnstileScript =
-      (turnstileConfig?.enabled && turnstileConfig.siteKey) ||
-      (sendCodeTurnstileConfig?.enabled && sendCodeTurnstileConfig.siteKey);
-
-    if (needsTurnstileScript) {
-      loadTurnstileScript()
-        .then(() => setTurnstileReady(true))
-        .catch((err) => {
-          console.error("Failed to load Turnstile:", err);
-          toast.error(t("register.loadTurnstileError"));
-        });
-    }
-  }, [t, turnstileConfig, sendCodeTurnstileConfig]);
 
   useEffect(() => {
     if (countdown > 0) {
@@ -90,15 +75,17 @@ export function RegisterForm({
       toast.success(t("register.verificationSent"));
       setCodeSent(true);
       setCountdown(60);
-      setShowSendCodeTurnstile(false);
-      setSendCodeTurnstileToken("");
+      setShowSendCodeCaptcha(false);
+      setSendCodeCaptchaToken("");
+      setSendCodeCaptchaData(undefined);
     },
     onError: (error) => {
       toast.error(error.message || t("register.sendVerificationFailed"));
-      if (sendCodeTurnstileRef.current) {
-        sendCodeTurnstileRef.current.reset();
+      if (sendCodeCaptchaRef.current) {
+        sendCodeCaptchaRef.current.reset();
       }
-      setSendCodeTurnstileToken("");
+      setSendCodeCaptchaToken("");
+      setSendCodeCaptchaData(undefined);
     },
   });
 
@@ -115,10 +102,11 @@ export function RegisterForm({
     },
     onError: (error) => {
       toast.error(error.message || t("register.failed"));
-      if (turnstileRef.current) {
-        turnstileRef.current.reset();
+      if (captchaRef.current) {
+        captchaRef.current.reset();
       }
-      setTurnstileToken("");
+      setCaptchaToken("");
+      setCaptchaData(undefined);
     },
   });
 
@@ -134,25 +122,30 @@ export function RegisterForm({
       return;
     }
 
-    // 重新获取最新的 Turnstile 配置
+    // 重新获取最新的验证码配置
     const { data: latestConfig } = await refetchSendCodeConfig();
 
-    if (latestConfig?.enabled && !sendCodeTurnstileToken) {
-      setShowSendCodeTurnstile(true);
+    if (latestConfig?.enabled && !sendCodeCaptchaToken) {
+      setShowSendCodeCaptcha(true);
       return;
     }
 
     sendCodeMutation.mutate({
       email: form.email,
-      turnstileToken: sendCodeTurnstileToken
+      captchaToken: sendCodeCaptchaToken,
+      captchaData: sendCodeCaptchaData,
+      captchaProvider: latestConfig?.provider || undefined,
     });
   };
 
-  const handleSendCodeTurnstileVerify = (token: string) => {
-    setSendCodeTurnstileToken(token);
+  const handleSendCodeCaptchaVerify = (token: string, extraData?: Record<string, string>) => {
+    setSendCodeCaptchaToken(token);
+    setSendCodeCaptchaData(extraData);
     sendCodeMutation.mutate({
       email: form.email,
-      turnstileToken: token
+      captchaToken: token,
+      captchaData: extraData,
+      captchaProvider: sendCodeCaptchaConfig?.provider || undefined,
     });
   };
 
@@ -179,7 +172,7 @@ export function RegisterForm({
       return;
     }
 
-    if (turnstileConfig?.enabled && !turnstileToken) {
+    if (captchaConfig?.enabled && !captchaToken) {
       toast.error(t("register.turnstileRequired"));
       return;
     }
@@ -189,7 +182,9 @@ export function RegisterForm({
       email: form.email,
       password: form.password,
       verificationCode: form.verificationCode,
-      turnstileToken: turnstileToken || undefined,
+      captchaToken,
+      captchaData,
+      captchaProvider: captchaConfig?.provider || undefined,
     });
   };
 
@@ -262,18 +257,23 @@ export function RegisterForm({
                       {t("register.codeSentNotice")}
                     </FieldDescription>
                   )}
-                  {showSendCodeTurnstile && sendCodeTurnstileConfig?.enabled && sendCodeTurnstileConfig.siteKey && turnstileReady && (
+                  {showSendCodeCaptcha && sendCodeCaptchaConfig?.enabled && sendCodeCaptchaConfig.siteKey && sendCodeCaptchaConfig.provider && (
                     <div className="rounded-md border p-4 space-y-2">
                       <p className="text-sm text-muted-foreground">{t("register.sendCodeTurnstileHint")}</p>
                       <div className="flex justify-center">
-                        <Turnstile
-                          ref={sendCodeTurnstileRef}
-                          siteKey={sendCodeTurnstileConfig.siteKey}
-                          onVerify={handleSendCodeTurnstileVerify}
-                          onExpire={() => setSendCodeTurnstileToken("")}
+                        <UnifiedCaptcha
+                          ref={sendCodeCaptchaRef}
+                          provider={sendCodeCaptchaConfig.provider as "cloudflare" | "geetest"}
+                          siteKey={sendCodeCaptchaConfig.siteKey}
+                          onVerify={handleSendCodeCaptchaVerify}
+                          onExpire={() => {
+                            setSendCodeCaptchaToken("");
+                            setSendCodeCaptchaData(undefined);
+                          }}
                           onError={() => {
                             toast.error(t("register.turnstileError"));
-                            setSendCodeTurnstileToken("");
+                            setSendCodeCaptchaToken("");
+                            setSendCodeCaptchaData(undefined);
                           }}
                         />
                       </div>
@@ -305,22 +305,27 @@ export function RegisterForm({
                   disabled={mutation.isPending}
                 />
               </Field>
-              {turnstileConfig?.enabled && turnstileConfig.siteKey && (
+              {captchaConfig?.enabled && captchaConfig.siteKey && captchaConfig.provider && (
                 <Field>
                   <div className="flex justify-center">
-                    {turnstileReady ? (
-                      <Turnstile
-                        ref={turnstileRef}
-                        siteKey={turnstileConfig.siteKey}
-                        onVerify={setTurnstileToken}
-                        onExpire={() => setTurnstileToken("")}
-                        onError={() => {
-                          toast.error(t("register.turnstileError"));
-                        }}
-                      />
-                    ) : (
-                      <p className="text-sm text-muted-foreground">{t("register.turnstileLoading")}</p>
-                    )}
+                    <UnifiedCaptcha
+                      ref={captchaRef}
+                      provider={captchaConfig.provider as "cloudflare" | "geetest"}
+                      siteKey={captchaConfig.siteKey}
+                      onVerify={(token, extraData) => {
+                        setCaptchaToken(token);
+                        setCaptchaData(extraData);
+                      }}
+                      onExpire={() => {
+                        setCaptchaToken("");
+                        setCaptchaData(undefined);
+                      }}
+                      onError={() => {
+                        toast.error(t("register.turnstileError"));
+                        setCaptchaToken("");
+                        setCaptchaData(undefined);
+                      }}
+                    />
                   </div>
                 </Field>
               )}

@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"skyimage/internal/admin"
+	"skyimage/internal/captcha"
 	"skyimage/internal/files"
 	mailservice "skyimage/internal/mail"
 	"skyimage/internal/middleware"
@@ -63,6 +64,7 @@ func (s *Server) registerAdminRoutes(r *gin.RouterGroup) {
 	adminGroup.PUT("/system", s.handleAdminUpdateSystemSettings)
 	adminGroup.POST("/system/test-smtp", s.handleAdminTestSMTP)
 	adminGroup.POST("/system/test-turnstile", s.handleAdminTestTurnstile)
+	adminGroup.POST("/system/test-captcha", s.handleAdminTestCaptcha)
 }
 
 func requireSuperAdmin(c *gin.Context) bool {
@@ -86,7 +88,9 @@ func redactSettings(settings map[string]string) map[string]string {
 	for key, value := range settings {
 		redacted[key] = value
 		switch strings.ToLower(strings.TrimSpace(key)) {
-		case "mail.smtp.password", "turnstile.secret_key", "turnstile.last_verified_signature":
+		case "mail.smtp.password", "turnstile.secret_key", "turnstile.last_verified_signature",
+			"captcha.cloudflare.secret_key", "captcha.cloudflare.last_verified_signature",
+			"captcha.geetest.captcha_key", "captcha.geetest.last_verified_signature":
 			redacted[key] = "***"
 		}
 	}
@@ -641,12 +645,28 @@ type systemSettingsPayload struct {
 	UserNotificationLimit                int    `json:"userNotificationLimit"`
 	AdminImageDeleteDefaultReason        string `json:"adminImageDeleteDefaultReason"`
 	SystemAutoDeleteDefaultReason        string `json:"systemAutoDeleteDefaultReason"`
+	// 新的统一验证码配置
+	EnableCaptcha                        bool   `json:"enableCaptcha"`
+	CaptchaProvider                      string `json:"captchaProvider"`
+	CloudflareSiteKey                    string `json:"cloudflareSiteKey"`
+	CloudflareSecretKey                  string `json:"cloudflareSecretKey"`
+	GeetestCaptchaID                     string `json:"geetestCaptchaId"`
+	GeetestCaptchaKey                    string `json:"geetestCaptchaKey"`
+	EnableLoginCaptcha                   bool   `json:"enableLoginCaptcha"`
+	EnableRegisterCaptcha                bool   `json:"enableRegisterCaptcha"`
+	EnableRegisterVerifyCaptcha          bool   `json:"enableRegisterVerifyCaptcha"`
+	EnableForgotPasswordRequestCaptcha   bool   `json:"enableForgotPasswordRequestCaptcha"`
+	EnableForgotPasswordResetCaptcha     bool   `json:"enableForgotPasswordResetCaptcha"`
 }
 
 type systemSettingsResponse struct {
 	systemSettingsPayload
-	TurnstileVerified       bool   `json:"turnstileVerified"`
-	TurnstileLastVerifiedAt string `json:"turnstileLastVerifiedAt,omitempty"`
+	TurnstileVerified          bool   `json:"turnstileVerified"`
+	TurnstileLastVerifiedAt    string `json:"turnstileLastVerifiedAt,omitempty"`
+	CloudflareVerified         bool   `json:"cloudflareVerified"`
+	CloudflareLastVerifiedAt   string `json:"cloudflareLastVerifiedAt,omitempty"`
+	GeetestVerified            bool   `json:"geetestVerified"`
+	GeetestLastVerifiedAt      string `json:"geetestLastVerifiedAt,omitempty"`
 }
 
 func normalizeImageLoadRows(raw string) int {
@@ -750,9 +770,36 @@ func (s *Server) handleAdminSystemSettings(c *gin.Context) {
 			UserNotificationLimit:                notifications.NormalizeRetentionLimit(settings[notifications.ConfigUserRetentionLimit]),
 			AdminImageDeleteDefaultReason:        notifications.NormalizeAdminDeleteReason(settings[notifications.ConfigAdminImageDeleteReason]),
 			SystemAutoDeleteDefaultReason:        notifications.NormalizeSystemAutoDeleteReason(settings[notifications.ConfigSystemAutoDeleteReason]),
+			// 新的统一验证码配置
+			EnableCaptcha:                      settings["captcha.enabled"] == "true",
+			CaptchaProvider:                    settings["captcha.provider"],
+			CloudflareSiteKey:                  settings["captcha.cloudflare.site_key"],
+			CloudflareSecretKey:                settings["captcha.cloudflare.secret_key"],
+			GeetestCaptchaID:                   settings["captcha.geetest.captcha_id"],
+			GeetestCaptchaKey:                  settings["captcha.geetest.captcha_key"],
+			EnableLoginCaptcha:                 settings["captcha.login"] == "true",
+			EnableRegisterCaptcha:              settings["captcha.register"] == "true",
+			EnableRegisterVerifyCaptcha:        settings["captcha.register_verify"] == "true",
+			EnableForgotPasswordRequestCaptcha: settings["captcha.forgot_password_request"] == "true",
+			EnableForgotPasswordResetCaptcha:   settings["captcha.forgot_password_reset"] == "true",
 		},
 		TurnstileLastVerifiedAt: settings["turnstile.last_verified_at"],
+		CloudflareLastVerifiedAt: settings["captcha.cloudflare.last_verified_at"],
+		GeetestLastVerifiedAt: settings["captcha.geetest.last_verified_at"],
 	}
+	// 检查 Cloudflare 验证状态
+	cloudflareExpectedSig := captcha.GenerateSignature(payload.CloudflareSiteKey, settings["captcha.cloudflare.secret_key"])
+	cloudflareStoredSig := settings["captcha.cloudflare.last_verified_signature"]
+	if cloudflareExpectedSig != "" && cloudflareStoredSig == cloudflareExpectedSig {
+		payload.CloudflareVerified = true
+	}
+	// 检查 Geetest 验证状态
+	geetestExpectedSig := captcha.GenerateGeetestSignature(payload.GeetestCaptchaID, settings["captcha.geetest.captcha_key"])
+	geetestStoredSig := settings["captcha.geetest.last_verified_signature"]
+	if geetestExpectedSig != "" && geetestStoredSig == geetestExpectedSig {
+		payload.GeetestVerified = true
+	}
+	// 兼容旧的 Turnstile 验证状态
 	expectedSig := turnstile.GenerateSignature(payload.TurnstileSiteKey, settings["turnstile.secret_key"])
 	storedSig := settings["turnstile.last_verified_signature"]
 	if expectedSig != "" && storedSig == expectedSig {
@@ -770,6 +817,7 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
 	settings, err := s.admin.GetSettings(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -814,6 +862,51 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 	}
 	adminDeleteReason := notifications.NormalizeAdminDeleteReason(payload.AdminImageDeleteDefaultReason)
 	systemAutoDeleteReason := notifications.NormalizeSystemAutoDeleteReason(payload.SystemAutoDeleteDefaultReason)
+
+	// 处理统一验证码配置的密钥
+	cloudflareSecretKey := strings.TrimSpace(payload.CloudflareSecretKey)
+	if cloudflareSecretKey == "" {
+		cloudflareSecretKey = settings["captcha.cloudflare.secret_key"]
+	}
+	geetestCaptchaKey := strings.TrimSpace(payload.GeetestCaptchaKey)
+	if geetestCaptchaKey == "" {
+		geetestCaptchaKey = settings["captcha.geetest.captcha_key"]
+	}
+
+	// 检查统一验证码配置是否变更
+	currentCloudflareSiteKey := settings["captcha.cloudflare.site_key"]
+	currentCloudflareSecretKey := settings["captcha.cloudflare.secret_key"]
+	currentGeetestCaptchaID := settings["captcha.geetest.captcha_id"]
+	currentGeetestCaptchaKey := settings["captcha.geetest.captcha_key"]
+
+	cloudflareConfigChanged := payload.CloudflareSiteKey != currentCloudflareSiteKey || cloudflareSecretKey != currentCloudflareSecretKey
+	geetestConfigChanged := payload.GeetestCaptchaID != currentGeetestCaptchaID || geetestCaptchaKey != currentGeetestCaptchaKey
+
+	// 当验证码启用时，检查所选提供商是否已验证
+	if payload.EnableCaptcha {
+		if payload.CaptchaProvider == "cloudflare" {
+			if payload.CloudflareSiteKey == "" || cloudflareSecretKey == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "使用 Cloudflare 验证时必须填写 Site Key 和 Secret Key"})
+				return
+			}
+			newCloudflareSig := captcha.GenerateSignature(payload.CloudflareSiteKey, cloudflareSecretKey)
+			if newCloudflareSig == "" || settings["captcha.cloudflare.last_verified_signature"] != newCloudflareSig {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Cloudflare 配置已变更或未验证，请先点击测试并验证成功后再保存"})
+				return
+			}
+		} else if payload.CaptchaProvider == "geetest" {
+			if payload.GeetestCaptchaID == "" || geetestCaptchaKey == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "使用极验验证时必须填写 Captcha ID 和 Captcha Key"})
+				return
+			}
+			newGeetestSig := captcha.GenerateGeetestSignature(payload.GeetestCaptchaID, geetestCaptchaKey)
+			if newGeetestSig == "" || settings["captcha.geetest.last_verified_signature"] != newGeetestSig {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "极验配置已变更或未验证，请先点击测试并验证成功后再保存"})
+				return
+			}
+		}
+	}
+
 	values := map[string]string{
 		"site.title":                               payload.SiteTitle,
 		"site.console_url":                         payload.ConsoleURL,
@@ -867,11 +960,34 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 		notifications.ConfigUserRetentionLimit:     strconv.Itoa(normalizeUserNotificationLimit(payload.UserNotificationLimit)),
 		notifications.ConfigAdminImageDeleteReason: adminDeleteReason,
 		notifications.ConfigSystemAutoDeleteReason: systemAutoDeleteReason,
+		// 新的统一验证码配置
+		"captcha.enabled":                 strconv.FormatBool(payload.EnableCaptcha),
+		"captcha.provider":                payload.CaptchaProvider,
+		"captcha.cloudflare.site_key":     payload.CloudflareSiteKey,
+		"captcha.cloudflare.secret_key":   cloudflareSecretKey,
+		"captcha.geetest.captcha_id":      payload.GeetestCaptchaID,
+		"captcha.geetest.captcha_key":     geetestCaptchaKey,
+		"captcha.login":                   strconv.FormatBool(payload.EnableLoginCaptcha),
+		"captcha.register":                strconv.FormatBool(payload.EnableRegisterCaptcha),
+		"captcha.register_verify":         strconv.FormatBool(payload.EnableRegisterVerifyCaptcha),
+		"captcha.forgot_password_request": strconv.FormatBool(payload.EnableForgotPasswordRequestCaptcha),
+		"captcha.forgot_password_reset":   strconv.FormatBool(payload.EnableForgotPasswordResetCaptcha),
 	}
 	if settings["turnstile.last_verified_signature"] != newSignature {
 		values["turnstile.last_verified_signature"] = ""
 		values["turnstile.last_verified_at"] = ""
 	}
+	// Cloudflare 配置变更时清除验证状态
+	if cloudflareConfigChanged {
+		values["captcha.cloudflare.last_verified_signature"] = ""
+		values["captcha.cloudflare.last_verified_at"] = ""
+	}
+	// Geetest 配置变更时清除验证状态
+	if geetestConfigChanged {
+		values["captcha.geetest.last_verified_signature"] = ""
+		values["captcha.geetest.last_verified_at"] = ""
+	}
+
 	if err := s.admin.UpdateSettings(c.Request.Context(), values); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -894,7 +1010,8 @@ func (s *Server) handleAdminTestTurnstile(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请先填写完整的 Turnstile 配置信息并通过验证"})
 		return
 	}
-	ok, err := s.turnstile.VerifyWithSecret(c.Request.Context(), payload.Token, c.ClientIP(), payload.SecretKey)
+	// Use the Cloudflare service from the unified captcha service
+	ok, err := s.captcha.Verify(c.Request.Context(), captcha.ProviderCloudflare, payload.Token, c.ClientIP(), nil)
 	if err != nil || !ok {
 		message := "Turnstile 验证失败"
 		if err != nil {
@@ -906,7 +1023,7 @@ func (s *Server) handleAdminTestTurnstile(c *gin.Context) {
 		}})
 		return
 	}
-	signature := turnstile.GenerateSignature(payload.SiteKey, payload.SecretKey)
+	signature := captcha.GenerateSignature(payload.SiteKey, payload.SecretKey)
 	now := time.Now().UTC().Format(time.RFC3339)
 	if err := s.admin.UpdateSettings(c.Request.Context(), map[string]string{
 		"turnstile.last_verified_signature": signature,
@@ -1097,4 +1214,85 @@ func (s *Server) handleAdminTestSMTP(c *gin.Context) {
 			"message": "测试邮件发送成功",
 		},
 	})
+}
+
+type testCaptchaPayload struct {
+	Provider   string            `json:"provider" binding:"required"`
+	SiteKey    string            `json:"siteKey"`
+	SecretKey  string            `json:"secretKey"`
+	CaptchaID  string            `json:"captchaId"`
+	CaptchaKey string            `json:"captchaKey"`
+	Token      string            `json:"token" binding:"required"`
+	ExtraData  map[string]string `json:"extraData"`
+}
+
+func (s *Server) handleAdminTestCaptcha(c *gin.Context) {
+	if !requireSuperAdmin(c) {
+		return
+	}
+
+	var payload testCaptchaPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写完整的验证码配置信息"})
+		return
+	}
+
+	provider := captcha.Provider(payload.Provider)
+	config := map[string]string{}
+
+	if provider == captcha.ProviderCloudflare {
+		if payload.SiteKey == "" || payload.SecretKey == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cloudflare Turnstile 需要 Site Key 和 Secret Key"})
+			return
+		}
+		config["secret_key"] = payload.SecretKey
+	} else if provider == captcha.ProviderGeetest {
+		if payload.CaptchaID == "" || payload.CaptchaKey == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "极验需要 Captcha ID 和 Captcha Key"})
+			return
+		}
+		config["captcha_id"] = payload.CaptchaID
+		config["captcha_key"] = payload.CaptchaKey
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "不支持的验证码提供商"})
+		return
+	}
+
+	ok, err := s.captcha.TestConfig(c.Request.Context(), provider, config, payload.Token, payload.ExtraData)
+	if err != nil || !ok {
+		message := "验证失败"
+		if err != nil {
+			message = err.Error()
+		}
+		c.JSON(http.StatusOK, gin.H{"data": gin.H{
+			"success": false,
+			"message": message,
+		}})
+		return
+	}
+
+	// 保存验证通过的状态
+	now := time.Now().UTC().Format(time.RFC3339)
+	settingsUpdate := map[string]string{}
+
+	if provider == captcha.ProviderCloudflare {
+		signature := captcha.GenerateSignature(payload.SiteKey, payload.SecretKey)
+		settingsUpdate["captcha.cloudflare.last_verified_signature"] = signature
+		settingsUpdate["captcha.cloudflare.last_verified_at"] = now
+	} else if provider == captcha.ProviderGeetest {
+		signature := captcha.GenerateGeetestSignature(payload.CaptchaID, payload.CaptchaKey)
+		settingsUpdate["captcha.geetest.last_verified_signature"] = signature
+		settingsUpdate["captcha.geetest.last_verified_at"] = now
+	}
+
+	if err := s.admin.UpdateSettings(c.Request.Context(), settingsUpdate); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{
+		"success":    true,
+		"message":    "验证成功",
+		"verifiedAt": now,
+	}})
 }

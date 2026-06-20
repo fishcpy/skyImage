@@ -1,15 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useState, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, Navigate } from "react-router-dom";
 import { toast } from "sonner";
 
-import { requestPasswordReset, fetchSiteConfig } from "@/lib/api";
+import { requestPasswordReset, fetchSiteConfig, fetchCaptchaConfig } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Turnstile, type TurnstileRef } from "@/components/Turnstile";
-import { fetchTurnstileConfig, loadTurnstileScript } from "@/lib/turnstile";
+import { UnifiedCaptcha, type UnifiedCaptchaRef } from "@/components/UnifiedCaptcha";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { PaletteToggle } from "@/components/PaletteToggle";
 import { useI18n } from "@/i18n";
@@ -17,29 +16,19 @@ import { useI18n } from "@/i18n";
 export function ForgotPasswordPage() {
   const { t } = useI18n();
   const [email, setEmail] = useState("");
-  const [turnstileToken, setTurnstileToken] = useState("");
-  const [turnstileReady, setTurnstileReady] = useState(false);
-  const turnstileRef = useRef<TurnstileRef>(null);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaData, setCaptchaData] = useState<Record<string, string> | undefined>();
+  const captchaRef = useRef<UnifiedCaptchaRef>(null);
   const { data: siteConfig } = useQuery({
     queryKey: ["site-config"],
     queryFn: fetchSiteConfig
   });
 
-  const { data: turnstileConfig } = useQuery({
-    queryKey: ["turnstile-config", "forgot_password_request"],
-    queryFn: () => fetchTurnstileConfig("forgot_password_request"),
+  const { data: captchaConfig } = useQuery({
+    queryKey: ["captcha-config", "forgot_password_request"],
+    queryFn: () => fetchCaptchaConfig("forgot_password_request"),
     enabled: !!siteConfig?.forgotPasswordTurnstileRequest
   });
-
-  useEffect(() => {
-    if (siteConfig?.forgotPasswordTurnstileRequest && turnstileConfig?.enabled && turnstileConfig.siteKey) {
-      loadTurnstileScript()
-        .then(() => setTurnstileReady(true))
-        .catch(() => {
-          toast.error(t("forgotPassword.loadTurnstileError"));
-        });
-    }
-  }, [siteConfig?.forgotPasswordTurnstileRequest, t, turnstileConfig?.enabled, turnstileConfig?.siteKey]);
 
   const mutation = useMutation({
     mutationFn: requestPasswordReset,
@@ -76,33 +65,46 @@ export function ForgotPasswordPage() {
                 placeholder="example@example.com"
               />
             </div>
+            {captchaConfig?.enabled && captchaConfig.siteKey && captchaConfig.provider && (
+              <div className="flex justify-center">
+                <UnifiedCaptcha
+                  ref={captchaRef}
+                  provider={captchaConfig.provider as "cloudflare" | "geetest"}
+                  siteKey={captchaConfig.siteKey}
+                  onVerify={(token, extraData) => {
+                    setCaptchaToken(token);
+                    setCaptchaData(extraData);
+                  }}
+                  onError={() => {
+                    setCaptchaToken("");
+                    setCaptchaData(undefined);
+                    toast.error(t("forgotPassword.turnstileError"));
+                  }}
+                  onExpire={() => {
+                    setCaptchaToken("");
+                    setCaptchaData(undefined);
+                  }}
+                />
+              </div>
+            )}
             <Button
               className="w-full"
               disabled={mutation.isPending || !email.trim()}
               onClick={() => {
-                if (siteConfig?.forgotPasswordTurnstileRequest && !turnstileToken) {
+                if (captchaConfig?.enabled && !captchaToken) {
                   toast.error(t("forgotPassword.turnstileRequired"));
                   return;
                 }
-                mutation.mutate({ email: email.trim(), turnstileToken });
+                mutation.mutate({
+                  email: email.trim(),
+                  captchaToken,
+                  captchaData,
+                  captchaProvider: captchaConfig?.provider || undefined,
+                });
               }}
             >
               {mutation.isPending ? t("forgotPassword.submitting") : t("forgotPassword.submit")}
             </Button>
-            {siteConfig?.forgotPasswordTurnstileRequest && turnstileConfig?.enabled && turnstileConfig.siteKey && turnstileReady && (
-              <div className="flex justify-center">
-                <Turnstile
-                  ref={turnstileRef}
-                  siteKey={turnstileConfig.siteKey}
-                  onVerify={setTurnstileToken}
-                  onError={() => {
-                    setTurnstileToken("");
-                    toast.error(t("forgotPassword.turnstileError"));
-                  }}
-                  onExpire={() => setTurnstileToken("")}
-                />
-              </div>
-            )}
             <p className="text-center text-sm text-muted-foreground">
               <Link to="/login" className="underline underline-offset-4 hover:text-primary">
                 {t("forgotPassword.backToLogin")}
