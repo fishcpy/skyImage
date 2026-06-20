@@ -654,7 +654,14 @@ func (s *Server) handleAdminTestTurnstile(c *gin.Context) {
 		}})
 		return
 	}
-	signature := captcha.GenerateSignature(payload.SiteKey, payload.SecretKey)
+	// Resolve "***" to actual secret key from database for signature calculation
+	secretKey := strings.TrimSpace(payload.SecretKey)
+	if secretKey == "***" {
+		if settings, err := s.admin.GetSettings(c.Request.Context()); err == nil {
+			secretKey = settings["turnstile.secret_key"]
+		}
+	}
+	signature := captcha.GenerateSignature(payload.SiteKey, secretKey)
 	now := time.Now().UTC().Format(time.RFC3339)
 	if err := s.admin.UpdateSettings(c.Request.Context(), map[string]string{
 		"turnstile.last_verified_signature": signature,
@@ -871,19 +878,30 @@ func (s *Server) handleAdminTestCaptcha(c *gin.Context) {
 	provider := captcha.Provider(payload.Provider)
 	config := map[string]string{}
 
+	// Get current settings for resolving redacted secrets
+	settings, _ := s.admin.GetSettings(c.Request.Context())
+
 	if provider == captcha.ProviderCloudflare {
-		if payload.SiteKey == "" || payload.SecretKey == "" {
+		secretKey := strings.TrimSpace(payload.SecretKey)
+		if secretKey == "***" && settings != nil {
+			secretKey = settings["captcha.cloudflare.secret_key"]
+		}
+		if payload.SiteKey == "" || secretKey == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Cloudflare Turnstile 需要 Site Key 和 Secret Key"})
 			return
 		}
-		config["secret_key"] = payload.SecretKey
+		config["secret_key"] = secretKey
 	} else if provider == captcha.ProviderGeetest {
-		if payload.CaptchaID == "" || payload.CaptchaKey == "" {
+		captchaKey := strings.TrimSpace(payload.CaptchaKey)
+		if captchaKey == "***" && settings != nil {
+			captchaKey = settings["captcha.geetest.captcha_key"]
+		}
+		if payload.CaptchaID == "" || captchaKey == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "极验需要 Captcha ID 和 Captcha Key"})
 			return
 		}
 		config["captcha_id"] = payload.CaptchaID
-		config["captcha_key"] = payload.CaptchaKey
+		config["captcha_key"] = captchaKey
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "不支持的验证码提供商"})
 		return
@@ -902,16 +920,16 @@ func (s *Server) handleAdminTestCaptcha(c *gin.Context) {
 		return
 	}
 
-	// 保存验证通过的状态
+	// 保存验证通过的状态（使用解析后的真实密钥计算签名）
 	now := time.Now().UTC().Format(time.RFC3339)
 	settingsUpdate := map[string]string{}
 
 	if provider == captcha.ProviderCloudflare {
-		signature := captcha.GenerateSignature(payload.SiteKey, payload.SecretKey)
+		signature := captcha.GenerateSignature(payload.SiteKey, config["secret_key"])
 		settingsUpdate["captcha.cloudflare.last_verified_signature"] = signature
 		settingsUpdate["captcha.cloudflare.last_verified_at"] = now
 	} else if provider == captcha.ProviderGeetest {
-		signature := captcha.GenerateGeetestSignature(payload.CaptchaID, payload.CaptchaKey)
+		signature := captcha.GenerateGeetestSignature(payload.CaptchaID, config["captcha_key"])
 		settingsUpdate["captcha.geetest.last_verified_signature"] = signature
 		settingsUpdate["captcha.geetest.last_verified_at"] = now
 	}

@@ -68,16 +68,16 @@ func (s *GeetestService) VerifyWithConfig(ctx context.Context, captchaID, captch
 	// Generate sign_token according to Geetest v4 protocol
 	signToken := generateGeetestSign(captchaKey, challenge)
 
-	// Prepare form data
+	// Prepare form data (captcha_id goes in URL query per Geetest official docs)
 	data := url.Values{}
-	data.Set("captcha_id", captchaID)
 	data.Set("lot_number", challenge)
 	data.Set("captcha_output", captchaOutput)
 	data.Set("pass_token", validate)
 	data.Set("gen_time", seccode)
 	data.Set("sign_token", signToken)
 
-	req, err := http.NewRequestWithContext(ctx, "POST", geetestVerifyURL, strings.NewReader(data.Encode()))
+	verifyURL := geetestVerifyURL + "?captcha_id=" + url.QueryEscape(captchaID)
+	req, err := http.NewRequestWithContext(ctx, "POST", verifyURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return false, fmt.Errorf("failed to create request: %w", err)
 	}
