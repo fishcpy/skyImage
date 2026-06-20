@@ -25,12 +25,11 @@ func New(db *gorm.DB) *Service {
 }
 
 type DashboardMetrics struct {
-	UserCount     int64             `json:"userCount"`
-	FileCount     int64             `json:"fileCount"`
-	StorageUsed   int64             `json:"storageUsed"`
-	LastUploadAt  *time.Time        `json:"lastUploadAt"`
-	RecentUploads []data.FileAsset  `json:"recentUploads"`
-	Settings      map[string]string `json:"settings"`
+	UserCount     int64            `json:"userCount"`
+	FileCount     int64            `json:"fileCount"`
+	StorageUsed   int64            `json:"storageUsed"`
+	LastUploadAt  *time.Time       `json:"lastUploadAt"`
+	RecentUploads []data.FileAsset `json:"recentUploads"`
 }
 
 type TrendData struct {
@@ -57,11 +56,6 @@ func (s *Service) Dashboard(ctx context.Context) (DashboardMetrics, error) {
 	if err := s.db.WithContext(ctx).Order("created_at DESC").Limit(5).Find(&metrics.RecentUploads).Error; err != nil {
 		return metrics, err
 	}
-	settings, err := s.GetSettings(ctx)
-	if err != nil {
-		return metrics, err
-	}
-	metrics.Settings = settings
 	return metrics, nil
 }
 

@@ -89,7 +89,7 @@ export const buildNavSections = ({
           icon: ServerCog,
           items: [
             { url: "/dashboard/admin/settings/site", title: t("nav.siteSettings") },
-            { url: "/dashboard/admin/settings/smtp", title: t("nav.smtpSettings") },
+            { url: "/dashboard/admin/settings/email", title: t("nav.emailSettings") },
             { url: "/dashboard/admin/settings/system", title: t("nav.systemSettings") },
             { url: "/dashboard/admin/settings/captcha", title: t("nav.captchaSettings") }
           ]

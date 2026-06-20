@@ -29,15 +29,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n";
 import {
-  fetchSystemSettings,
+  fetchEmailSettings,
   testSmtpEmail,
-  type SystemSettingsInput,
-  type SystemSettingsResponse,
-  updateSystemSettings
+  type EmailSettings,
+  updateEmailSettings,
+  fetchSiteConfig
 } from "@/lib/api";
-
-const defaultAdminImageDeleteReasonText = "图片已被管理员删除";
-const defaultSystemAutoDeleteReasonText = "图片已被系统自动删除";
 
 type MailTemplateKey =
   | "test"
@@ -53,8 +50,8 @@ type MailTemplateVariable = {
 
 type MailTemplateDefinition = {
   labelKey: string;
-  subjectField: keyof SystemSettingsInput;
-  bodyField: keyof SystemSettingsInput;
+  subjectField: keyof EmailSettings;
+  bodyField: keyof EmailSettings;
   defaultSubject: string;
   defaultBody: string;
   variables: MailTemplateVariable[];
@@ -63,41 +60,41 @@ type MailTemplateDefinition = {
 const templateVariables = {
   siteName: {
     token: "{{site_name}}",
-    labelKey: "admin.smtpSettings.variable.siteName"
+    labelKey: "admin.emailSettings.variable.siteName"
   },
   userName: {
     token: "{{user_name}}",
-    labelKey: "admin.smtpSettings.variable.userName"
+    labelKey: "admin.emailSettings.variable.userName"
   },
   email: {
     token: "{{email}}",
-    labelKey: "admin.smtpSettings.variable.email"
+    labelKey: "admin.emailSettings.variable.email"
   },
   verificationCode: {
     token: "{{verification_code}}",
-    labelKey: "admin.smtpSettings.variable.verificationCode"
+    labelKey: "admin.emailSettings.variable.verificationCode"
   },
   resetLink: {
     token: "{{reset_link}}",
-    labelKey: "admin.smtpSettings.variable.resetLink"
+    labelKey: "admin.emailSettings.variable.resetLink"
   },
   loginIp: {
     token: "{{login_ip}}",
-    labelKey: "admin.smtpSettings.variable.loginIp"
+    labelKey: "admin.emailSettings.variable.loginIp"
   },
   testEmail: {
     token: "{{test_email}}",
-    labelKey: "admin.smtpSettings.variable.testEmail"
+    labelKey: "admin.emailSettings.variable.testEmail"
   },
   currentTime: {
     token: "{{current_time}}",
-    labelKey: "admin.smtpSettings.variable.currentTime"
+    labelKey: "admin.emailSettings.variable.currentTime"
   }
 } satisfies Record<string, MailTemplateVariable>;
 
 const mailTemplateDefinitions: Record<MailTemplateKey, MailTemplateDefinition> = {
   test: {
-    labelKey: "admin.smtpSettings.template.test",
+    labelKey: "admin.emailSettings.template.test",
     subjectField: "mailTestSubject",
     bodyField: "mailTestBody",
     defaultSubject: "{{site_name}} 邮件测试",
@@ -105,7 +102,7 @@ const mailTemplateDefinitions: Record<MailTemplateKey, MailTemplateDefinition> =
     variables: [templateVariables.siteName, templateVariables.testEmail, templateVariables.currentTime]
   },
   registerVerify: {
-    labelKey: "admin.smtpSettings.template.registerVerify",
+    labelKey: "admin.emailSettings.template.registerVerify",
     subjectField: "mailRegisterVerifySubject",
     bodyField: "mailRegisterVerifyBody",
     defaultSubject: "{{site_name}} 注册验证码",
@@ -128,7 +125,7 @@ const mailTemplateDefinitions: Record<MailTemplateKey, MailTemplateDefinition> =
     ]
   },
   registerSuccess: {
-    labelKey: "admin.smtpSettings.template.registerSuccess",
+    labelKey: "admin.emailSettings.template.registerSuccess",
     subjectField: "mailRegisterSuccessSubject",
     bodyField: "mailRegisterSuccessBody",
     defaultSubject: "欢迎注册 {{site_name}}",
@@ -149,7 +146,7 @@ const mailTemplateDefinitions: Record<MailTemplateKey, MailTemplateDefinition> =
     ]
   },
   loginNotification: {
-    labelKey: "admin.smtpSettings.template.loginNotification",
+    labelKey: "admin.emailSettings.template.loginNotification",
     subjectField: "mailLoginNotificationSubject",
     bodyField: "mailLoginNotificationBody",
     defaultSubject: "{{site_name}} 登录提醒",
@@ -172,7 +169,7 @@ const mailTemplateDefinitions: Record<MailTemplateKey, MailTemplateDefinition> =
     ]
   },
   forgotPassword: {
-    labelKey: "admin.smtpSettings.template.forgotPassword",
+    labelKey: "admin.emailSettings.template.forgotPassword",
     subjectField: "mailForgotPasswordSubject",
     bodyField: "mailForgotPasswordBody",
     defaultSubject: "{{site_name}} 密码重置验证码",
@@ -205,27 +202,7 @@ const mailTemplateOrder: MailTemplateKey[] = [
   "forgotPassword"
 ];
 
-const defaultSystemSettingsForm: SystemSettingsInput = {
-  siteTitle: "",
-  consoleUrl: "http://localhost:8080",
-  siteDescription: "",
-  siteSlogan: "",
-  siteLogo: "",
-  about: "",
-  aboutTitle: "",
-  notFoundMode: "template",
-  notFoundHeading: "",
-  notFoundText: "",
-  notFoundHtml: "",
-  termsOfService: "",
-  privacyPolicy: "",
-  homePageMode: "default",
-  homeCustomHtml: "",
-  enableGallery: true,
-  enableHome: true,
-  enableApi: true,
-  imageLoadRows: 4,
-  allowRegistration: true,
+const defaultEmailSettingsForm: EmailSettings = {
   smtpHost: "",
   smtpPort: "",
   smtpUsername: "",
@@ -247,42 +224,10 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
   enableForgotPassword: false,
   enableForgotPasswordTurnstile: false,
   enableForgotPasswordTurnstileRequest: false,
-  enableForgotPasswordTurnstileReset: false,
-  turnstileSiteKey: "",
-  turnstileSecretKey: "",
-  enableTurnstile: false,
-  enableLoginTurnstile: false,
-  enableRegisterTurnstile: false,
-  enableRegisterVerifyTurnstile: false,
-  accountDisabledNotice: "",
-  userNotificationLimit: 50,
-  adminImageDeleteDefaultReason: defaultAdminImageDeleteReasonText,
-  systemAutoDeleteDefaultReason: defaultSystemAutoDeleteReasonText
+  enableForgotPasswordTurnstileReset: false
 };
 
-const smtpFields: (keyof SystemSettingsInput)[] = [
-  "smtpHost",
-  "smtpPort",
-  "smtpUsername",
-  "smtpPassword",
-  "smtpFrom",
-  "smtpSecure",
-  "mailTestSubject",
-  "mailTestBody",
-  "mailRegisterVerifySubject",
-  "mailRegisterVerifyBody",
-  "mailRegisterSuccessSubject",
-  "mailRegisterSuccessBody",
-  "mailLoginNotificationSubject",
-  "mailLoginNotificationBody",
-  "mailForgotPasswordSubject",
-  "mailForgotPasswordBody",
-  "enableRegisterVerify",
-  "enableLoginNotification",
-  "enableForgotPassword"
-];
-
-function applyTemplateDefaults(input: SystemSettingsInput) {
+function applyTemplateDefaults(input: EmailSettings) {
   const next = { ...input };
 
   for (const definition of Object.values(mailTemplateDefinitions)) {
@@ -300,7 +245,7 @@ function applyTemplateDefaults(input: SystemSettingsInput) {
   return next;
 }
 
-function normalizeTemplateFieldsForSave(input: SystemSettingsInput) {
+function normalizeTemplateFieldsForSave(input: EmailSettings) {
   const next = { ...input };
 
   for (const definition of Object.values(mailTemplateDefinitions)) {
@@ -318,19 +263,24 @@ function normalizeTemplateFieldsForSave(input: SystemSettingsInput) {
   return next;
 }
 
-export function AdminSmtpSettingsPage() {
+export function AdminEmailSettingsPage() {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const subjectInputRef = useRef<HTMLInputElement>(null);
   const bodyTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const { data, isLoading, error } = useQuery<SystemSettingsResponse>({
-    queryKey: ["admin", "system-settings"],
-    queryFn: fetchSystemSettings
+  const { data, isLoading, error } = useQuery<EmailSettings>({
+    queryKey: ["admin", "email-settings"],
+    queryFn: fetchEmailSettings
   });
 
-  const [form, setForm] = useState<SystemSettingsInput>(defaultSystemSettingsForm);
-  const [initialForm, setInitialForm] = useState<SystemSettingsInput | null>(null);
+  const { data: siteConfig } = useQuery({
+    queryKey: ["site-config"],
+    queryFn: fetchSiteConfig
+  });
+
+  const [form, setForm] = useState<EmailSettings>(defaultEmailSettingsForm);
+  const [initialForm, setInitialForm] = useState<EmailSettings | null>(null);
   const [testEmail, setTestEmail] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<MailTemplateKey>("test");
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -341,34 +291,30 @@ export function AdminSmtpSettingsPage() {
     if (!initialForm) {
       return false;
     }
-    return smtpFields.some((key) => initialForm[key] !== form[key]);
+    return (Object.keys(form) as (keyof EmailSettings)[]).some(
+      (key) => initialForm[key] !== form[key]
+    );
   }, [initialForm, form]);
 
   useEffect(() => {
     if (!data) return;
-    const { turnstileVerified: _verified, turnstileLastVerifiedAt: _lastVerifiedAt, ...rest } = data;
     const normalized = applyTemplateDefaults({
-      ...defaultSystemSettingsForm,
-      ...rest
+      ...defaultEmailSettingsForm,
+      ...data
     });
     setForm(normalized);
     setInitialForm(normalized);
   }, [data]);
 
   const mutation = useMutation({
-    mutationFn: async (input: SystemSettingsInput) => {
-      const latest = await fetchSystemSettings();
-      const merged = { ...latest } as SystemSettingsInput;
-      for (const key of smtpFields) {
-        merged[key] = input[key] as never;
-      }
-      await updateSystemSettings(normalizeTemplateFieldsForSave(merged));
+    mutationFn: async (input: EmailSettings) => {
+      await updateEmailSettings(normalizeTemplateFieldsForSave(input));
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "system-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "email-settings"] });
       queryClient.invalidateQueries({ queryKey: ["site-config"] });
       queryClient.invalidateQueries({ queryKey: ["site-meta"] });
-      toast.success(t("admin.smtpSettings.saved"));
+      toast.success(t("admin.emailSettings.saved"));
     },
     onError: (mutationError) => toast.error(mutationError.message)
   });
@@ -377,29 +323,29 @@ export function AdminSmtpSettingsPage() {
     mutationFn: testSmtpEmail,
     onSuccess: (result) => {
       if (result.success) {
-        toast.success(t("admin.smtpSettings.testMailSuccess"));
+        toast.success(t("admin.emailSettings.testMailSuccess"));
         setTestEmail("");
       } else {
-        toast.error(result.message || t("admin.smtpSettings.testMailFailed"));
+        toast.error(result.message || t("admin.emailSettings.testMailFailed"));
       }
     },
     onError: (mutationError) => toast.error(mutationError.message)
   });
 
   if (isLoading) {
-    return <SplashScreen message={t("admin.smtpSettings.loading")} />;
+    return <SplashScreen message={t("admin.emailSettings.loading")} />;
   }
 
   if (error && !data) {
     const message =
       error.message === "account disabled"
-        ? t("admin.smtpSettings.disabled")
+        ? t("admin.emailSettings.disabled")
         : error.message;
     return (
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>{t("admin.smtpSettings.loadFailed")}</CardTitle>
+            <CardTitle>{t("admin.emailSettings.loadFailed")}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-destructive">{message}</p>
@@ -409,12 +355,12 @@ export function AdminSmtpSettingsPage() {
     );
   }
 
-  const handleChange = (field: keyof SystemSettingsInput, value: unknown) => {
+  const handleChange = (field: keyof EmailSettings, value: unknown) => {
     const actualValue = value === "indeterminate" ? false : value;
     setForm((prev) => ({ ...prev, [field]: actualValue as never }));
   };
 
-  const getStringFieldValue = (field: keyof SystemSettingsInput) => {
+  const getStringFieldValue = (field: keyof EmailSettings) => {
     const value = form[field];
     return typeof value === "string" ? value : "";
   };
@@ -448,16 +394,16 @@ export function AdminSmtpSettingsPage() {
 
   const handleTestEmail = () => {
     if (!testEmail) {
-      toast.error(t("admin.smtpSettings.testMailRequired"));
+      toast.error(t("admin.emailSettings.testMailRequired"));
       return;
     }
     if (!form.smtpHost || !form.smtpPort || !form.smtpUsername) {
-      toast.error(t("admin.smtpSettings.configRequired"));
+      toast.error(t("admin.emailSettings.configRequired"));
       return;
     }
     testEmailMutation.mutate({
       testEmail,
-      siteTitle: form.siteTitle,
+      siteTitle: siteConfig?.title ?? "",
       smtpHost: form.smtpHost,
       smtpPort: form.smtpPort,
       smtpUsername: form.smtpUsername,
@@ -473,12 +419,12 @@ export function AdminSmtpSettingsPage() {
     <div className="space-y-6">
       <div className="space-y-3">
         <h1 className="text-2xl font-semibold">{t("nav.systemSettings")}</h1>
-        <p className="text-muted-foreground">{t("admin.smtpSettings.description")}</p>
+        <p className="text-muted-foreground">{t("admin.emailSettings.description")}</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("admin.smtpSettings.card")}</CardTitle>
+          <CardTitle>{t("admin.emailSettings.card")}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
@@ -490,14 +436,14 @@ export function AdminSmtpSettingsPage() {
             <Input value={form.smtpPort} onChange={(e) => handleChange("smtpPort", e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>{t("admin.smtpSettings.username")}</Label>
+            <Label>{t("admin.emailSettings.username")}</Label>
             <Input
               value={form.smtpUsername}
               onChange={(e) => handleChange("smtpUsername", e.target.value)}
             />
           </div>
           <div className="space-y-2">
-            <Label>{t("admin.smtpSettings.password")}</Label>
+            <Label>{t("admin.emailSettings.password")}</Label>
             <Input
               type="password"
               value={form.smtpPassword}
@@ -505,7 +451,7 @@ export function AdminSmtpSettingsPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label>{t("admin.smtpSettings.from")}</Label>
+            <Label>{t("admin.emailSettings.from")}</Label>
             <Input
               type="email"
               placeholder="noreply@yourdomain.com"
@@ -520,18 +466,18 @@ export function AdminSmtpSettingsPage() {
                 checked={form.smtpSecure}
                 onCheckedChange={(checked) => handleChange("smtpSecure", checked)}
               />
-              <Label htmlFor="smtpSecure">{t("admin.smtpSettings.secure")}</Label>
+              <Label htmlFor="smtpSecure">{t("admin.emailSettings.secure")}</Label>
             </div>
           </div>
           <div className="mt-4 space-y-2 border-t pt-4 md:col-span-2">
             <Label className="flex items-center gap-2">
               <Mail className="h-4 w-4" />
-              {t("admin.smtpSettings.testMail")}
+              {t("admin.emailSettings.testMail")}
             </Label>
             <div className="flex gap-2">
               <Input
                 type="email"
-                placeholder={t("admin.smtpSettings.testMailPlaceholder")}
+                placeholder={t("admin.emailSettings.testMailPlaceholder")}
                 value={testEmail}
                 onChange={(e) => setTestEmail(e.target.value)}
                 className="flex-1"
@@ -544,8 +490,8 @@ export function AdminSmtpSettingsPage() {
               >
                 <Send className="mr-2 h-4 w-4" />
                 {testEmailMutation.isPending
-                  ? t("admin.smtpSettings.testMailSending")
-                  : t("admin.smtpSettings.testMailSend")}
+                  ? t("admin.emailSettings.testMailSending")
+                  : t("admin.emailSettings.testMailSend")}
               </Button>
             </div>
           </div>
@@ -554,7 +500,7 @@ export function AdminSmtpSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("admin.smtpSettings.notifications")}</CardTitle>
+          <CardTitle>{t("admin.emailSettings.notifications")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center space-x-2">
@@ -564,7 +510,7 @@ export function AdminSmtpSettingsPage() {
               onCheckedChange={(checked) => handleChange("enableRegisterVerify", checked)}
             />
             <Label htmlFor="enableRegisterVerify">
-              {t("admin.smtpSettings.enableRegisterVerify")}
+              {t("admin.emailSettings.enableRegisterVerify")}
             </Label>
           </div>
           <div className="flex items-center space-x-2">
@@ -574,7 +520,7 @@ export function AdminSmtpSettingsPage() {
               onCheckedChange={(checked) => handleChange("enableLoginNotification", checked)}
             />
             <Label htmlFor="enableLoginNotification">
-              {t("admin.smtpSettings.enableLoginNotification")}
+              {t("admin.emailSettings.enableLoginNotification")}
             </Label>
           </div>
           <div className="flex items-center space-x-2">
@@ -584,7 +530,7 @@ export function AdminSmtpSettingsPage() {
               onCheckedChange={(checked) => handleChange("enableForgotPassword", checked)}
             />
             <Label htmlFor="enableForgotPassword">
-              {t("admin.smtpSettings.enableForgotPassword")}
+              {t("admin.emailSettings.enableForgotPassword")}
             </Label>
           </div>
         </CardContent>
@@ -592,18 +538,18 @@ export function AdminSmtpSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("admin.smtpSettings.templates")}</CardTitle>
+          <CardTitle>{t("admin.emailSettings.templates")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid gap-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-end">
             <div className="space-y-2">
-              <Label>{t("admin.smtpSettings.templateType")}</Label>
+              <Label>{t("admin.emailSettings.templateType")}</Label>
               <Select
                 value={selectedTemplate}
                 onValueChange={(value) => setSelectedTemplate(value as MailTemplateKey)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder={t("admin.smtpSettings.templateTypePlaceholder")} />
+                  <SelectValue placeholder={t("admin.emailSettings.templateTypePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {mailTemplateOrder.map((key) => (
@@ -616,16 +562,16 @@ export function AdminSmtpSettingsPage() {
             </div>
             <div className="flex items-center justify-between gap-3 rounded-md border border-dashed px-4 py-3">
               <p className="text-sm text-muted-foreground">
-                {t("admin.smtpSettings.templateHint")}
+                {t("admin.emailSettings.templateHint")}
               </p>
               <Button type="button" variant="ghost" size="sm" onClick={() => setResetDialogOpen(true)}>
-                {t("admin.smtpSettings.resetTemplate")}
+                {t("admin.emailSettings.resetTemplate")}
               </Button>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label>{t("admin.smtpSettings.templateSubject")}</Label>
+            <Label>{t("admin.emailSettings.templateSubject")}</Label>
             <Input
               ref={subjectInputRef}
               value={getStringFieldValue(activeTemplate.subjectField)}
@@ -633,7 +579,7 @@ export function AdminSmtpSettingsPage() {
             />
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                {t("admin.smtpSettings.insertSubjectVariable")}
+                {t("admin.emailSettings.insertSubjectVariable")}
               </p>
               <div className="flex flex-wrap gap-2">
                 {activeTemplate.variables.map((variable) => (
@@ -652,7 +598,7 @@ export function AdminSmtpSettingsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>{t("admin.smtpSettings.templateBody")}</Label>
+            <Label>{t("admin.emailSettings.templateBody")}</Label>
             <Textarea
               ref={bodyTextareaRef}
               value={getStringFieldValue(activeTemplate.bodyField)}
@@ -661,7 +607,7 @@ export function AdminSmtpSettingsPage() {
             />
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                {t("admin.smtpSettings.insertBodyVariable")}
+                {t("admin.emailSettings.insertBodyVariable")}
               </p>
               <div className="flex flex-wrap gap-2">
                 {activeTemplate.variables.map((variable) => (
@@ -684,9 +630,9 @@ export function AdminSmtpSettingsPage() {
       <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("admin.smtpSettings.resetTemplateConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogTitle>{t("admin.emailSettings.resetTemplateConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("admin.smtpSettings.resetTemplateConfirmDescription", {
+              {t("admin.emailSettings.resetTemplateConfirmDescription", {
                 name: t(activeTemplate.labelKey)
               })}
             </AlertDialogDescription>
@@ -694,7 +640,7 @@ export function AdminSmtpSettingsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleResetTemplate}>
-              {t("admin.smtpSettings.resetTemplateConfirmAction")}
+              {t("admin.emailSettings.resetTemplateConfirmAction")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -705,7 +651,7 @@ export function AdminSmtpSettingsPage() {
           {isFormDirty ? t("admin.systemSettings.unsaved") : t("admin.systemSettings.clean")}
         </p>
         <Button onClick={() => mutation.mutate(form)} disabled={mutation.isPending || !isFormDirty}>
-          {mutation.isPending ? t("common.saving") : t("admin.smtpSettings.save")}
+          {mutation.isPending ? t("common.saving") : t("admin.emailSettings.save")}
         </Button>
       </div>
     </div>

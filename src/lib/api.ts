@@ -661,7 +661,9 @@ export async function deleteAdminImagesBatch(ids: number[], reason?: string) {
   return res.data.data;
 }
 
-export type SystemSettingsInput = {
+// ── Site Settings ──
+
+export type SiteSettings = {
   siteTitle: string;
   consoleUrl: string;
   siteDescription: string;
@@ -680,8 +682,44 @@ export type SystemSettingsInput = {
   enableGallery: boolean;
   enableHome: boolean;
   enableApi: boolean;
-  imageLoadRows: number;
   allowRegistration: boolean;
+  accountDisabledNotice: string;
+};
+
+export async function fetchSiteSettings() {
+  const res = await apiClient.get<{ data: SiteSettings }>(
+    "/admin/system/site"
+  );
+  return res.data.data;
+}
+
+export async function updateSiteSettings(input: SiteSettings) {
+  await apiClient.put("/admin/system/site", input);
+}
+
+// ── General Settings ──
+
+export type GeneralSettings = {
+  imageLoadRows: number;
+  userNotificationLimit: number;
+  adminImageDeleteDefaultReason: string;
+  systemAutoDeleteDefaultReason: string;
+};
+
+export async function fetchGeneralSettings() {
+  const res = await apiClient.get<{ data: GeneralSettings }>(
+    "/admin/system/general"
+  );
+  return res.data.data;
+}
+
+export async function updateGeneralSettings(input: GeneralSettings) {
+  await apiClient.put("/admin/system/general", input);
+}
+
+// ── Email Settings ──
+
+export type EmailSettings = {
   smtpHost: string;
   smtpPort: string;
   smtpUsername: string;
@@ -704,50 +742,53 @@ export type SystemSettingsInput = {
   enableForgotPasswordTurnstile: boolean;
   enableForgotPasswordTurnstileRequest: boolean;
   enableForgotPasswordTurnstileReset: boolean;
-  turnstileSiteKey: string;
-  turnstileSecretKey: string;
-  enableTurnstile: boolean;
-  enableLoginTurnstile: boolean;
-  enableRegisterTurnstile: boolean;
-  enableRegisterVerifyTurnstile: boolean;
-  accountDisabledNotice: string;
-  userNotificationLimit: number;
-  adminImageDeleteDefaultReason: string;
-  systemAutoDeleteDefaultReason: string;
-  // 新的统一验证码配置
-  enableCaptcha?: boolean;
-  captchaProvider?: "cloudflare" | "geetest" | "";
-  cloudflareSiteKey?: string;
-  cloudflareSecretKey?: string;
-  geetestCaptchaId?: string;
-  geetestCaptchaKey?: string;
-  enableLoginCaptcha?: boolean;
-  enableRegisterCaptcha?: boolean;
-  enableRegisterVerifyCaptcha?: boolean;
-  enableForgotPasswordRequestCaptcha?: boolean;
-  enableForgotPasswordResetCaptcha?: boolean;
 };
 
-export type SystemSettingsResponse = SystemSettingsInput & {
-  turnstileVerified: boolean;
-  turnstileLastVerifiedAt?: string;
-  // 新的验证状态
-  cloudflareVerified?: boolean;
-  cloudflareLastVerifiedAt?: string;
-  geetestVerified?: boolean;
-  geetestLastVerifiedAt?: string;
-};
-
-export async function fetchSystemSettings() {
-  const res = await apiClient.get<{ data: SystemSettingsResponse }>(
-    "/admin/system"
+export async function fetchEmailSettings() {
+  const res = await apiClient.get<{ data: EmailSettings }>(
+    "/admin/system/email"
   );
   return res.data.data;
 }
 
-export async function updateSystemSettings(input: SystemSettingsInput) {
-  await apiClient.put("/admin/system", input);
+export async function updateEmailSettings(input: EmailSettings) {
+  await apiClient.put("/admin/system/email", input);
 }
+
+// ── Captcha Settings ──
+
+export type CaptchaSettings = {
+  enableCaptcha: boolean;
+  captchaProvider: "cloudflare" | "geetest" | "";
+  cloudflareSiteKey: string;
+  cloudflareSecretKey: string;
+  geetestCaptchaId: string;
+  geetestCaptchaKey: string;
+  enableLoginCaptcha: boolean;
+  enableRegisterCaptcha: boolean;
+  enableRegisterVerifyCaptcha: boolean;
+  enableForgotPasswordRequestCaptcha: boolean;
+  enableForgotPasswordResetCaptcha: boolean;
+  turnstileVerified: boolean;
+  turnstileLastVerifiedAt?: string;
+  cloudflareVerified: boolean;
+  cloudflareLastVerifiedAt?: string;
+  geetestVerified: boolean;
+  geetestLastVerifiedAt?: string;
+};
+
+export async function fetchCaptchaSettings() {
+  const res = await apiClient.get<{ data: CaptchaSettings }>(
+    "/admin/system/captcha"
+  );
+  return res.data.data;
+}
+
+export async function updateCaptchaSettings(input: Omit<CaptchaSettings, "turnstileVerified" | "turnstileLastVerifiedAt" | "cloudflareVerified" | "cloudflareLastVerifiedAt" | "geetestVerified" | "geetestLastVerifiedAt">) {
+  await apiClient.put("/admin/system/captcha", input);
+}
+
+// ── Test APIs ──
 
 export type TestSmtpPayload = {
   testEmail: string;
@@ -769,7 +810,7 @@ export type TestSmtpResponse = {
 
 export async function testSmtpEmail(payload: TestSmtpPayload) {
   const res = await apiClient.post<{ data: TestSmtpResponse }>(
-    "/admin/system/test-smtp",
+    "/admin/system/email/test",
     payload
   );
   return res.data.data;
@@ -805,7 +846,7 @@ export type TestCaptchaResponse = {
 
 export async function testTurnstileConfig(payload: TestTurnstilePayload) {
   const res = await apiClient.post<{ data: TestTurnstileResponse }>(
-    "/admin/system/test-turnstile",
+    "/admin/system/captcha/test-turnstile",
     payload
   );
   return res.data.data;
@@ -813,7 +854,7 @@ export async function testTurnstileConfig(payload: TestTurnstilePayload) {
 
 export async function testCaptchaConfig(payload: TestCaptchaPayload) {
   const res = await apiClient.post<{ data: TestCaptchaResponse }>(
-    "/admin/system/test-captcha",
+    "/admin/system/captcha/test",
     payload
   );
   return res.data.data;

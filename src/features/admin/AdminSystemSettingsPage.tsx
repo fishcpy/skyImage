@@ -8,10 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  fetchSystemSettings,
-  updateSystemSettings,
-  type SystemSettingsInput,
-  type SystemSettingsResponse
+  fetchGeneralSettings,
+  updateGeneralSettings,
+  type GeneralSettings
 } from "@/lib/api";
 import { SplashScreen } from "@/components/SplashScreen";
 import { useI18n } from "@/i18n";
@@ -19,56 +18,8 @@ import { useI18n } from "@/i18n";
 const defaultAdminImageDeleteReasonText = "图片已被管理员删除";
 const defaultSystemAutoDeleteReasonText = "图片已被系统自动删除";
 
-const defaultSystemSettingsForm: SystemSettingsInput = {
-  siteTitle: "",
-  consoleUrl: "http://localhost:8080",
-  siteDescription: "",
-  siteSlogan: "",
-  siteLogo: "",
-  about: "",
-  aboutTitle: "",
-  notFoundMode: "template",
-  notFoundHeading: "",
-  notFoundText: "",
-  notFoundHtml: "",
-  termsOfService: "",
-  privacyPolicy: "",
-  homePageMode: "default",
-  homeCustomHtml: "",
-  enableGallery: true,
-  enableHome: true,
-  enableApi: true,
+const defaultGeneralSettingsForm: GeneralSettings = {
   imageLoadRows: 4,
-  allowRegistration: true,
-  smtpHost: "",
-  smtpPort: "",
-  smtpUsername: "",
-  smtpPassword: "",
-  smtpFrom: "",
-  smtpSecure: false,
-  mailTestSubject: "",
-  mailTestBody: "",
-  mailRegisterVerifySubject: "",
-  mailRegisterVerifyBody: "",
-  mailRegisterSuccessSubject: "",
-  mailRegisterSuccessBody: "",
-  mailLoginNotificationSubject: "",
-  mailLoginNotificationBody: "",
-  mailForgotPasswordSubject: "",
-  mailForgotPasswordBody: "",
-  enableRegisterVerify: false,
-  enableLoginNotification: false,
-  enableForgotPassword: false,
-  enableForgotPasswordTurnstile: false,
-  enableForgotPasswordTurnstileRequest: false,
-  enableForgotPasswordTurnstileReset: false,
-  turnstileSiteKey: "",
-  turnstileSecretKey: "",
-  enableTurnstile: false,
-  enableLoginTurnstile: false,
-  enableRegisterTurnstile: false,
-  enableRegisterVerifyTurnstile: false,
-  accountDisabledNotice: "",
   userNotificationLimit: 50,
   adminImageDeleteDefaultReason: defaultAdminImageDeleteReasonText,
   systemAutoDeleteDefaultReason: defaultSystemAutoDeleteReasonText
@@ -77,26 +28,26 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
 export function AdminSystemSettingsPage() {
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const { data, isLoading, error } = useQuery<SystemSettingsResponse>({
-    queryKey: ["admin", "system-settings"],
-    queryFn: fetchSystemSettings
+  const { data, isLoading, error } = useQuery<GeneralSettings>({
+    queryKey: ["admin", "general-settings"],
+    queryFn: fetchGeneralSettings
   });
-  const [form, setForm] = useState<SystemSettingsInput>(defaultSystemSettingsForm);
-  const [initialForm, setInitialForm] = useState<SystemSettingsInput | null>(null);
+  const [form, setForm] = useState<GeneralSettings>(defaultGeneralSettingsForm);
+  const [initialForm, setInitialForm] = useState<GeneralSettings | null>(null);
 
   // Calculate if form is dirty - must be before any conditional returns
   const isFormDirty = useMemo(() => {
     if (!initialForm) {
       return false;
     }
-    const keys = Object.keys(defaultSystemSettingsForm) as (keyof SystemSettingsInput)[];
+    const keys = Object.keys(defaultGeneralSettingsForm) as (keyof GeneralSettings)[];
     return keys.some((key) => initialForm[key] !== form[key]);
   }, [initialForm, form]);
 
   useEffect(() => {
     if (data) {
       const normalized = {
-        ...defaultSystemSettingsForm,
+        ...defaultGeneralSettingsForm,
         ...data
       };
       setForm(normalized);
@@ -105,21 +56,11 @@ export function AdminSystemSettingsPage() {
   }, [data]);
 
   const mutation = useMutation({
-    mutationFn: async (input: SystemSettingsInput) => {
-      const latest = await fetchSystemSettings();
-      const next: SystemSettingsInput = {
-        ...latest,
-        imageLoadRows: input.imageLoadRows,
-        userNotificationLimit: input.userNotificationLimit,
-        adminImageDeleteDefaultReason: input.adminImageDeleteDefaultReason,
-        systemAutoDeleteDefaultReason: input.systemAutoDeleteDefaultReason
-      };
-      await updateSystemSettings(next);
-    },
+    mutationFn: (input: GeneralSettings) => updateGeneralSettings(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["site-config"] });
       queryClient.invalidateQueries({ queryKey: ["site-meta"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "system-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "general-settings"] });
       toast.success(t("admin.systemSettings.saved"));
     },
     onError: (error) => toast.error(error.message)
@@ -148,7 +89,7 @@ export function AdminSystemSettingsPage() {
     );
   }
 
-  const handleChange = (field: keyof SystemSettingsInput, value: any) => {
+  const handleChange = (field: keyof GeneralSettings, value: any) => {
     const actualValue = value === "indeterminate" ? false : value;
     setForm((prev) => ({ ...prev, [field]: actualValue }));
   };

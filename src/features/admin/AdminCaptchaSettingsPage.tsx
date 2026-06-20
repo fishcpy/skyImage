@@ -16,11 +16,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  fetchSystemSettings,
-  updateSystemSettings,
+  fetchCaptchaSettings,
+  updateCaptchaSettings,
   testCaptchaConfig,
-  type SystemSettingsInput,
-  type SystemSettingsResponse
+  type CaptchaSettings
 } from "@/lib/api";
 import { SplashScreen } from "@/components/SplashScreen";
 import { Turnstile, type TurnstileRef } from "@/components/Turnstile";
@@ -40,9 +39,9 @@ interface ProviderStatus {
 export function AdminCaptchaSettingsPage() {
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const { data, isLoading, error } = useQuery<SystemSettingsResponse>({
-    queryKey: ["admin", "system-settings"],
-    queryFn: fetchSystemSettings
+  const { data, isLoading, error } = useQuery<CaptchaSettings>({
+    queryKey: ["admin", "captcha-settings"],
+    queryFn: fetchCaptchaSettings
   });
 
   const [form, setForm] = useState({
@@ -90,27 +89,21 @@ export function AdminCaptchaSettingsPage() {
 
   useEffect(() => {
     if (data) {
-      // 兼容旧的 Turnstile 配置
-      const cloudflareSiteKey = data.cloudflareSiteKey || data.turnstileSiteKey || "";
-      const cloudflareSecretKey = data.cloudflareSecretKey || data.turnstileSecretKey || "";
-      const cloudflareVerified = data.cloudflareVerified || data.turnstileVerified || false;
-      const cloudflareLastVerifiedAt = data.cloudflareLastVerifiedAt || data.turnstileLastVerifiedAt || null;
-
       const normalized = {
-        enableCaptcha: data.enableCaptcha ?? (data.enableTurnstile || false),
-        captchaProvider: (data.captchaProvider || (data.enableTurnstile ? "cloudflare" : "")) as CaptchaProvider,
+        enableCaptcha: data.enableCaptcha ?? false,
+        captchaProvider: (data.captchaProvider || "") as CaptchaProvider,
 
-        cloudflareSiteKey,
-        cloudflareSecretKey,
+        cloudflareSiteKey: data.cloudflareSiteKey || "",
+        cloudflareSecretKey: data.cloudflareSecretKey || "",
 
         geetestCaptchaId: data.geetestCaptchaId || "",
         geetestCaptchaKey: data.geetestCaptchaKey || "",
 
-        enableLoginCaptcha: data.enableLoginCaptcha ?? (data.enableLoginTurnstile || false),
-        enableRegisterCaptcha: data.enableRegisterCaptcha ?? (data.enableRegisterTurnstile || false),
-        enableRegisterVerifyCaptcha: data.enableRegisterVerifyCaptcha ?? (data.enableRegisterVerifyTurnstile || false),
-        enableForgotPasswordRequestCaptcha: data.enableForgotPasswordRequestCaptcha ?? (data.enableForgotPasswordTurnstileRequest || false),
-        enableForgotPasswordResetCaptcha: data.enableForgotPasswordResetCaptcha ?? (data.enableForgotPasswordTurnstileReset || false),
+        enableLoginCaptcha: data.enableLoginCaptcha ?? false,
+        enableRegisterCaptcha: data.enableRegisterCaptcha ?? false,
+        enableRegisterVerifyCaptcha: data.enableRegisterVerifyCaptcha ?? false,
+        enableForgotPasswordRequestCaptcha: data.enableForgotPasswordRequestCaptcha ?? false,
+        enableForgotPasswordResetCaptcha: data.enableForgotPasswordResetCaptcha ?? false,
       };
       setForm(normalized);
       setInitialForm(normalized);
@@ -118,9 +111,9 @@ export function AdminCaptchaSettingsPage() {
       // 设置提供商验证状态
       setProviderStatus({
         cloudflare: {
-          verified: cloudflareVerified,
-          lastVerifiedAt: cloudflareLastVerifiedAt,
-          canUse: !!(cloudflareSiteKey && cloudflareSecretKey && cloudflareVerified),
+          verified: data.cloudflareVerified || false,
+          lastVerifiedAt: data.cloudflareLastVerifiedAt || null,
+          canUse: !!(data.cloudflareSiteKey && data.cloudflareSecretKey && data.cloudflareVerified),
         },
         geetest: {
           verified: data.geetestVerified || false,
@@ -133,29 +126,14 @@ export function AdminCaptchaSettingsPage() {
 
   const mutation = useMutation({
     mutationFn: async (input: typeof form) => {
-      const latest = await fetchSystemSettings();
-      const next: SystemSettingsInput = {
-        ...latest,
-        enableCaptcha: input.enableCaptcha,
-        captchaProvider: input.captchaProvider,
-        cloudflareSiteKey: input.cloudflareSiteKey,
-        cloudflareSecretKey: input.cloudflareSecretKey,
-        geetestCaptchaId: input.geetestCaptchaId,
-        geetestCaptchaKey: input.geetestCaptchaKey,
-        enableLoginCaptcha: input.enableLoginCaptcha,
-        enableRegisterCaptcha: input.enableRegisterCaptcha,
-        enableRegisterVerifyCaptcha: input.enableRegisterVerifyCaptcha,
-        enableForgotPasswordRequestCaptcha: input.enableForgotPasswordRequestCaptcha,
-        enableForgotPasswordResetCaptcha: input.enableForgotPasswordResetCaptcha,
-      };
-      await updateSystemSettings(next);
+      await updateCaptchaSettings(input);
       return input;
     },
     onSuccess: (savedForm) => {
       // 立即同步 initialForm，确保表单状态正确
       setInitialForm({ ...savedForm });
       queryClient.invalidateQueries({ queryKey: ["site-config"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "system-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "captcha-settings"] });
       toast.success("人机验证配置已保存");
     },
     onError: (error) => toast.error(error.message)

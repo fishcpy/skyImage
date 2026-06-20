@@ -17,19 +17,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  fetchSystemSettings,
-  updateSystemSettings,
+  fetchSiteSettings,
+  updateSiteSettings,
   fetchLegalDefaults,
-  type SystemSettingsInput,
-  type SystemSettingsResponse
+  type SiteSettings
 } from "@/lib/api";
 import { SplashScreen } from "@/components/SplashScreen";
 import { useI18n } from "@/i18n";
 
-const defaultAdminImageDeleteReasonText = "图片已被管理员删除";
-const defaultSystemAutoDeleteReasonText = "图片已被系统自动删除";
-
-const defaultSystemSettingsForm: SystemSettingsInput = {
+const defaultSiteSettingsForm: SiteSettings = {
   siteTitle: "",
   consoleUrl: "http://localhost:8080",
   siteDescription: "",
@@ -48,106 +44,45 @@ const defaultSystemSettingsForm: SystemSettingsInput = {
   enableGallery: true,
   enableHome: true,
   enableApi: true,
-  imageLoadRows: 4,
   allowRegistration: true,
-  smtpHost: "",
-  smtpPort: "",
-  smtpUsername: "",
-  smtpPassword: "",
-  smtpFrom: "",
-  smtpSecure: false,
-  mailTestSubject: "",
-  mailTestBody: "",
-  mailRegisterVerifySubject: "",
-  mailRegisterVerifyBody: "",
-  mailRegisterSuccessSubject: "",
-  mailRegisterSuccessBody: "",
-  mailLoginNotificationSubject: "",
-  mailLoginNotificationBody: "",
-  mailForgotPasswordSubject: "",
-  mailForgotPasswordBody: "",
-  enableRegisterVerify: false,
-  enableLoginNotification: false,
-  enableForgotPassword: false,
-  enableForgotPasswordTurnstile: false,
-  enableForgotPasswordTurnstileRequest: false,
-  enableForgotPasswordTurnstileReset: false,
-  turnstileSiteKey: "",
-  turnstileSecretKey: "",
-  enableTurnstile: false,
-  enableLoginTurnstile: false,
-  enableRegisterTurnstile: false,
-  enableRegisterVerifyTurnstile: false,
-  accountDisabledNotice: "",
-  userNotificationLimit: 50,
-  adminImageDeleteDefaultReason: defaultAdminImageDeleteReasonText,
-  systemAutoDeleteDefaultReason: defaultSystemAutoDeleteReasonText
+  accountDisabledNotice: ""
 };
-
-const siteFields: (keyof SystemSettingsInput)[] = [
-  "siteTitle",
-  "consoleUrl",
-  "siteDescription",
-  "siteSlogan",
-  "siteLogo",
-  "about",
-  "aboutTitle",
-  "notFoundMode",
-  "notFoundHeading",
-  "notFoundText",
-  "notFoundHtml",
-  "termsOfService",
-  "privacyPolicy",
-  "homePageMode",
-  "homeCustomHtml",
-  "enableGallery",
-  "enableHome",
-  "enableApi",
-  "allowRegistration",
-  "accountDisabledNotice"
-];
 
 export function AdminSiteSettingsPage() {
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const { data, isLoading, error } = useQuery<SystemSettingsResponse>({
-    queryKey: ["admin", "system-settings"],
-    queryFn: fetchSystemSettings
+  const { data, isLoading, error } = useQuery<SiteSettings>({
+    queryKey: ["admin", "site-settings"],
+    queryFn: fetchSiteSettings
   });
-  const [form, setForm] = useState<SystemSettingsInput>(defaultSystemSettingsForm);
-  const [initialForm, setInitialForm] = useState<SystemSettingsInput | null>(null);
+  const [form, setForm] = useState<SiteSettings>(defaultSiteSettingsForm);
+  const [initialForm, setInitialForm] = useState<SiteSettings | null>(null);
 
   const isFormDirty = useMemo(() => {
     if (!initialForm) {
       return false;
     }
-    return siteFields.some((key) => initialForm[key] !== form[key]);
+    return (Object.keys(initialForm) as (keyof SiteSettings)[]).some(
+      (key) => initialForm[key] !== form[key]
+    );
   }, [initialForm, form]);
 
   useEffect(() => {
     if (!data) return;
-    const { turnstileVerified: _verified, turnstileLastVerifiedAt: _lastVerifiedAt, ...rest } = data;
     const normalized = {
-      ...defaultSystemSettingsForm,
-      ...rest
+      ...defaultSiteSettingsForm,
+      ...data
     };
     setForm(normalized);
     setInitialForm(normalized);
   }, [data]);
 
   const mutation = useMutation({
-    mutationFn: async (input: SystemSettingsInput) => {
-      const latest = await fetchSystemSettings();
-      const merged = { ...latest } as SystemSettingsInput;
-      for (const key of siteFields) {
-        merged[key] = input[key] as never;
-      }
-      await updateSystemSettings(merged);
-    },
+    mutationFn: (input: SiteSettings) => updateSiteSettings(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["site-config"] });
       queryClient.invalidateQueries({ queryKey: ["site-meta"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "system-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "site-settings"] });
       toast.success(t("admin.siteSettings.saved"));
     },
     onError: (mutationError) => toast.error(mutationError.message)
@@ -176,7 +111,7 @@ export function AdminSiteSettingsPage() {
     );
   }
 
-  const handleChange = (field: keyof SystemSettingsInput, value: unknown) => {
+  const handleChange = (field: keyof SiteSettings, value: unknown) => {
     const actualValue = value === "indeterminate" ? false : value;
     setForm((prev) => ({ ...prev, [field]: actualValue as never }));
   };
