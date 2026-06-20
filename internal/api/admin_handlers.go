@@ -97,6 +97,14 @@ func redactSettings(settings map[string]string) map[string]string {
 	return redacted
 }
 
+// redactSecret returns "***" for non-empty secrets, empty string otherwise.
+func redactSecret(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
+	return "***"
+}
+
 func (s *Server) handleAdminMetrics(c *gin.Context) {
 	metrics, err := s.admin.Dashboard(c.Request.Context())
 	if err != nil {
@@ -741,27 +749,27 @@ func (s *Server) handleAdminSystemSettings(c *gin.Context) {
 			SMTPHost:                             settings["mail.smtp.host"],
 			SMTPPort:                             settings["mail.smtp.port"],
 			SMTPUsername:                         settings["mail.smtp.username"],
-			SMTPPassword:                         settings["mail.smtp.password"],
-			SMTPFrom:                             settings["mail.smtp.from"],
-			SMTPSecure:                           settings["mail.smtp.secure"] == "true",
-			MailTestSubject:                      settings["mail.template.test.subject"],
-			MailTestBody:                         settings["mail.template.test.body"],
-			MailRegisterVerifySubject:            settings["mail.template.register_verify.subject"],
-			MailRegisterVerifyBody:               settings["mail.template.register_verify.body"],
-			MailRegisterSuccessSubject:           settings["mail.template.register_success.subject"],
-			MailRegisterSuccessBody:              settings["mail.template.register_success.body"],
-			MailLoginNotificationSubject:         settings["mail.template.login_notification.subject"],
-			MailLoginNotificationBody:            settings["mail.template.login_notification.body"],
-			MailForgotPasswordSubject:            settings["mail.template.forgot_password.subject"],
-			MailForgotPasswordBody:               settings["mail.template.forgot_password.body"],
-			EnableRegisterVerify:                 settings["mail.register.verify"] == "true",
-			EnableLoginNotification:              settings["mail.login.notification"] == "true",
-			EnableForgotPassword:                 settings["mail.forgot_password.enabled"] == "true",
-			EnableForgotPasswordTurnstile:        settings["mail.forgot_password.turnstile"] == "true",
-			EnableForgotPasswordTurnstileRequest: settings["mail.forgot_password.turnstile_request"] == "true",
-			EnableForgotPasswordTurnstileReset:   settings["mail.forgot_password.turnstile_reset"] == "true",
-			TurnstileSiteKey:                     settings["turnstile.site_key"],
-			TurnstileSecretKey:                   settings["turnstile.secret_key"],
+			SMTPPassword:                         redactSecret(settings["mail.smtp.password"]),
+		SMTPFrom:                             settings["mail.smtp.from"],
+		SMTPSecure:                           settings["mail.smtp.secure"] == "true",
+		MailTestSubject:                      settings["mail.template.test.subject"],
+		MailTestBody:                         settings["mail.template.test.body"],
+		MailRegisterVerifySubject:            settings["mail.template.register_verify.subject"],
+		MailRegisterVerifyBody:               settings["mail.template.register_verify.body"],
+		MailRegisterSuccessSubject:           settings["mail.template.register_success.subject"],
+		MailRegisterSuccessBody:              settings["mail.template.register_success.body"],
+		MailLoginNotificationSubject:         settings["mail.template.login_notification.subject"],
+		MailLoginNotificationBody:            settings["mail.template.login_notification.body"],
+		MailForgotPasswordSubject:            settings["mail.template.forgot_password.subject"],
+		MailForgotPasswordBody:               settings["mail.template.forgot_password.body"],
+		EnableRegisterVerify:                 settings["mail.register.verify"] == "true",
+		EnableLoginNotification:              settings["mail.login.notification"] == "true",
+		EnableForgotPassword:                 settings["mail.forgot_password.enabled"] == "true",
+		EnableForgotPasswordTurnstile:        settings["mail.forgot_password.turnstile"] == "true",
+		EnableForgotPasswordTurnstileRequest: settings["mail.forgot_password.turnstile_request"] == "true",
+		EnableForgotPasswordTurnstileReset:   settings["mail.forgot_password.turnstile_reset"] == "true",
+		TurnstileSiteKey:                     settings["turnstile.site_key"],
+		TurnstileSecretKey:                   redactSecret(settings["turnstile.secret_key"]),
 			EnableTurnstile:                      settings["turnstile.enabled"] == "true",
 			EnableLoginTurnstile:                 settings["turnstile.login"] == "true",
 			EnableRegisterTurnstile:              settings["turnstile.register"] == "true",
@@ -774,9 +782,9 @@ func (s *Server) handleAdminSystemSettings(c *gin.Context) {
 			EnableCaptcha:                      settings["captcha.enabled"] == "true",
 			CaptchaProvider:                    settings["captcha.provider"],
 			CloudflareSiteKey:                  settings["captcha.cloudflare.site_key"],
-			CloudflareSecretKey:                settings["captcha.cloudflare.secret_key"],
+			CloudflareSecretKey:                redactSecret(settings["captcha.cloudflare.secret_key"]),
 			GeetestCaptchaID:                   settings["captcha.geetest.captcha_id"],
-			GeetestCaptchaKey:                  settings["captcha.geetest.captcha_key"],
+			GeetestCaptchaKey:                  redactSecret(settings["captcha.geetest.captcha_key"]),
 			EnableLoginCaptcha:                 settings["captcha.login"] == "true",
 			EnableRegisterCaptcha:              settings["captcha.register"] == "true",
 			EnableRegisterVerifyCaptcha:        settings["captcha.register_verify"] == "true",
@@ -824,11 +832,11 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 		return
 	}
 	smtpPassword := strings.TrimSpace(payload.SMTPPassword)
-	if smtpPassword == "" {
+	if smtpPassword == "" || smtpPassword == "***" {
 		smtpPassword = settings["mail.smtp.password"]
 	}
 	turnstileSecretKey := strings.TrimSpace(payload.TurnstileSecretKey)
-	if turnstileSecretKey == "" {
+	if turnstileSecretKey == "" || turnstileSecretKey == "***" {
 		turnstileSecretKey = settings["turnstile.secret_key"]
 	}
 	newSignature := turnstile.GenerateSignature(payload.TurnstileSiteKey, turnstileSecretKey)
@@ -865,11 +873,11 @@ func (s *Server) handleAdminUpdateSystemSettings(c *gin.Context) {
 
 	// 处理统一验证码配置的密钥
 	cloudflareSecretKey := strings.TrimSpace(payload.CloudflareSecretKey)
-	if cloudflareSecretKey == "" {
+	if cloudflareSecretKey == "" || cloudflareSecretKey == "***" {
 		cloudflareSecretKey = settings["captcha.cloudflare.secret_key"]
 	}
 	geetestCaptchaKey := strings.TrimSpace(payload.GeetestCaptchaKey)
-	if geetestCaptchaKey == "" {
+	if geetestCaptchaKey == "" || geetestCaptchaKey == "***" {
 		geetestCaptchaKey = settings["captcha.geetest.captcha_key"]
 	}
 
