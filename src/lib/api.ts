@@ -769,8 +769,6 @@ export type CaptchaSettings = {
   enableRegisterVerifyCaptcha: boolean;
   enableForgotPasswordRequestCaptcha: boolean;
   enableForgotPasswordResetCaptcha: boolean;
-  turnstileVerified: boolean;
-  turnstileLastVerifiedAt?: string;
   cloudflareVerified: boolean;
   cloudflareLastVerifiedAt?: string;
   geetestVerified: boolean;
@@ -784,7 +782,7 @@ export async function fetchCaptchaSettings() {
   return res.data.data;
 }
 
-export async function updateCaptchaSettings(input: Omit<CaptchaSettings, "turnstileVerified" | "turnstileLastVerifiedAt" | "cloudflareVerified" | "cloudflareLastVerifiedAt" | "geetestVerified" | "geetestLastVerifiedAt">) {
+export async function updateCaptchaSettings(input: Omit<CaptchaSettings, "cloudflareVerified" | "cloudflareLastVerifiedAt" | "geetestVerified" | "geetestLastVerifiedAt">) {
   await apiClient.put("/admin/system/captcha", input);
 }
 

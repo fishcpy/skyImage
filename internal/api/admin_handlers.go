@@ -93,7 +93,7 @@ func redactSettings(settings map[string]string) map[string]string {
 	for key, value := range settings {
 		redacted[key] = value
 		switch strings.ToLower(strings.TrimSpace(key)) {
-		case "mail.smtp.password", "turnstile.secret_key", "turnstile.last_verified_signature",
+		case "mail.smtp.password",
 			"captcha.cloudflare.secret_key", "captcha.cloudflare.last_verified_signature",
 			"captcha.geetest.captcha_key", "captcha.geetest.last_verified_signature":
 			redacted[key] = "***"

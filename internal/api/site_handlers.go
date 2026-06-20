@@ -104,31 +104,39 @@ func (s *Server) handleTurnstileConfig(c *gin.Context) {
 		return
 	}
 
+	// Use new captcha.* keys (migration from turnstile.* is handled at startup)
 	var configKey string
 	switch scenario {
 	case "login":
-		configKey = "turnstile.login"
+		configKey = "captcha.login"
 	case "register":
-		configKey = "turnstile.register"
+		configKey = "captcha.register"
 	case "register_verify":
-		configKey = "turnstile.register_verify"
+		configKey = "captcha.register_verify"
 	case "forgot_password_request":
-		configKey = "mail.forgot_password.turnstile_request"
+		configKey = "captcha.forgot_password_request"
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scenario"})
 		return
 	}
 
-	enabled := settings[configKey] == "true"
+	enabled := settings["captcha.enabled"] == "true" && settings[configKey] == "true"
 
 	response := gin.H{
 		"enabled": enabled,
 	}
 
 	if enabled {
-		siteKey := settings["turnstile.site_key"]
+		provider := settings["captcha.provider"]
+		var siteKey string
+		if provider == "cloudflare" {
+			siteKey = settings["captcha.cloudflare.site_key"]
+		} else if provider == "geetest" {
+			siteKey = settings["captcha.geetest.captcha_id"]
+		}
 		if siteKey != "" {
 			response["siteKey"] = siteKey
+			response["provider"] = provider
 		}
 	}
 

@@ -9,7 +9,6 @@ import (
 
 	"skyimage/internal/captcha"
 	"skyimage/internal/notifications"
-	"skyimage/internal/turnstile"
 )
 
 // ---------------------------------------------------------------------------
@@ -340,8 +339,6 @@ type captchaSettingsPayload struct {
 
 type captchaSettingsResponse struct {
 	captchaSettingsPayload
-	TurnstileVerified      bool   `json:"turnstileVerified"`
-	TurnstileLastVerifiedAt string `json:"turnstileLastVerifiedAt,omitempty"`
 	CloudflareVerified     bool   `json:"cloudflareVerified"`
 	CloudflareLastVerifiedAt string `json:"cloudflareLastVerifiedAt,omitempty"`
 	GeetestVerified        bool   `json:"geetestVerified"`
@@ -372,7 +369,6 @@ func (s *Server) handleAdminCaptchaSettings(c *gin.Context) {
 			EnableForgotPasswordRequestCaptcha: settings["captcha.forgot_password_request"] == "true",
 			EnableForgotPasswordResetCaptcha:   settings["captcha.forgot_password_reset"] == "true",
 		},
-		TurnstileLastVerifiedAt:  settings["turnstile.last_verified_at"],
 		CloudflareLastVerifiedAt: settings["captcha.cloudflare.last_verified_at"],
 		GeetestLastVerifiedAt:    settings["captcha.geetest.last_verified_at"],
 	}
@@ -388,13 +384,6 @@ func (s *Server) handleAdminCaptchaSettings(c *gin.Context) {
 	geetestStoredSig := settings["captcha.geetest.last_verified_signature"]
 	if geetestExpectedSig != "" && geetestStoredSig == geetestExpectedSig {
 		resp.GeetestVerified = true
-	}
-	// 兼容旧的 Turnstile 验证状态
-	turnstileSiteKey := settings["turnstile.site_key"]
-	expectedSig := turnstile.GenerateSignature(turnstileSiteKey, settings["turnstile.secret_key"])
-	storedSig := settings["turnstile.last_verified_signature"]
-	if expectedSig != "" && storedSig == expectedSig {
-		resp.TurnstileVerified = true
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": resp})
