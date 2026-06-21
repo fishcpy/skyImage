@@ -4,7 +4,9 @@
   "version": "0.2.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev:frontend": "vite",
+    "dev:backend": "go run ./cmd/api",
+    "dev": "concurrently \"pnpm dev:frontend\" \"pnpm dev:backend\"",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
@@ -61,6 +63,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.4.18",
+    "concurrently": "^9.1.2",
     "esbuild": "^0.28.1",
     "postcss": "^8.5.10",
     "tailwindcss": "^3.4.4",
