@@ -45,19 +45,15 @@ export function AdminCaptchaSettingsPage() {
   });
 
   const [form, setForm] = useState({
-    // 全局开关
     enableCaptcha: false,
     captchaProvider: "" as CaptchaProvider,
 
-    // Cloudflare Turnstile 配置
     cloudflareSiteKey: "",
     cloudflareSecretKey: "",
 
-    // Geetest 配置
     geetestCaptchaId: "",
     geetestCaptchaKey: "",
 
-    // 场景开关
     enableLoginCaptcha: false,
     enableRegisterCaptcha: false,
     enableRegisterVerifyCaptcha: false,
@@ -108,7 +104,6 @@ export function AdminCaptchaSettingsPage() {
       setForm(normalized);
       setInitialForm(normalized);
 
-      // 设置提供商验证状态
       setProviderStatus({
         cloudflare: {
           verified: data.cloudflareVerified || false,
@@ -130,11 +125,10 @@ export function AdminCaptchaSettingsPage() {
       return input;
     },
     onSuccess: (savedForm) => {
-      // 立即同步 initialForm，确保表单状态正确
       setInitialForm({ ...savedForm });
       queryClient.invalidateQueries({ queryKey: ["site-config"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "captcha-settings"] });
-      toast.success("人机验证配置已保存");
+      toast.success(t("admin.captchaSettings.saved"));
     },
     onError: (error) => toast.error(error.message)
   });
@@ -143,7 +137,7 @@ export function AdminCaptchaSettingsPage() {
     mutationFn: testCaptchaConfig,
     onSuccess: (result) => {
       if (result.success) {
-        toast.success("Cloudflare Turnstile 验证成功");
+        toast.success(t("admin.captchaSettings.cloudflare.verifiedSuccess"));
         setProviderStatus(prev => ({
           ...prev,
           cloudflare: {
@@ -158,7 +152,7 @@ export function AdminCaptchaSettingsPage() {
           ...prev,
           cloudflare: { ...prev.cloudflare, verified: false, canUse: false }
         }));
-        toast.error(result.message || "Cloudflare Turnstile 验证失败");
+        toast.error(result.message || t("admin.captchaSettings.cloudflare.verifyFailed"));
       }
     },
     onError: (error) => {
@@ -174,7 +168,7 @@ export function AdminCaptchaSettingsPage() {
     mutationFn: testCaptchaConfig,
     onSuccess: (result) => {
       if (result.success) {
-        toast.success("极验验证成功");
+        toast.success(t("admin.captchaSettings.geetest.verifiedSuccess"));
         setProviderStatus(prev => ({
           ...prev,
           geetest: {
@@ -189,7 +183,7 @@ export function AdminCaptchaSettingsPage() {
           ...prev,
           geetest: { ...prev.geetest, verified: false, canUse: false }
         }));
-        toast.error(result.message || "极验验证失败");
+        toast.error(result.message || t("admin.captchaSettings.geetest.verifyFailed"));
       }
     },
     onError: (error) => {
@@ -202,7 +196,7 @@ export function AdminCaptchaSettingsPage() {
   });
 
   if (isLoading) {
-    return <SplashScreen message="加载中..." />;
+    return <SplashScreen message={t("admin.captchaSettings.loading")} />;
   }
 
   if (error && !data) {
@@ -210,7 +204,7 @@ export function AdminCaptchaSettingsPage() {
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>加载失败</CardTitle>
+            <CardTitle>{t("admin.captchaSettings.loadFailed")}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-destructive">{error.message}</p>
@@ -223,7 +217,6 @@ export function AdminCaptchaSettingsPage() {
   const handleChange = (field: keyof typeof form, value: any) => {
     const actualValue = value === "indeterminate" ? false : value;
 
-    // 如果修改了密钥，清除验证状态
     if (field === "cloudflareSiteKey" || field === "cloudflareSecretKey") {
       setProviderStatus(prev => ({
         ...prev,
@@ -237,26 +230,24 @@ export function AdminCaptchaSettingsPage() {
       }));
     }
 
-    // 如果要启用全局验证码，检查是否选择了提供商且已验证
     if (field === "enableCaptcha" && actualValue === true) {
       const provider = form.captchaProvider;
       if (!provider) {
-        toast.error("请先选择一个人机验证提供商并完成测试");
+        toast.error(t("admin.captchaSettings.selectProviderFirst"));
         return;
       }
       const status = providerStatus[provider as "cloudflare" | "geetest"];
       if (!status?.canUse) {
-        toast.error("请先完成选定提供商的配置测试");
+        toast.error(t("admin.captchaSettings.testProviderFirst"));
         return;
       }
     }
 
-    // 如果要选择提供商，检查是否已验证
     if (field === "captchaProvider" && actualValue && form.enableCaptcha) {
       if (actualValue === "cloudflare" || actualValue === "geetest") {
         const status = providerStatus[actualValue as "cloudflare" | "geetest"];
         if (!status?.canUse) {
-          toast.error("所选提供商尚未通过测试，无法启用");
+          toast.error(t("admin.captchaSettings.providerNotTested"));
           return;
         }
       }
@@ -267,7 +258,7 @@ export function AdminCaptchaSettingsPage() {
 
   const startCloudflareTest = () => {
     if (!form.cloudflareSiteKey || !form.cloudflareSecretKey) {
-      toast.error("请先填写 Cloudflare Turnstile 的 Site Key 和 Secret Key");
+      toast.error(t("admin.captchaSettings.cloudflare.keysRequired"));
       return;
     }
     setShowTester(prev => ({ ...prev, cloudflare: true }));
@@ -275,25 +266,24 @@ export function AdminCaptchaSettingsPage() {
     loadTurnstileScript()
       .then(() => setTurnstileReady(true))
       .catch(() => {
-        toast.error("加载 Turnstile 脚本失败");
+        toast.error(t("admin.captchaSettings.cloudflare.loadScriptFailed"));
       });
   };
 
   const startGeetestTest = () => {
     if (!form.geetestCaptchaId || !form.geetestCaptchaKey) {
-      toast.error("请先填写极验的 Captcha ID 和 Captcha Key");
+      toast.error(t("admin.captchaSettings.geetest.keysRequired"));
       return;
     }
 
-    // 验证 Captcha ID 格式
     const trimmedId = form.geetestCaptchaId.trim();
     if (trimmedId.length !== 32) {
-      toast.error(`Captcha ID 长度不正确：应为 32 位，实际为 ${trimmedId.length} 位`);
+      toast.error(t("admin.captchaSettings.geetest.captchaIdLengthWrong", { length: trimmedId.length }));
       return;
     }
 
     if (!/^[a-f0-9]{32}$/i.test(trimmedId)) {
-      toast.error("Captcha ID 格式不正确：应为 32 位十六进制字符");
+      toast.error(t("admin.captchaSettings.geetest.captchaIdFormatError"));
       return;
     }
 
@@ -302,7 +292,7 @@ export function AdminCaptchaSettingsPage() {
     loadGeetestScript()
       .then(() => setGeetestReady(true))
       .catch(() => {
-        toast.error("加载极验脚本失败");
+        toast.error(t("admin.captchaSettings.geetest.loadScriptFailed"));
       });
   };
 
@@ -322,7 +312,7 @@ export function AdminCaptchaSettingsPage() {
   };
 
   const handleGeetestError = (error?: string) => {
-    toast.error(error || "极验初始化失败，请检查 Captcha ID 是否正确");
+    toast.error(error || t("admin.captchaSettings.geetest.initFailed"));
     setShowTester(prev => ({ ...prev, geetest: false }));
   };
 
@@ -342,17 +332,17 @@ export function AdminCaptchaSettingsPage() {
   const availableProviders: { value: CaptchaProvider; label: string; disabled: boolean }[] = [
     {
       value: "",
-      label: "请选择提供商",
+      label: t("admin.captchaSettings.selectProvider"),
       disabled: false
     },
     {
       value: "cloudflare",
-      label: providerStatus.cloudflare.canUse ? "Cloudflare Turnstile" : "Cloudflare Turnstile (未验证)",
+      label: providerStatus.cloudflare.canUse ? "Cloudflare Turnstile" : t("admin.captchaSettings.cloudflare.unverified"),
       disabled: !providerStatus.cloudflare.canUse
     },
     {
       value: "geetest",
-      label: providerStatus.geetest.canUse ? "极验 (Geetest)" : "极验 (Geetest) (未验证)",
+      label: providerStatus.geetest.canUse ? "Geetest" : t("admin.captchaSettings.geetest.unverified"),
       disabled: !providerStatus.geetest.canUse
     }
   ];
@@ -360,18 +350,18 @@ export function AdminCaptchaSettingsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <h1 className="text-2xl font-semibold">人机验证配置</h1>
+        <h1 className="text-2xl font-semibold">{t("admin.captchaSettings.title")}</h1>
         <p className="text-muted-foreground">
-          统一配置人机验证服务，支持 Cloudflare Turnstile 和极验
+          {t("admin.captchaSettings.description")}
         </p>
       </div>
 
-      {/* 全局配置 */}
+      {/* Global Settings */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5" />
-            全局配置
+            {t("admin.captchaSettings.globalConfig")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -382,21 +372,21 @@ export function AdminCaptchaSettingsPage() {
               onCheckedChange={(checked) => handleChange("enableCaptcha", checked)}
             />
             <Label htmlFor="enableCaptcha" className="font-medium">
-              启用人机验证（总开关）
+              {t("admin.captchaSettings.enableCaptcha")}
             </Label>
           </div>
           <p className="text-sm text-muted-foreground ml-6">
-            开启后，可在下方选择具体的验证场景
+            {t("admin.captchaSettings.enableCaptchaHint")}
           </p>
 
           <div className="space-y-2">
-            <Label>人机验证提供商</Label>
+            <Label>{t("admin.captchaSettings.captchaProvider")}</Label>
             <Select
               value={form.captchaProvider || "none"}
               onValueChange={(value) => handleChange("captchaProvider", value === "none" ? "" : value as CaptchaProvider)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="请先配置并测试提供商" />
+                <SelectValue placeholder={t("admin.captchaSettings.providerPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
                 {availableProviders.map((provider) => (
@@ -411,7 +401,7 @@ export function AdminCaptchaSettingsPage() {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              只能选择已通过测试的提供商，未通过测试的提供商显示为灰色
+              {t("admin.captchaSettings.providerHint")}
             </p>
           </div>
 
@@ -419,21 +409,21 @@ export function AdminCaptchaSettingsPage() {
             <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
               <Info className="h-4 w-4 flex-shrink-0" />
               <div>
-                当前使用: <strong>{form.captchaProvider === "cloudflare" ? "Cloudflare Turnstile" : "极验 (Geetest)"}</strong>
+                {t("admin.captchaSettings.currentProvider")}: <strong>{form.captchaProvider === "cloudflare" ? "Cloudflare Turnstile" : "Geetest"}</strong>
               </div>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* 应用场景 */}
+      {/* Scenarios */}
       <Card>
         <CardHeader>
-          <CardTitle>应用场景</CardTitle>
+          <CardTitle>{t("admin.captchaSettings.scenes")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground mb-4">
-            选择需要人机验证的场景（需先启用全局开关）
+            {t("admin.captchaSettings.scenesHint")}
           </p>
 
           <div className="space-y-3">
@@ -445,7 +435,7 @@ export function AdminCaptchaSettingsPage() {
                 onCheckedChange={(checked) => handleChange("enableLoginCaptcha", checked)}
               />
               <Label htmlFor="enableLoginCaptcha" className={!form.enableCaptcha ? "text-muted-foreground" : ""}>
-                登录时需要验证
+                {t("admin.captchaSettings.scene.login")}
               </Label>
             </div>
 
@@ -457,7 +447,7 @@ export function AdminCaptchaSettingsPage() {
                 onCheckedChange={(checked) => handleChange("enableRegisterCaptcha", checked)}
               />
               <Label htmlFor="enableRegisterCaptcha" className={!form.enableCaptcha ? "text-muted-foreground" : ""}>
-                注册时需要验证
+                {t("admin.captchaSettings.scene.register")}
               </Label>
             </div>
 
@@ -469,7 +459,7 @@ export function AdminCaptchaSettingsPage() {
                 onCheckedChange={(checked) => handleChange("enableRegisterVerifyCaptcha", checked)}
               />
               <Label htmlFor="enableRegisterVerifyCaptcha" className={!form.enableCaptcha ? "text-muted-foreground" : ""}>
-                注册验证码发送时需要验证
+                {t("admin.captchaSettings.scene.registerVerify")}
               </Label>
             </div>
 
@@ -481,7 +471,7 @@ export function AdminCaptchaSettingsPage() {
                 onCheckedChange={(checked) => handleChange("enableForgotPasswordRequestCaptcha", checked)}
               />
               <Label htmlFor="enableForgotPasswordRequestCaptcha" className={!form.enableCaptcha ? "text-muted-foreground" : ""}>
-                忘记密码请求时需要验证
+                {t("admin.captchaSettings.scene.forgotPasswordRequest")}
               </Label>
             </div>
 
@@ -493,21 +483,21 @@ export function AdminCaptchaSettingsPage() {
                 onCheckedChange={(checked) => handleChange("enableForgotPasswordResetCaptcha", checked)}
               />
               <Label htmlFor="enableForgotPasswordResetCaptcha" className={!form.enableCaptcha ? "text-muted-foreground" : ""}>
-                重置密码时需要验证
+                {t("admin.captchaSettings.scene.forgotPasswordReset")}
               </Label>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Cloudflare Turnstile 配置 */}
+      {/* Cloudflare Turnstile Settings */}
       <Card>
         <CardHeader>
-          <CardTitle>Cloudflare Turnstile 配置</CardTitle>
+          <CardTitle>{t("admin.captchaSettings.cloudflare.title")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>Site Key</Label>
+            <Label>{t("admin.captchaSettings.cloudflare.siteKey")}</Label>
             <Input
               value={form.cloudflareSiteKey}
               onChange={(e) => handleChange("cloudflareSiteKey", e.target.value)}
@@ -515,7 +505,7 @@ export function AdminCaptchaSettingsPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label>Secret Key</Label>
+            <Label>{t("admin.captchaSettings.cloudflare.secretKey")}</Label>
             <Input
               type="password"
               value={form.cloudflareSecretKey}
@@ -527,11 +517,12 @@ export function AdminCaptchaSettingsPage() {
           <div className="space-y-3 rounded-md border border-dashed p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium">测试状态</p>
+                <p className="text-sm font-medium">{t("admin.captchaSettings.testStatus")}</p>
                 <p className="text-xs text-muted-foreground">
                   {providerStatus.cloudflare.verified
-                    ? `已验证 (${new Date(providerStatus.cloudflare.lastVerifiedAt!).toLocaleString()})`
-                    : "需要测试"}
+                    ? `${t("admin.captchaSettings.verified")} (${new Date(providerStatus.cloudflare.lastVerifiedAt!).toLocaleString()})`
+                    : t("admin.captchaSettings.testRequired")
+                  }
                 </p>
               </div>
               {providerStatus.cloudflare.verified ? (
@@ -550,14 +541,14 @@ export function AdminCaptchaSettingsPage() {
               {testCloudflareMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  验证中...
+                  {t("admin.captchaSettings.verifying")}
                 </>
               ) : showTester.cloudflare ? (
-                "重新测试"
+                t("admin.captchaSettings.retest")
               ) : providerStatus.cloudflare.verified ? (
-                "重新测试"
+                t("admin.captchaSettings.retest")
               ) : (
-                "开始测试"
+                t("admin.captchaSettings.startTest")
               )}
             </Button>
             {showTester.cloudflare && (
@@ -565,7 +556,7 @@ export function AdminCaptchaSettingsPage() {
                 {!turnstileReady && (
                   <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    加载验证组件中...
+                    {t("admin.captchaSettings.loadingWidget")}
                   </div>
                 )}
                 {turnstileReady && (
@@ -574,7 +565,7 @@ export function AdminCaptchaSettingsPage() {
                       ref={turnstileRef}
                       siteKey={form.cloudflareSiteKey}
                       onVerify={handleCloudflareVerify}
-                      onError={() => toast.error("验证组件错误")}
+                      onError={() => toast.error(t("admin.captchaSettings.widgetError"))}
                       onExpire={() => {}}
                     />
                   </div>
@@ -584,9 +575,8 @@ export function AdminCaptchaSettingsPage() {
           </div>
 
           <div className="rounded-md bg-muted p-3 text-sm">
-            <p className="font-medium mb-1">获取密钥</p>
+            <p className="font-medium mb-1">{t("admin.captchaSettings.getKeys")}</p>
             <p className="text-muted-foreground">
-              访问{" "}
               <a
                 href="https://dash.cloudflare.com/?to=/:account/turnstile"
                 target="_blank"
@@ -595,50 +585,51 @@ export function AdminCaptchaSettingsPage() {
               >
                 Cloudflare Turnstile
               </a>{" "}
-              创建站点并获取 Site Key 和 Secret Key
+              {t("admin.captchaSettings.cloudflare.guide")}
             </p>
           </div>
         </CardContent>
       </Card>
 
-      {/* 极验配置 */}
+      {/* Geetest Settings */}
       <Card>
         <CardHeader>
-          <CardTitle>极验 (Geetest) 配置</CardTitle>
+          <CardTitle>{t("admin.captchaSettings.geetest.title")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>Captcha ID</Label>
+            <Label>{t("admin.captchaSettings.geetest.captchaId")}</Label>
             <Input
               value={form.geetestCaptchaId}
               onChange={(e) => handleChange("geetestCaptchaId", e.target.value.trim())}
-              placeholder="输入极验 Captcha ID（32位十六进制）"
+              placeholder={t("admin.captchaSettings.geetest.captchaIdPlaceholder")}
               className={form.geetestCaptchaId && form.geetestCaptchaId.length !== 32 ? "border-amber-500" : ""}
             />
             {form.geetestCaptchaId && form.geetestCaptchaId.length !== 32 && (
               <p className="text-xs text-amber-600">
-                Captcha ID 应为 32 位字符，当前为 {form.geetestCaptchaId.length} 位
+                {t("admin.captchaSettings.geetest.captchaIdLengthError", { length: form.geetestCaptchaId.length })}
               </p>
             )}
           </div>
           <div className="space-y-2">
-            <Label>Captcha Key</Label>
+            <Label>{t("admin.captchaSettings.geetest.captchaKey")}</Label>
             <Input
               type="password"
               value={form.geetestCaptchaKey}
               onChange={(e) => handleChange("geetestCaptchaKey", e.target.value)}
-              placeholder="输入极验 Captcha Key"
+              placeholder={t("admin.captchaSettings.geetest.captchaKeyPlaceholder")}
             />
           </div>
 
           <div className="space-y-3 rounded-md border border-dashed p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium">测试状态</p>
+                <p className="text-sm font-medium">{t("admin.captchaSettings.testStatus")}</p>
                 <p className="text-xs text-muted-foreground">
                   {providerStatus.geetest.verified
-                    ? `已验证 (${new Date(providerStatus.geetest.lastVerifiedAt!).toLocaleString()})`
-                    : "需要测试"}
+                    ? `${t("admin.captchaSettings.verified")} (${new Date(providerStatus.geetest.lastVerifiedAt!).toLocaleString()})`
+                    : t("admin.captchaSettings.testRequired")
+                  }
                 </p>
               </div>
               {providerStatus.geetest.verified ? (
@@ -657,10 +648,10 @@ export function AdminCaptchaSettingsPage() {
               {testGeetestMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  验证中...
+                  {t("admin.captchaSettings.verifying")}
                 </>
               ) : (
-                "开始测试"
+                t("admin.captchaSettings.startTest")
               )}
             </Button>
             {showTester.geetest && (
@@ -668,7 +659,7 @@ export function AdminCaptchaSettingsPage() {
                 {!geetestReady && (
                   <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    加载验证组件中...
+                    {t("admin.captchaSettings.loadingWidget")}
                   </div>
                 )}
                 {geetestReady && (
@@ -687,18 +678,17 @@ export function AdminCaptchaSettingsPage() {
           </div>
 
           <div className="rounded-md bg-muted p-3 text-sm">
-            <p className="font-medium mb-1">获取密钥</p>
+            <p className="font-medium mb-1">{t("admin.captchaSettings.getKeys")}</p>
             <p className="text-muted-foreground">
-              访问{" "}
               <a
                 href="https://www.geetest.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"
               >
-                极验官网
+                {t("admin.captchaSettings.geetest.website")}
               </a>{" "}
-              注册并创建极验 4.0 验证实例
+              {t("admin.captchaSettings.geetest.guide")}
             </p>
           </div>
         </CardContent>
@@ -706,13 +696,13 @@ export function AdminCaptchaSettingsPage() {
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">
-          {isFormDirty ? "有未保存的更改" : "所有更改已保存"}
+          {isFormDirty ? t("admin.captchaSettings.unsavedChanges") : t("admin.captchaSettings.allChangesSaved")}
         </p>
         <Button
           onClick={() => mutation.mutate(form)}
           disabled={mutation.isPending || !isFormDirty}
         >
-          {mutation.isPending ? "保存中..." : "保存配置"}
+          {mutation.isPending ? t("admin.captchaSettings.saving") : t("admin.captchaSettings.saveConfig")}
         </Button>
       </div>
     </div>
