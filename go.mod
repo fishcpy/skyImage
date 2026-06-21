@@ -24,7 +24,7 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.3 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.8 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.24 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.28 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.28 // indirect
@@ -37,7 +37,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.24.11 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.9 // indirect
-	github.com/aws/smithy-go v1.22.2 // indirect
+	github.com/aws/smithy-go v1.24.2 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect
