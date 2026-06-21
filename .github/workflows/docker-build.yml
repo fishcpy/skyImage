@@ -27,7 +27,7 @@ on:
         default: false
 
 env:
-  DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/skyimage
+  DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME || github.repository_owner }}/skyimage
 
 jobs:
   build-and-push:
