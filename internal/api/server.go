@@ -399,6 +399,16 @@ func (s *Server) tryServeLocalFile(c *gin.Context) bool {
 }
 
 func (s *Server) serveLocalFileByRelative(c *gin.Context, rel string) bool {
+	// 设置宽松的 CORS 头，允许跨域访问图片/文件资源
+	// 这对于图片在第三方网站的嵌入、Canvas 操作和 fetch 请求是必需的
+	header := c.Writer.Header()
+	header.Set("Access-Control-Allow-Origin", "*")
+	header.Del("Access-Control-Allow-Credentials")
+	header.Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+	header.Set("Access-Control-Allow-Headers", "Content-Type, Range")
+	header.Set("Access-Control-Expose-Headers", "Content-Length, Content-Type, Content-Disposition, ETag, Last-Modified, Cache-Control")
+	header.Set("Cross-Origin-Resource-Policy", "cross-origin")
+
 	file, err := s.files.FindByRelativePath(c.Request.Context(), rel)
 	if err != nil {
 		return false
