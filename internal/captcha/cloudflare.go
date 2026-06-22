@@ -3,6 +3,7 @@ package captcha
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -106,6 +107,7 @@ func GenerateSignature(siteKey, secretKey string) string {
 	if siteKey == "" || secretKey == "" {
 		return ""
 	}
-	sum := sha256.Sum256([]byte(siteKey + "|" + secretKey))
-	return hex.EncodeToString(sum[:])
+	h := hmac.New(sha256.New, []byte(siteKey))
+	h.Write([]byte(secretKey))
+	return hex.EncodeToString(h.Sum(nil))
 }

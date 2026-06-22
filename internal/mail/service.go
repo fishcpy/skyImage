@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net/mail"
 	"net/smtp"
+	"net/textproto"
 	"strings"
 
 	"skyimage/internal/admin"
@@ -71,37 +73,48 @@ func (s *Service) SendMail(ctx context.Context, to, subject, body string) error 
 }
 
 func (s *Service) SendMailWithConfig(config *SMTPConfig, to, subject, body string) error {
-	from := SanitizeEmailHeader(config.From)
-	toClean := SanitizeEmailHeader(to)
+	fromAddr, err := mail.ParseAddress(config.From)
+	if err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	toAddr, err := mail.ParseAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid to address: %w", err)
+	}
+
+	from := fromAddr.Address
+	toClean := toAddr.Address
 	toList := []string{toClean}
 
-	// 构建邮件消息（符合 RFC 5322 标准）
-	message := []byte("From: " + from + "\r\n" +
-		"To: " + toClean + "\r\n" +
-		"Subject: " + SanitizeEmailHeader(subject) + "\r\n" +
-		"MIME-Version: 1.0\r\n" +
-		"Content-Type: text/plain; charset=UTF-8\r\n" +
-		"\r\n" +
-		body + "\r\n")
+	h := make(textproto.MIMEHeader)
+	h.Set("From", from)
+	h.Set("To", toClean)
+	h.Set("Subject", subject)
+	h.Set("MIME-Version", "1.0")
+	h.Set("Content-Type", "text/plain; charset=UTF-8")
 
-	// 构建认证
+	var buf strings.Builder
+	for _, key := range []string{"From", "To", "Subject", "Mime-Version", "Content-Type"} {
+		for _, val := range h[key] {
+			buf.WriteString(key)
+			buf.WriteString(": ")
+			buf.WriteString(val)
+			buf.WriteString("\r\n")
+		}
+	}
+	buf.WriteString("\r\n")
+	buf.WriteString(body)
+	buf.WriteString("\r\n")
+	message := []byte(buf.String())
+
 	auth := smtp.PlainAuth("", config.Username, config.Password, config.Host)
-
-	// 发送邮件
 	addr := config.Host + ":" + config.Port
 
 	if config.Secure {
-		// 使用 TLS
 		return s.sendWithTLS(addr, config.Host, auth, from, toList, message)
 	}
 
-	// 不使用 TLS
 	return smtp.SendMail(addr, auth, from, toList, message)
-}
-
-// SanitizeEmailHeader removes CR and LF characters to prevent header injection.
-func SanitizeEmailHeader(s string) string {
-	return strings.NewReplacer("\r", "", "\n", "").Replace(s)
 }
 
 func (s *Service) sendWithTLS(addr, host string, auth smtp.Auth, from string, to []string, message []byte) error {

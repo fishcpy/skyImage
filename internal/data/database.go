@@ -45,10 +45,12 @@ func NewDatabase(cfg config.Config) (*gorm.DB, error) {
 	case "sqlite":
 		dbPath := cfg.DatabasePath
 		if dbPath == "" {
-			// 如果没有配置路径，使用默认路径
 			dbPath = filepath.Join("storage", "data", "skyImage.db")
 		}
 		dbPath = filepath.Clean(dbPath)
+		if strings.Contains(dbPath, "..") {
+			return nil, fmt.Errorf("invalid database path")
+		}
 		if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 			return nil, fmt.Errorf("create database dir: %w", err)
 		}

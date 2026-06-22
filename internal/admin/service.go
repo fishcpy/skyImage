@@ -69,11 +69,7 @@ func (s *Service) GetTrends(ctx context.Context, days int) ([]TrendData, error) 
 
 	startDate := time.Now().AddDate(0, 0, -days).Format("2006-01-02")
 
-	maxDays := days
-	if maxDays > 365 {
-		maxDays = 365
-	}
-	trends := make([]TrendData, 0, maxDays)
+	trends := make([]TrendData, 0, 365)
 	now := time.Now()
 	for i := days - 1; i >= 0; i-- {
 		date := now.AddDate(0, 0, -i).Format("2006-01-02")

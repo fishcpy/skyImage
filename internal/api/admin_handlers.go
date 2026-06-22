@@ -5,7 +5,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/mail"
 	"net/smtp"
+	"net/textproto"
 	"strconv"
 	"strings"
 	"time"
@@ -714,22 +716,44 @@ func (s *Server) handleAdminTestSMTP(c *gin.Context) {
 		},
 	)
 
-	from := mailservice.SanitizeEmailHeader(payload.SMTPFrom)
-	if from == "" {
-		from = mailservice.SanitizeEmailHeader(payload.SMTPUsername)
+	fromRaw := payload.SMTPFrom
+	if fromRaw == "" {
+		fromRaw = payload.SMTPUsername
 	}
-	to := []string{mailservice.SanitizeEmailHeader(payload.TestEmail)}
-	subject := mailservice.SanitizeEmailHeader(template.Subject)
-	body := template.Body
+	fromAddr, err := mail.ParseAddress(fromRaw)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid from address"})
+		return
+	}
+	toAddr, err := mail.ParseAddress(payload.TestEmail)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test email address"})
+		return
+	}
 
-	// 构建邮件消息（符合 RFC 5322 标准）
-	message := []byte("From: " + from + "\r\n" +
-		"To: " + mailservice.SanitizeEmailHeader(payload.TestEmail) + "\r\n" +
-		"Subject: " + subject + "\r\n" +
-		"MIME-Version: 1.0\r\n" +
-		"Content-Type: text/plain; charset=UTF-8\r\n" +
-		"\r\n" +
-		body + "\r\n")
+	from := fromAddr.Address
+	to := []string{toAddr.Address}
+
+	h := make(textproto.MIMEHeader)
+	h.Set("From", from)
+	h.Set("To", toAddr.Address)
+	h.Set("Subject", template.Subject)
+	h.Set("MIME-Version", "1.0")
+	h.Set("Content-Type", "text/plain; charset=UTF-8")
+
+	var msgBuf strings.Builder
+	for _, key := range []string{"From", "To", "Subject", "Mime-Version", "Content-Type"} {
+		for _, val := range h[key] {
+			msgBuf.WriteString(key)
+			msgBuf.WriteString(": ")
+			msgBuf.WriteString(val)
+			msgBuf.WriteString("\r\n")
+		}
+	}
+	msgBuf.WriteString("\r\n")
+	msgBuf.WriteString(template.Body)
+	msgBuf.WriteString("\r\n")
+	message := []byte(msgBuf.String())
 
 	// 构建认证
 	auth := smtp.PlainAuth("", payload.SMTPUsername, payload.SMTPPassword, payload.SMTPHost)

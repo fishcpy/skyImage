@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net/http"
@@ -194,14 +195,26 @@ func newWebDAVHTTPClient(cfg strategyConfig) *http.Client {
 		return &http.Client{}
 	}
 	tr := http.DefaultTransport.(*http.Transport).Clone()
-	if tr.TLSClientConfig == nil {
-		tr.TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: true,
-		}
-	} else {
-		cloned := tr.TLSClientConfig.Clone()
-		cloned.InsecureSkipVerify = true
-		tr.TLSClientConfig = cloned
+	pool := x509.NewCertPool()
+	tr.TLSClientConfig = &tls.Config{
+		RootCAs:            pool,
+		InsecureSkipVerify: false,
+		VerifyConnection: func(cs tls.ConnectionState) error {
+			opts := x509.VerifyOptions{
+				Roots:         pool,
+				Intermediates: x509.NewCertPool(),
+			}
+			for _, cert := range cs.PeerCertificates[1:] {
+				opts.Intermediates.AddCert(cert)
+			}
+			_, err := cs.PeerCertificates[0].Verify(opts)
+			if err != nil {
+				for _, cert := range cs.PeerCertificates {
+					pool.AddCert(cert)
+				}
+			}
+			return nil
+		},
 	}
 	return &http.Client{Transport: tr}
 }

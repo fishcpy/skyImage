@@ -121,6 +121,7 @@ func GenerateGeetestSignature(captchaID, captchaKey string) string {
 	if captchaID == "" || captchaKey == "" {
 		return ""
 	}
-	sum := sha256.Sum256([]byte(captchaID + "|" + captchaKey))
-	return hex.EncodeToString(sum[:])
+	h := hmac.New(sha256.New, []byte(captchaID))
+	h.Write([]byte(captchaKey))
+	return hex.EncodeToString(h.Sum(nil))
 }
