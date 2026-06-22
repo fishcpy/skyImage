@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -16,19 +17,20 @@ import (
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 
 	"skyimage/internal/data"
 )
 
 type sftpConnConfig struct {
-	address         string
-	username        string
-	password        string
-	privateKey      string
-	privateKeyPath  string
-	basePath        string
-	timeout         time.Duration
-	knownHosts      string
+	address        string
+	username       string
+	password       string
+	privateKey     string
+	privateKeyPath string
+	basePath       string
+	timeout        time.Duration
+	knownHosts     string
 }
 
 func (s *Service) storeSFTPObject(ctx context.Context, cfg strategyConfig, relativePath string, head []byte, remain io.Reader) (storeObjectResult, error) {
@@ -236,9 +238,28 @@ func newSFTPClient(ctx context.Context, cfg sftpConnConfig) (*sftp.Client, error
 		return nil, fmt.Errorf("sftp requires at least a password or private key for authentication")
 	}
 
-	hostKeyCallback := ssh.InsecureIgnoreHostKey()
+	var hostKeyCallback ssh.HostKeyCallback
 	if cfg.knownHosts != "" {
-		return nil, fmt.Errorf("sftp known_hosts verification is not supported in this version")
+		tmpFile, err := os.CreateTemp("", "skyimage-knownhosts-*")
+		if err != nil {
+			return nil, fmt.Errorf("sftp create temp known_hosts: %w", err)
+		}
+		tmpPath := tmpFile.Name()
+		if _, err := tmpFile.WriteString(cfg.knownHosts); err != nil {
+			_ = tmpFile.Close()
+			_ = os.Remove(tmpPath)
+			return nil, fmt.Errorf("sftp write temp known_hosts: %w", err)
+		}
+		_ = tmpFile.Close()
+		defer func() { _ = os.Remove(tmpPath) }()
+
+		cb, err := knownhosts.New(tmpPath)
+		if err != nil {
+			return nil, fmt.Errorf("sftp parse known_hosts: %w", err)
+		}
+		hostKeyCallback = cb
+	} else {
+		hostKeyCallback = ssh.InsecureIgnoreHostKey()
 	}
 
 	sshConfig := &ssh.ClientConfig{

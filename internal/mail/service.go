@@ -71,13 +71,14 @@ func (s *Service) SendMail(ctx context.Context, to, subject, body string) error 
 }
 
 func (s *Service) SendMailWithConfig(config *SMTPConfig, to, subject, body string) error {
-	from := config.From
-	toList := []string{to}
+	from := SanitizeEmailHeader(config.From)
+	toClean := SanitizeEmailHeader(to)
+	toList := []string{toClean}
 
 	// 构建邮件消息（符合 RFC 5322 标准）
 	message := []byte("From: " + from + "\r\n" +
-		"To: " + to + "\r\n" +
-		"Subject: " + subject + "\r\n" +
+		"To: " + toClean + "\r\n" +
+		"Subject: " + SanitizeEmailHeader(subject) + "\r\n" +
 		"MIME-Version: 1.0\r\n" +
 		"Content-Type: text/plain; charset=UTF-8\r\n" +
 		"\r\n" +
@@ -89,10 +90,6 @@ func (s *Service) SendMailWithConfig(config *SMTPConfig, to, subject, body strin
 	// 发送邮件
 	addr := config.Host + ":" + config.Port
 
-	// 记录邮件发送详情
-	fmt.Printf("[邮件详情] 发件人: %s, 收件人: %s, 主题: %s, 服务器: %s, TLS: %v\n",
-		from, to, subject, addr, config.Secure)
-
 	if config.Secure {
 		// 使用 TLS
 		return s.sendWithTLS(addr, config.Host, auth, from, toList, message)
@@ -100,6 +97,11 @@ func (s *Service) SendMailWithConfig(config *SMTPConfig, to, subject, body strin
 
 	// 不使用 TLS
 	return smtp.SendMail(addr, auth, from, toList, message)
+}
+
+// SanitizeEmailHeader removes CR and LF characters to prevent header injection.
+func SanitizeEmailHeader(s string) string {
+	return strings.NewReplacer("\r", "", "\n", "").Replace(s)
 }
 
 func (s *Service) sendWithTLS(addr, host string, auth smtp.Auth, from string, to []string, message []byte) error {

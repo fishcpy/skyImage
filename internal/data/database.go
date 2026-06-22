@@ -48,6 +48,7 @@ func NewDatabase(cfg config.Config) (*gorm.DB, error) {
 			// 如果没有配置路径，使用默认路径
 			dbPath = filepath.Join("storage", "data", "skyImage.db")
 		}
+		dbPath = filepath.Clean(dbPath)
 		if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 			return nil, fmt.Errorf("create database dir: %w", err)
 		}
@@ -194,13 +195,13 @@ func migrateTurnstileToCaptcha(db *gorm.DB) error {
 
 	// Migrate key mappings: old key -> new key
 	migrations := map[string]string{
-		"turnstile.site_key":                  "captcha.cloudflare.site_key",
-		"turnstile.secret_key":                "captcha.cloudflare.secret_key",
-		"turnstile.last_verified_signature":   "captcha.cloudflare.last_verified_signature",
-		"turnstile.last_verified_at":          "captcha.cloudflare.last_verified_at",
-		"turnstile.login":                     "captcha.login",
-		"turnstile.register":                  "captcha.register",
-		"turnstile.register_verify":           "captcha.register_verify",
+		"turnstile.site_key":                "captcha.cloudflare.site_key",
+		"turnstile.secret_key":              "captcha.cloudflare.secret_key",
+		"turnstile.last_verified_signature": "captcha.cloudflare.last_verified_signature",
+		"turnstile.last_verified_at":        "captcha.cloudflare.last_verified_at",
+		"turnstile.login":                   "captcha.login",
+		"turnstile.register":                "captcha.register",
+		"turnstile.register_verify":         "captcha.register_verify",
 	}
 
 	for oldKey, newKey := range migrations {

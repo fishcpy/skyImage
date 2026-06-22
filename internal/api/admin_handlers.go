@@ -714,18 +714,17 @@ func (s *Server) handleAdminTestSMTP(c *gin.Context) {
 		},
 	)
 
-	// 构建邮件内容
-	from := payload.SMTPFrom
+	from := mailservice.SanitizeEmailHeader(payload.SMTPFrom)
 	if from == "" {
-		from = payload.SMTPUsername
+		from = mailservice.SanitizeEmailHeader(payload.SMTPUsername)
 	}
-	to := []string{payload.TestEmail}
-	subject := template.Subject
+	to := []string{mailservice.SanitizeEmailHeader(payload.TestEmail)}
+	subject := mailservice.SanitizeEmailHeader(template.Subject)
 	body := template.Body
 
 	// 构建邮件消息（符合 RFC 5322 标准）
 	message := []byte("From: " + from + "\r\n" +
-		"To: " + payload.TestEmail + "\r\n" +
+		"To: " + mailservice.SanitizeEmailHeader(payload.TestEmail) + "\r\n" +
 		"Subject: " + subject + "\r\n" +
 		"MIME-Version: 1.0\r\n" +
 		"Content-Type: text/plain; charset=UTF-8\r\n" +

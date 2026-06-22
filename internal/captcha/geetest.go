@@ -3,7 +3,6 @@ package captcha
 import (
 	"context"
 	"crypto/hmac"
-	"crypto/md5"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -122,7 +121,6 @@ func GenerateGeetestSignature(captchaID, captchaKey string) string {
 	if captchaID == "" || captchaKey == "" {
 		return ""
 	}
-	hash := md5.New()
-	hash.Write([]byte(captchaID + "|" + captchaKey))
-	return hex.EncodeToString(hash.Sum(nil))
+	sum := sha256.Sum256([]byte(captchaID + "|" + captchaKey))
+	return hex.EncodeToString(sum[:])
 }

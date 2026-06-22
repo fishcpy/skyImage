@@ -562,7 +562,11 @@ func (s *Service) GetUserTrends(ctx context.Context, userID uint, days int) ([]U
 	startDate := time.Now().AddDate(0, 0, -days).Format("2006-01-02")
 
 	// 生成日期序列
-	trends := make([]UserTrendData, 0, days)
+	maxDays := days
+	if maxDays > 365 {
+		maxDays = 365
+	}
+	trends := make([]UserTrendData, 0, maxDays)
 	now := time.Now()
 	for i := days - 1; i >= 0; i-- {
 		date := now.AddDate(0, 0, -i).Format("2006-01-02")

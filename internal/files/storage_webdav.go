@@ -195,10 +195,13 @@ func newWebDAVHTTPClient(cfg strategyConfig) *http.Client {
 	}
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	if tr.TLSClientConfig == nil {
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		tr.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
 	} else {
-		tr.TLSClientConfig = tr.TLSClientConfig.Clone()
-		tr.TLSClientConfig.InsecureSkipVerify = true
+		cloned := tr.TLSClientConfig.Clone()
+		cloned.InsecureSkipVerify = true
+		tr.TLSClientConfig = cloned
 	}
 	return &http.Client{Transport: tr}
 }
