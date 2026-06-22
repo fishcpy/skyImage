@@ -31,6 +31,7 @@ export function AdminStrategyEditorPage() {
     { key: "local", label: t("admin.strategyEditor.driver.local") },
     { key: "webdav", label: t("admin.strategyEditor.driver.webdav") },
     { key: "ftp", label: t("admin.strategyEditor.driver.ftp") },
+    { key: "sftp", label: t("admin.strategyEditor.driver.sftp") },
     { key: "s3", label: t("admin.strategyEditor.driver.s3") },
     { key: "minio", label: t("admin.strategyEditor.driver.minio") }
   ];
@@ -69,6 +70,13 @@ export function AdminStrategyEditorPage() {
         ftp_tls: false,
         ftp_skip_tls_verify: false,
         ftp_timeout: 15,
+        sftp_host: "",
+        sftp_port: 22,
+        sftp_username: "",
+        sftp_password: "",
+        sftp_private_key: "",
+        sftp_base_path: "",
+        sftp_timeout: 15,
         s3_endpoint: "",
         s3_region: "",
         s3_bucket: "",
@@ -155,6 +163,28 @@ export function AdminStrategyEditorPage() {
               target.configs?.ftp_skip_tls_verify || target.configs?.ftpSkipTLSVerify || false
             ),
             ftp_timeout: target.configs?.ftp_timeout || 15,
+            sftp_host:
+              target.configs?.sftp_host ||
+              target.configs?.sftp_endpoint ||
+              "",
+            sftp_port: target.configs?.sftp_port || 22,
+            sftp_username:
+              target.configs?.sftp_username ||
+              target.configs?.sftp_user ||
+              "",
+            sftp_password:
+              target.configs?.sftp_password ||
+              target.configs?.sftp_pass ||
+              "",
+            sftp_private_key:
+              target.configs?.sftp_private_key ||
+              target.configs?.sftpPrivateKey ||
+              "",
+            sftp_base_path:
+              target.configs?.sftp_base_path ||
+              target.configs?.sftp_path ||
+              "",
+            sftp_timeout: target.configs?.sftp_timeout || 15,
             s3_endpoint: target.configs?.s3_endpoint || "",
             s3_region: target.configs?.s3_region || "",
             s3_bucket: target.configs?.s3_bucket || "",
@@ -201,6 +231,13 @@ export function AdminStrategyEditorPage() {
           ftp_tls: false,
           ftp_skip_tls_verify: false,
           ftp_timeout: 15,
+          sftp_host: "",
+          sftp_port: 22,
+          sftp_username: "",
+          sftp_password: "",
+          sftp_private_key: "",
+          sftp_base_path: "",
+          sftp_timeout: 15,
           s3_endpoint: "",
           s3_region: "",
           s3_bucket: "",
@@ -284,6 +321,13 @@ export function AdminStrategyEditorPage() {
           (form.configs as any)?.ftp_skip_tls_verify || (form.configs as any)?.ftpSkipTLSVerify
         ),
         ftp_timeout: (form.configs as any)?.ftp_timeout || 15,
+        sftp_host: (form.configs as any)?.sftp_host || (form.configs as any)?.sftp_endpoint || "",
+        sftp_port: (form.configs as any)?.sftp_port || 22,
+        sftp_username: (form.configs as any)?.sftp_username || (form.configs as any)?.sftp_user || "",
+        sftp_password: (form.configs as any)?.sftp_password || (form.configs as any)?.sftp_pass || "",
+        sftp_private_key: (form.configs as any)?.sftp_private_key || (form.configs as any)?.sftpPrivateKey || "",
+        sftp_base_path: (form.configs as any)?.sftp_base_path || (form.configs as any)?.sftp_path || "",
+        sftp_timeout: (form.configs as any)?.sftp_timeout || 15,
         s3_endpoint: (form.configs as any)?.s3_endpoint || "",
         s3_region: (form.configs as any)?.s3_region || "",
         s3_bucket: (form.configs as any)?.s3_bucket || "",
@@ -394,6 +438,23 @@ export function AdminStrategyEditorPage() {
                 />
                 <p className="text-xs text-muted-foreground">
                   {t("admin.strategyEditor.ftpHostHint")}
+                </p>
+              </div>
+            ) : form.configs?.driver === "sftp" ? (
+              <div className="space-y-2">
+                <Label>{t("admin.strategyEditor.sftpHost")}</Label>
+                <Input
+                  value={(form.configs as any)?.sftp_host || ""}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: { ...prev.configs, sftp_host: e.target.value }
+                    }))
+                  }
+                  placeholder="sftp.example.com:22 或 ssh://user@host:22"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("admin.strategyEditor.sftpHostHint")}
                 </p>
               </div>
             ) : (
@@ -653,6 +714,93 @@ export function AdminStrategyEditorPage() {
                     setForm((prev) => ({
                       ...prev,
                       configs: { ...prev.configs, ftp_timeout: parseInt(e.target.value, 10) || 15 }
+                    }))
+                  }
+                />
+              </div>
+            </div>
+          )}
+          {form.configs?.driver === "sftp" && (
+            <div className="space-y-4 rounded-lg border p-4">
+              <h3 className="text-sm font-medium">{t("admin.strategyEditor.sftpConfig")}</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>{t("admin.strategyEditor.sftpPort")}</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={(form.configs as any)?.sftp_port || 22}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, sftp_port: parseInt(e.target.value, 10) || 22 }
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("admin.strategyEditor.basePath")}</Label>
+                  <Input
+                    value={(form.configs as any)?.sftp_base_path || ""}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, sftp_base_path: e.target.value }
+                      }))
+                    }
+                    placeholder="skyimage"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("admin.strategyEditor.sftpUsername")}</Label>
+                  <Input
+                    value={(form.configs as any)?.sftp_username || ""}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, sftp_username: e.target.value }
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("admin.strategyEditor.sftpPassword")}</Label>
+                  <Input
+                    type="password"
+                    value={(form.configs as any)?.sftp_password || ""}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        configs: { ...prev.configs, sftp_password: e.target.value }
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>{t("admin.strategyEditor.sftpPrivateKey")}</Label>
+                <textarea
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  value={(form.configs as any)?.sftp_private_key || ""}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: { ...prev.configs, sftp_private_key: e.target.value }
+                    }))
+                  }
+                  placeholder={t("admin.strategyEditor.sftpPrivateKeyHint")}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("admin.strategyEditor.timeout")}</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={(form.configs as any)?.sftp_timeout || 15}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: { ...prev.configs, sftp_timeout: parseInt(e.target.value, 10) || 15 }
                     }))
                   }
                 />

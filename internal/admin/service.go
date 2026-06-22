@@ -475,6 +475,11 @@ func validateStrategyConfigs(configs map[string]interface{}) error {
 			return err
 		}
 	}
+	if driver == "sftp" {
+		if err := validateSFTPConfigs(configs); err != nil {
+			return err
+		}
+	}
 	if driver == "s3" || driver == "minio" {
 		if strings.TrimSpace(firstConfigString(configs, "s3_bucket")) == "" {
 			return fmt.Errorf("s3_bucket 不能为空")
@@ -652,6 +657,38 @@ func validateFTPConfigs(configs map[string]interface{}) error {
 	if port := strings.TrimSpace(firstConfigString(configs, "ftp_port")); port != "" {
 		if _, err := strconv.Atoi(port); err != nil {
 			return fmt.Errorf("FTP 端口格式不正确")
+		}
+	}
+	return nil
+}
+
+func validateSFTPConfigs(configs map[string]interface{}) error {
+	host := strings.TrimSpace(firstConfigString(configs, "sftp_host", "sftp_endpoint"))
+	if host == "" {
+		return fmt.Errorf("SFTP 主机不能为空")
+	}
+	normalized := host
+	if !strings.Contains(normalized, "://") {
+		normalized = "ssh://" + normalized
+	}
+	parsed, err := url.Parse(normalized)
+	if err != nil || parsed.Host == "" {
+		return fmt.Errorf("SFTP 主机格式不正确")
+	}
+	if parsed.Scheme != "" {
+		scheme := strings.ToLower(parsed.Scheme)
+		if scheme != "ssh" && scheme != "sftp" {
+			return fmt.Errorf("SFTP 仅支持 ssh/sftp 协议")
+		}
+	}
+	password := strings.TrimSpace(firstConfigString(configs, "sftp_password", "sftp_pass"))
+	privateKey := strings.TrimSpace(firstConfigString(configs, "sftp_private_key", "sftpPrivateKey"))
+	if password == "" && privateKey == "" {
+		return fmt.Errorf("SFTP 至少需要密码或私钥进行认证")
+	}
+	if port := strings.TrimSpace(firstConfigString(configs, "sftp_port")); port != "" {
+		if _, err := strconv.Atoi(port); err != nil {
+			return fmt.Errorf("SFTP 端口格式不正确")
 		}
 	}
 	return nil

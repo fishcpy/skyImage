@@ -118,6 +118,15 @@ type strategyConfig struct {
 	S3SessionToken        string
 	S3ForcePathStyle      bool
 	S3Proxy               bool
+	SFTPHost              string
+	SFTPPort              int
+	SFTPUsername          string
+	SFTPPassword          string
+	SFTPPrivateKey        string
+	SFTPPrivateKeyPath    string
+	SFTPBasePath          string
+	SFTPTimeoutSeconds    int
+	SFTPKnownHosts        string
 	EnableCompression     bool
 	CompressionQuality    int
 	TargetFormat          string
@@ -1038,6 +1047,45 @@ func (s *Service) parseStrategyConfig(strategy data.Strategy) strategyConfig {
 				boolFromAny(raw["ftpSkipTLSVerify"])
 			cfg.FTPTimeoutSeconds = intFromAny(raw["ftp_timeout"])
 
+			if v := stringFromAny(raw["sftp_host"]); v != "" {
+				cfg.SFTPHost = v
+			}
+			if v := stringFromAny(raw["sftp_endpoint"]); v != "" && cfg.SFTPHost == "" {
+				cfg.SFTPHost = v
+			}
+			if v := stringFromAny(raw["sftp_username"]); v != "" {
+				cfg.SFTPUsername = v
+			}
+			if v := stringFromAny(raw["sftp_user"]); v != "" && cfg.SFTPUsername == "" {
+				cfg.SFTPUsername = v
+			}
+			if v := stringFromAny(raw["sftp_password"]); v != "" {
+				cfg.SFTPPassword = v
+			}
+			if v := stringFromAny(raw["sftp_pass"]); v != "" && cfg.SFTPPassword == "" {
+				cfg.SFTPPassword = v
+			}
+			if v := stringFromAny(raw["sftp_private_key"]); v != "" {
+				cfg.SFTPPrivateKey = v
+			}
+			if v := stringFromAny(raw["sftpPrivateKey"]); v != "" && cfg.SFTPPrivateKey == "" {
+				cfg.SFTPPrivateKey = v
+			}
+			if v := stringFromAny(raw["sftp_private_key_path"]); v != "" {
+				cfg.SFTPPrivateKeyPath = v
+			}
+			if v := stringFromAny(raw["sftp_base_path"]); v != "" {
+				cfg.SFTPBasePath = v
+			}
+			if v := stringFromAny(raw["sftp_path"]); v != "" && cfg.SFTPBasePath == "" {
+				cfg.SFTPBasePath = v
+			}
+			cfg.SFTPPort = intFromAny(raw["sftp_port"])
+			cfg.SFTPTimeoutSeconds = intFromAny(raw["sftp_timeout"])
+			if v := stringFromAny(raw["sftp_known_hosts"]); v != "" {
+				cfg.SFTPKnownHosts = v
+			}
+
 			if v := stringFromAny(raw["s3_endpoint"]); v != "" {
 				cfg.S3Endpoint = v
 			}
@@ -1093,6 +1141,18 @@ func (s *Service) parseStrategyConfig(strategy data.Strategy) strategyConfig {
 	}
 	if cfg.FTPTimeoutSeconds <= 0 {
 		cfg.FTPTimeoutSeconds = 15
+	}
+	cfg.SFTPHost = strings.TrimSpace(cfg.SFTPHost)
+	cfg.SFTPUsername = strings.TrimSpace(cfg.SFTPUsername)
+	cfg.SFTPPassword = strings.TrimSpace(cfg.SFTPPassword)
+	cfg.SFTPPrivateKey = strings.TrimSpace(cfg.SFTPPrivateKey)
+	cfg.SFTPPrivateKeyPath = strings.TrimSpace(cfg.SFTPPrivateKeyPath)
+	cfg.SFTPBasePath = sanitizeRelativePath(cfg.SFTPBasePath)
+	if cfg.SFTPPort <= 0 {
+		cfg.SFTPPort = 22
+	}
+	if cfg.SFTPTimeoutSeconds <= 0 {
+		cfg.SFTPTimeoutSeconds = 15
 	}
 	cfg.S3Endpoint = strings.TrimSpace(cfg.S3Endpoint)
 	cfg.S3Region = strings.TrimSpace(cfg.S3Region)

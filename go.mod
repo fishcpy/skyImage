@@ -12,6 +12,7 @@ require (
 	github.com/glebarez/sqlite v1.11.0
 	github.com/google/uuid v1.6.0
 	github.com/jlaffaye/ftp v0.2.0
+	github.com/pkg/sftp v1.13.10
 	github.com/spf13/viper v1.18.2
 	golang.org/x/crypto v0.48.0
 	golang.org/x/image v0.38.0
@@ -63,6 +64,7 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
