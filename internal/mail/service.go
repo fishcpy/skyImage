@@ -1,9 +1,11 @@
 package mail
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
+	"mime/quotedprintable"
 	"net/mail"
 	"net/smtp"
 	"net/textproto"
@@ -92,9 +94,10 @@ func (s *Service) SendMailWithConfig(config *SMTPConfig, to, subject, body strin
 	h.Set("Subject", subject)
 	h.Set("MIME-Version", "1.0")
 	h.Set("Content-Type", "text/plain; charset=UTF-8")
+	h.Set("Content-Transfer-Encoding", "quoted-printable")
 
 	var buf strings.Builder
-	for _, key := range []string{"From", "To", "Subject", "Mime-Version", "Content-Type"} {
+	for _, key := range []string{"From", "To", "Subject", "Mime-Version", "Content-Type", "Content-Transfer-Encoding"} {
 		for _, val := range h[key] {
 			buf.WriteString(key)
 			buf.WriteString(": ")
@@ -103,7 +106,12 @@ func (s *Service) SendMailWithConfig(config *SMTPConfig, to, subject, body strin
 		}
 	}
 	buf.WriteString("\r\n")
-	buf.WriteString(body)
+
+	var bodyBuf bytes.Buffer
+	w := quotedprintable.NewWriter(&bodyBuf)
+	w.Write([]byte(body))
+	w.Close()
+	buf.WriteString(bodyBuf.String())
 	buf.WriteString("\r\n")
 	message := []byte(buf.String())
 

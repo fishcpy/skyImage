@@ -1,9 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"crypto/tls"
 	"errors"
 	"io"
+	"mime/quotedprintable"
 	"net/http"
 	"net/mail"
 	"net/smtp"
@@ -740,9 +742,10 @@ func (s *Server) handleAdminTestSMTP(c *gin.Context) {
 	h.Set("Subject", template.Subject)
 	h.Set("MIME-Version", "1.0")
 	h.Set("Content-Type", "text/plain; charset=UTF-8")
+	h.Set("Content-Transfer-Encoding", "quoted-printable")
 
 	var msgBuf strings.Builder
-	for _, key := range []string{"From", "To", "Subject", "Mime-Version", "Content-Type"} {
+	for _, key := range []string{"From", "To", "Subject", "Mime-Version", "Content-Type", "Content-Transfer-Encoding"} {
 		for _, val := range h[key] {
 			msgBuf.WriteString(key)
 			msgBuf.WriteString(": ")
@@ -751,7 +754,12 @@ func (s *Server) handleAdminTestSMTP(c *gin.Context) {
 		}
 	}
 	msgBuf.WriteString("\r\n")
-	msgBuf.WriteString(template.Body)
+
+	var bodyBuf bytes.Buffer
+	qw := quotedprintable.NewWriter(&bodyBuf)
+	qw.Write([]byte(template.Body))
+	qw.Close()
+	msgBuf.WriteString(bodyBuf.String())
 	msgBuf.WriteString("\r\n")
 	message := []byte(msgBuf.String())
 
