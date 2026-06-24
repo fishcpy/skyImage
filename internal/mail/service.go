@@ -74,6 +74,14 @@ func (s *Service) SendMail(ctx context.Context, to, subject, body string) error 
 	return s.SendMailWithConfig(config, to, subject, body)
 }
 
+// sanitizeHeaderValue 移除可能导致邮件头注入的 CRLF 字符
+func sanitizeHeaderValue(val string) string {
+	// 移除 \r 和 \n 以防止邮件头注入
+	val = strings.ReplaceAll(val, "\r", "")
+	val = strings.ReplaceAll(val, "\n", "")
+	return val
+}
+
 func (s *Service) SendMailWithConfig(config *SMTPConfig, to, subject, body string) error {
 	fromAddr, err := mail.ParseAddress(config.From)
 	if err != nil {
@@ -87,6 +95,9 @@ func (s *Service) SendMailWithConfig(config *SMTPConfig, to, subject, body strin
 	from := fromAddr.Address
 	toClean := toAddr.Address
 	toList := []string{toClean}
+
+	// 防止邮件头注入：清理 subject 中的 CRLF 字符
+	subject = sanitizeHeaderValue(subject)
 
 	h := make(textproto.MIMEHeader)
 	h.Set("From", from)

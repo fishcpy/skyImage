@@ -864,7 +864,10 @@ func (s *Server) handleAdminTestSMTP(c *gin.Context) {
 	h := make(textproto.MIMEHeader)
 	h.Set("From", from)
 	h.Set("To", toAddr.Address)
-	h.Set("Subject", template.Subject)
+	// 防止邮件头注入：清理 subject 中的 CRLF 字符
+	sanitizedSubject := strings.ReplaceAll(template.Subject, "\r", "")
+	sanitizedSubject = strings.ReplaceAll(sanitizedSubject, "\n", "")
+	h.Set("Subject", sanitizedSubject)
 	h.Set("MIME-Version", "1.0")
 	h.Set("Content-Type", "text/plain; charset=UTF-8")
 	h.Set("Content-Transfer-Encoding", "quoted-printable")
