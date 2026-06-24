@@ -380,6 +380,17 @@ func (s *Server) handleAdminUpdateGroup(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
+
+	// 演示站模式：禁止修改角色组配置
+	s.mu.RLock()
+	demoMode := s.cfg.DemoMode
+	s.mu.RUnlock()
+
+	if demoMode {
+		c.JSON(http.StatusForbidden, gin.H{"error": "演示站禁止修改角色组配置"})
+		return
+	}
+
 	var payload admin.GroupPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -399,6 +410,17 @@ func (s *Server) handleAdminDeleteGroup(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
+
+	// 演示站模式：禁止删除角色组
+	s.mu.RLock()
+	demoMode := s.cfg.DemoMode
+	s.mu.RUnlock()
+
+	if demoMode {
+		c.JSON(http.StatusForbidden, gin.H{"error": "演示站禁止删除角色组"})
+		return
+	}
+
 	if err := s.admin.DeleteGroup(c.Request.Context(), uint(id)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
