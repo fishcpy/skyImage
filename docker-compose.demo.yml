@@ -39,8 +39,8 @@ services:
       # 演示站专用配置
       - DEMO_MODE=true
       - SITE_NAME=${SITE_NAME:-SkyImage Demo}
-      - ADMIN_USERNAME=${ADMIN_USERNAME:-demo_admin}
-      - ADMIN_EMAIL=${ADMIN_EMAIL:-demo@example.com}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-DemoPass123!}
       - SKIP_INSTALL=${SKIP_INSTALL:-true}
       
