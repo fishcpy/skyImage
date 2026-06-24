@@ -241,24 +241,42 @@ jobs:
           # 生成标签：只保留必要的标签
           # demo-{version}-{hash}: 完整版本标识
           # demo-latest: 最新版本
-          TAGS="${DOCKER_IMAGE}:demo-${VERSION_TAG}"
-          TAGS="${TAGS},${DOCKER_IMAGE}:demo-latest"
+          TAG1="${DOCKER_IMAGE}:demo-${VERSION_TAG}"
+          TAG2="${DOCKER_IMAGE}:demo-latest"
           
-          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "version_tag=${VERSION_TAG}" >> $GITHUB_OUTPUT
-          echo "tag_name=demo-${VERSION_TAG}" >> $GITHUB_OUTPUT
+          # 输出标签，确保在一行中（使用 printf 避免 echo 的自动换行）
+          printf "tags=%s,%s\n" "$TAG1" "$TAG2" >> $GITHUB_OUTPUT
+          printf "version=%s\n" "$VERSION" >> $GITHUB_OUTPUT
+          printf "version_tag=%s\n" "$VERSION_TAG" >> $GITHUB_OUTPUT
+          printf "tag_name=demo-%s\n" "$VERSION_TAG" >> $GITHUB_OUTPUT
           
-          echo "生成的标签: ${TAGS}"
+          echo "生成的标签: ${TAG1},${TAG2}"
 
       - name: Create manifest list and push
         working-directory: /tmp/digests
         run: |
-          TAGS_ARRAY=($(echo "${{ steps.tags.outputs.tags }}" | tr ',' ' '))
+          # 获取标签并移除所有换行符
+          RAW_TAGS="${{ steps.tags.outputs.tags }}"
+          CLEAN_TAGS=$(echo "$RAW_TAGS" | tr -d '\n\r')
+          
+          echo "原始标签: $RAW_TAGS"
+          echo "清理后标签: $CLEAN_TAGS"
+          
+          # 分割标签
+          TAGS_ARRAY=($(echo "$CLEAN_TAGS" | tr ',' ' '))
+          echo "标签数组: ${TAGS_ARRAY[@]}"
+          
+          # 构建标签参数
           TAG_ARGS=""
           for tag in "${TAGS_ARRAY[@]}"; do
-            TAG_ARGS="$TAG_ARGS -t $tag"
+            if [ -n "$tag" ]; then
+              TAG_ARGS="$TAG_ARGS -t $tag"
+            fi
           done
+          
+          echo "标签参数: $TAG_ARGS"
+          
+          # 执行命令
           docker buildx imagetools create $TAG_ARGS \
             $(printf '${{ env.DOCKER_IMAGE }}@sha256:%s ' *)
 
