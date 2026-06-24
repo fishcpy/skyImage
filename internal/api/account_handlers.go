@@ -91,6 +91,23 @@ func (s *Server) handleAccountUpdateProfile(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// 演示站模式：禁止修改名称和密码
+	s.mu.RLock()
+	demoMode := s.cfg.DemoMode
+	s.mu.RUnlock()
+
+	if demoMode {
+		if strings.TrimSpace(input.Name) != "" && strings.TrimSpace(input.Name) != strings.TrimSpace(user.Name) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "演示站禁止修改用户名称"})
+			return
+		}
+		if strings.TrimSpace(input.Password) != "" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "演示站禁止修改密码"})
+			return
+		}
+	}
+
 	updated, err := s.users.UpdateProfile(c.Request.Context(), user.ID, input)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
