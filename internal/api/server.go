@@ -239,7 +239,7 @@ func (s *Server) registerFrontend() {
 		c.Next()
 	})
 
-	s.engine.NoRoute(func(c *gin.Context) {
+	s.engine.NoRoute(middleware.OptionalAuth(s.users, s.session), func(c *gin.Context) {
 		if strings.HasPrefix(c.Request.URL.Path, "/api") {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "api route not found",
