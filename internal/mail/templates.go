@@ -161,25 +161,33 @@ func defaultTemplateContent(key TemplateKey) TemplateContent {
 	return def.Default
 }
 
+// sanitizeTemplateValue 移除可能导致邮件内容/结构被污染的控制字符
+func sanitizeTemplateValue(val string) string {
+	val = strings.ReplaceAll(val, "\r", "")
+	val = strings.ReplaceAll(val, "\n", "")
+	val = strings.ReplaceAll(val, "\x00", "")
+	return strings.TrimSpace(val)
+}
+
 func buildTemplateReplacements(vars TemplateVariables) map[string]string {
-	siteName := strings.TrimSpace(vars.SiteName)
+	siteName := sanitizeTemplateValue(vars.SiteName)
 	if siteName == "" {
 		siteName = "skyImage"
 	}
 
-	currentTime := strings.TrimSpace(vars.CurrentTime)
+	currentTime := sanitizeTemplateValue(vars.CurrentTime)
 	if currentTime == "" {
 		currentTime = time.Now().Format("2006-01-02 15:04:05")
 	}
 
 	return map[string]string{
 		"site_name":         siteName,
-		"user_name":         strings.TrimSpace(vars.UserName),
-		"email":             strings.TrimSpace(vars.Email),
-		"verification_code": strings.TrimSpace(vars.VerificationCode),
-		"reset_link":        strings.TrimSpace(vars.ResetLink),
-		"login_ip":          strings.TrimSpace(vars.LoginIP),
-		"test_email":        strings.TrimSpace(vars.TestEmail),
+		"user_name":         sanitizeTemplateValue(vars.UserName),
+		"email":             sanitizeTemplateValue(vars.Email),
+		"verification_code": sanitizeTemplateValue(vars.VerificationCode),
+		"reset_link":        sanitizeTemplateValue(vars.ResetLink),
+		"login_ip":          sanitizeTemplateValue(vars.LoginIP),
+		"test_email":        sanitizeTemplateValue(vars.TestEmail),
 		"current_time":      currentTime,
 	}
 }

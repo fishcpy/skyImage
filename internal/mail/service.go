@@ -227,7 +227,7 @@ func (s *Service) SendLoginNotification(ctx context.Context, email, userName, ip
 	content, err := s.renderConfiguredTemplate(ctx, TemplateLoginNotification, TemplateVariables{
 		UserName: userName,
 		Email:    email,
-		LoginIP:  ip,
+		LoginIP:  FormatIP(ip),
 	})
 	if err != nil {
 		return err
