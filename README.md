@@ -15,9 +15,9 @@ SkyImage 是一个现代化的图床系统，采用前后端分离架构。
 
 # 安装
 
-## 建议使用docker部署
+### 建议使用docker部署
 
-### docker:
+## docker:
 ```bash
 # 创建 skyimage 文件夹
 mkdir skyimage
@@ -43,6 +43,77 @@ Docker 部署会挂载以下目录：
 - `./storage/data` - 数据库文件目录
 - `./storage/uploads` - 上传文件目录
 - `./.env` - 配置文件（安装后自动保存数据库配置）
+
+## 二进制部署
+
+前往 [GitHub Releases](https://github.com/fishcpy/skyImage/releases) 下载对应平台的预编译包。
+
+### 支持平台
+
+| 平台 | 架构 | 文件名格式 |
+| --- | --- | --- |
+| Linux | x86_64 | `skyimage-*-linux-amd64.tar.gz` |
+| Linux | ARM64 | `skyimage-*-linux-arm64.tar.gz` |
+| Windows | x86_64 | `skyimage-*-windows-amd64.zip` |
+| macOS | Intel | `skyimage-*-darwin-amd64.tar.gz` |
+| macOS | Apple Silicon | `skyimage-*-darwin-arm64.tar.gz` |
+
+### 部署步骤
+
+1. 下载对应平台的压缩包并解压
+2. 复制 `.env.example` 为 `.env` 并修改配置
+3. 运行 `./skyimage`（Linux/macOS）或 `skyimage.exe`（Windows）
+4. 访问 `http://localhost:8080` 完成安装向导
+
+## 源码部署
+
+### 前置要求
+
+- Go 1.24+
+- Node.js 18+
+- pnpm（推荐）或 npm
+
+### 1. 克隆项目
+
+```bash
+git clone https://github.com/fishcpy/skyImage.git
+cd skyImage
+```
+
+### 2. 安装依赖
+
+```bash
+pnpm install
+```
+
+### 3. 构建前端
+
+```bash
+pnpm build
+```
+
+### 4. 配置环境变量
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env` 文件，修改以下配置：
+
+```env
+HTTP_ADDR=:8080                    # 服务监听地址
+STORAGE_PATH=storage/uploads      # 文件存储路径
+PUBLIC_BASE_URL=http://your-domain.com  # 公网访问地址
+FRONTEND_DIST=dist                # 前端构建产物目录
+```
+
+### 5. 启动服务
+
+```bash
+go run ./cmd/api
+```
+
+启动后访问 `http://localhost:8080` 进入安装向导页面。
 
 ## 技术栈
 

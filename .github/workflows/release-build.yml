@@ -1,0 +1,362 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号 (例如: 1.0.0)'
+        required: true
+        type: string
+      changelog:
+        description: '更新日志'
+        required: false
+        type: string
+        default: ''
+      is_release:
+        description: '是否为正式版本'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME || github.repository_owner }}/skyimage
+
+jobs:
+  # ===== 前端构建 =====
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Upload frontend dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist
+          retention-days: 1
+
+  # ===== Docker 构建 =====
+  build-docker:
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_IMAGE }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=release-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.platform }}
+          outputs: type=image,name=${{ env.DOCKER_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-digests-${{ strategy.job-index }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ===== Docker 合并 =====
+  docker-merge:
+    permissions:
+      contents: write
+      packages: write
+    runs-on: ubuntu-latest
+    needs: build-docker
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: docker-digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Determine tags
+        id: tags
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.is_release }}" = "true" ]; then
+            VERSION="${{ inputs.version }}"
+            TAGS="${{ env.DOCKER_IMAGE }}:${VERSION}"
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:latest"
+            MAJOR=$(echo $VERSION | cut -d. -f1)
+            MINOR=$(echo $VERSION | cut -d. -f1-2)
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:${MAJOR}"
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:${MINOR}"
+            echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+            TAGS="${{ env.DOCKER_IMAGE }}:${VERSION}-preview"
+            echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+            echo "version=${VERSION}-preview" >> $GITHUB_OUTPUT
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            TAGS="${{ env.DOCKER_IMAGE }}:${VERSION}"
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:latest"
+            echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          TAGS_ARRAY=($(echo "${{ steps.tags.outputs.tags }}" | tr ',' ' '))
+          TAG_ARGS=""
+          for tag in "${TAGS_ARRAY[@]}"; do
+            TAG_ARGS="$TAG_ARGS -t $tag"
+          done
+          docker buildx imagetools create $TAG_ARGS \
+            $(printf '${{ env.DOCKER_IMAGE }}@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.DOCKER_IMAGE }}:${{ steps.tags.outputs.version }}
+
+      - name: Update Docker Hub description
+        if: steps.tags.outputs.is_release == 'true'
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.DOCKER_IMAGE }}
+          short-description: ${{ github.event.repository.description }}
+          readme-filepath: ./README.md
+
+  # ===== 二进制构建 =====
+  build-binaries:
+    needs: build-frontend
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            suffix: ''
+          - goos: linux
+            goarch: arm64
+            suffix: ''
+          - goos: windows
+            goarch: amd64
+            suffix: '.exe'
+          - goos: darwin
+            goarch: amd64
+            suffix: ''
+          - goos: darwin
+            goarch: arm64
+            suffix: ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          go build -ldflags="-s -w" -o skyimage${{ matrix.suffix }} ./cmd/api
+
+      - name: Package release
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          ARCHIVE_NAME="skyimage-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}"
+
+          mkdir -p "${ARCHIVE_NAME}"
+          cp skyimage${{ matrix.suffix }} "${ARCHIVE_NAME}/"
+          cp -r dist "${ARCHIVE_NAME}/"
+          cp .env.example "${ARCHIVE_NAME}/.env.example"
+          cp README.md "${ARCHIVE_NAME}/"
+          mkdir -p "${ARCHIVE_NAME}/storage/uploads"
+          mkdir -p "${ARCHIVE_NAME}/storage/data"
+
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            7z a "${ARCHIVE_NAME}.zip" "${ARCHIVE_NAME}"
+            echo "ASSET=${ARCHIVE_NAME}.zip" >> $GITHUB_ENV
+          else
+            tar czf "${ARCHIVE_NAME}.tar.gz" "${ARCHIVE_NAME}"
+            echo "ASSET=${ARCHIVE_NAME}.tar.gz" >> $GITHUB_ENV
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.ASSET }}
+          retention-days: 1
+
+  # ===== 发布 =====
+  release:
+    needs: [docker-merge, build-binaries]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.is_release == true)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: binary-*
+          merge-multiple: true
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+            echo "tag=v${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Prepare release notes
+        env:
+          CHANGELOG: ${{ inputs.changelog }}
+        run: |
+          echo "## SkyImage ${{ steps.version.outputs.tag }}" > release_notes.md
+          echo "" >> release_notes.md
+
+          if [ -n "$CHANGELOG" ]; then
+            echo "### 更新日志" >> release_notes.md
+            echo "" >> release_notes.md
+            echo "$CHANGELOG" >> release_notes.md
+            echo "" >> release_notes.md
+          fi
+
+          echo "### Docker 镜像" >> release_notes.md
+          echo '```' >> release_notes.md
+          echo "${{ env.DOCKER_IMAGE }}:${{ steps.version.outputs.version }}" >> release_notes.md
+          echo "${{ env.DOCKER_IMAGE }}:latest" >> release_notes.md
+          echo '```' >> release_notes.md
+          echo "" >> release_notes.md
+
+          echo "### 二进制下载" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "| 平台 | 架构 | 文件 |" >> release_notes.md
+          echo "| --- | --- | --- |" >> release_notes.md
+          echo "| Linux | x86_64 | \`skyimage-${{ steps.version.outputs.version }}-linux-amd64.tar.gz\` |" >> release_notes.md
+          echo "| Linux | ARM64 | \`skyimage-${{ steps.version.outputs.version }}-linux-arm64.tar.gz\` |" >> release_notes.md
+          echo "| Windows | x86_64 | \`skyimage-${{ steps.version.outputs.version }}-windows-amd64.zip\` |" >> release_notes.md
+          echo "| macOS | Intel | \`skyimage-${{ steps.version.outputs.version }}-darwin-amd64.tar.gz\` |" >> release_notes.md
+          echo "| macOS | Apple Silicon | \`skyimage-${{ steps.version.outputs.version }}-darwin-arm64.tar.gz\` |" >> release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.tag }}
+          body_path: release_notes.md
+          files: |
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build summary
+        run: |
+          echo "## 发布完成 ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**版本:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**标签:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 产物" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker 镜像: \`${{ env.DOCKER_IMAGE }}:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- 二进制文件: 5 个平台" >> $GITHUB_STEP_SUMMARY
