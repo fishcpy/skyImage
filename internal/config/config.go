@@ -28,11 +28,14 @@ type Config struct {
 	TrustedProxies     []string `mapstructure:"TRUSTED_PROXIES"`
 	DemoMode           bool     `mapstructure:"DEMO_MODE"`
 	// 演示站配置
-	SiteName      string `mapstructure:"SITE_NAME"`
-	AdminUsername string `mapstructure:"ADMIN_USERNAME"`
-	AdminEmail    string `mapstructure:"ADMIN_EMAIL"`
-	AdminPassword string `mapstructure:"ADMIN_PASSWORD"`
-	SkipInstall   bool   `mapstructure:"SKIP_INSTALL"`
+	SiteName         string `mapstructure:"SITE_NAME"`
+	AdminUsername     string `mapstructure:"ADMIN_USERNAME"`
+	AdminEmail        string `mapstructure:"ADMIN_EMAIL"`
+	AdminPassword     string `mapstructure:"ADMIN_PASSWORD"`
+	DemoUserUsername  string `mapstructure:"DEMO_USER_USERNAME"`
+	DemoUserEmail     string `mapstructure:"DEMO_USER_EMAIL"`
+	DemoUserPassword  string `mapstructure:"DEMO_USER_PASSWORD"`
+	SkipInstall       bool   `mapstructure:"SKIP_INSTALL"`
 }
 
 // Load reads configuration from env variables and optional .env/.yaml files.
@@ -69,6 +72,9 @@ func Load() (Config, error) {
 	viper.BindEnv("ADMIN_USERNAME")
 	viper.BindEnv("ADMIN_EMAIL")
 	viper.BindEnv("ADMIN_PASSWORD")
+	viper.BindEnv("DEMO_USER_USERNAME")
+	viper.BindEnv("DEMO_USER_EMAIL")
+	viper.BindEnv("DEMO_USER_PASSWORD")
 	viper.BindEnv("SKIP_INSTALL")
 
 	_ = viper.ReadInConfig() // best-effort optional .env
@@ -116,6 +122,9 @@ func setDefaults() {
 	viper.SetDefault("ADMIN_USERNAME", "demo_admin")
 	viper.SetDefault("ADMIN_EMAIL", "demo@example.com")
 	viper.SetDefault("ADMIN_PASSWORD", "DemoPass123!")
+	viper.SetDefault("DEMO_USER_USERNAME", "demo_user")
+	viper.SetDefault("DEMO_USER_EMAIL", "user@example.com")
+	viper.SetDefault("DEMO_USER_PASSWORD", "UserPass123!")
 	viper.SetDefault("SKIP_INSTALL", false)
 }
 

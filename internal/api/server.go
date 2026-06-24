@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
 	"skyimage/internal/admin"
@@ -176,6 +178,55 @@ func (s *Server) autoInitialize(ctx context.Context) error {
 		return fmt.Errorf("运行初始化失败: %w", err)
 	}
 
+	// 创建演示站普通用户
+	if err := s.ensureDemoUser(ctx); err != nil {
+		log.Printf("创建演示站普通用户失败: %v", err)
+	}
+
+	return nil
+}
+
+// ensureDemoUser 创建演示站默认普通用户（如果不存在）
+func (s *Server) ensureDemoUser(ctx context.Context) error {
+	email := strings.ToLower(strings.TrimSpace(s.cfg.DemoUserEmail))
+	if email == "" {
+		return nil
+	}
+
+	// 检查用户是否已存在
+	var count int64
+	if err := s.db.WithContext(ctx).Model(&data.User{}).Where("email = ?", email).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(s.cfg.DemoUserPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+
+	// 获取默认用户组
+	var group data.Group
+	if err := s.db.WithContext(ctx).Where("is_default = ?", true).First(&group).Error; err != nil {
+		return fmt.Errorf("查找默认用户组: %w", err)
+	}
+
+	user := data.User{
+		GroupID:      &group.ID,
+		Name:         s.cfg.DemoUserUsername,
+		Email:        email,
+		PasswordHash: string(hashed),
+		IsAdmin:      false,
+		Status:       1,
+		Configs:      datatypes.JSON([]byte(`{"default_visibility":"private"}`)),
+	}
+	if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
+		return fmt.Errorf("创建演示用户: %w", err)
+	}
+
+	log.Printf("演示站普通用户已创建: %s (%s)", user.Name, email)
 	return nil
 }
 

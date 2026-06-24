@@ -180,6 +180,25 @@ func (s *Server) handleAdminUpdateStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// 演示站模式：禁止修改演示账户状态
+	s.mu.RLock()
+	demoMode := s.cfg.DemoMode
+	adminEmail := strings.ToLower(strings.TrimSpace(s.cfg.AdminEmail))
+	demoUserEmail := strings.ToLower(strings.TrimSpace(s.cfg.DemoUserEmail))
+	s.mu.RUnlock()
+
+	if demoMode {
+		target, findErr := s.users.FindByID(c.Request.Context(), uint(id))
+		if findErr == nil {
+			targetEmail := strings.ToLower(strings.TrimSpace(target.Email))
+			if targetEmail == adminEmail || targetEmail == demoUserEmail {
+				c.JSON(http.StatusForbidden, gin.H{"error": "演示站禁止修改此账户状态"})
+				return
+			}
+		}
+	}
+
 	if err := s.users.UpdateStatus(c.Request.Context(), actor, uint(id), payload.Status); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -205,6 +224,25 @@ func (s *Server) handleAdminToggleAdmin(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// 演示站模式：禁止修改演示账户角色
+	s.mu.RLock()
+	demoMode := s.cfg.DemoMode
+	adminEmail := strings.ToLower(strings.TrimSpace(s.cfg.AdminEmail))
+	demoUserEmail := strings.ToLower(strings.TrimSpace(s.cfg.DemoUserEmail))
+	s.mu.RUnlock()
+
+	if demoMode {
+		target, findErr := s.users.FindByID(c.Request.Context(), uint(id))
+		if findErr == nil {
+			targetEmail := strings.ToLower(strings.TrimSpace(target.Email))
+			if targetEmail == adminEmail || targetEmail == demoUserEmail {
+				c.JSON(http.StatusForbidden, gin.H{"error": "演示站禁止修改此账户角色"})
+				return
+			}
+		}
+	}
+
 	if err := s.users.ToggleAdmin(c.Request.Context(), actor, uint(id), payload.Admin); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -230,6 +268,25 @@ func (s *Server) handleAdminAssignUserGroup(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// 演示站模式：禁止修改演示账户角色组
+	s.mu.RLock()
+	demoMode := s.cfg.DemoMode
+	adminEmail := strings.ToLower(strings.TrimSpace(s.cfg.AdminEmail))
+	demoUserEmail := strings.ToLower(strings.TrimSpace(s.cfg.DemoUserEmail))
+	s.mu.RUnlock()
+
+	if demoMode {
+		target, findErr := s.users.FindByID(c.Request.Context(), uint(id))
+		if findErr == nil {
+			targetEmail := strings.ToLower(strings.TrimSpace(target.Email))
+			if targetEmail == adminEmail || targetEmail == demoUserEmail {
+				c.JSON(http.StatusForbidden, gin.H{"error": "演示站禁止修改此账户角色组"})
+				return
+			}
+		}
+	}
+
 	user, err := s.users.AssignGroup(c.Request.Context(), actor, uint(id), payload.GroupID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -268,6 +325,25 @@ func (s *Server) handleAdminDeleteUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
+
+	// 演示站模式：禁止删除演示账户
+	s.mu.RLock()
+	demoMode := s.cfg.DemoMode
+	adminEmail := strings.ToLower(strings.TrimSpace(s.cfg.AdminEmail))
+	demoUserEmail := strings.ToLower(strings.TrimSpace(s.cfg.DemoUserEmail))
+	s.mu.RUnlock()
+
+	if demoMode {
+		target, findErr := s.users.FindByID(c.Request.Context(), uint(id))
+		if findErr == nil {
+			targetEmail := strings.ToLower(strings.TrimSpace(target.Email))
+			if targetEmail == adminEmail || targetEmail == demoUserEmail {
+				c.JSON(http.StatusForbidden, gin.H{"error": "演示站禁止删除此账户"})
+				return
+			}
+		}
+	}
+
 	if err := s.users.DeleteUser(c.Request.Context(), actor, uint(id)); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
