@@ -82,9 +82,18 @@ func (s *Server) handleUploadFile(c *gin.Context) {
 		return
 	}
 	visibility := c.PostForm("visibility")
-	if visibility == "" {
+	
+	// 演示站模式：强制设置为私有
+	s.mu.RLock()
+	demoMode := s.cfg.DemoMode
+	s.mu.RUnlock()
+	
+	if demoMode {
+		visibility = "private"
+	} else if visibility == "" {
 		visibility = users.DefaultVisibility(user)
 	}
+	
 	strategyIDStr := c.PostForm("strategyId")
 	var strategyID uint
 	if strategyIDStr != "" {

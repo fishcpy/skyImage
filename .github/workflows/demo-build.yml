@@ -1,0 +1,301 @@
+name: Build and Push Demo Docker Image
+
+# 演示站专用CI/CD工作流
+# 特点：
+# 1. 使用 demo-v{major}.{minor}.{patch} 标签命名规范
+# 2. 禁止添加任何持久化存储策略配置
+# 3. 默认使用SQLite数据库
+# 4. 支持环境变量配置站点信息
+# 5. 支持跳过初始化程序
+
+on:
+  push:
+    tags:
+      - 'demo-v*.*.*'  # 匹配 demo-v1.0.0, demo-v1.2.3 等格式
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '演示站版本号 (例如: 1.0.0)'
+        required: true
+        type: string
+      site_name:
+        description: '站点名称'
+        required: false
+        type: string
+        default: 'SkyImage Demo'
+      admin_username:
+        description: '管理员用户名'
+        required: false
+        type: string
+        default: 'demo_admin'
+      admin_email:
+        description: '管理员邮箱'
+        required: false
+        type: string
+        default: 'demo@example.com'
+      admin_password:
+        description: '管理员密码'
+        required: false
+        type: string
+        default: 'DemoPass123!'
+      skip_install:
+        description: '跳过初始化程序'
+        required: false
+        type: boolean
+        default: true
+
+env:
+  DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME || github.repository_owner }}/skyimage-demo
+
+jobs:
+  build-and-push:
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_IMAGE }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=demo-latest
+
+      - name: Prepare demo environment config
+        run: |
+          # 创建演示站专用环境配置
+          cat > .env.demo << EOF
+          # 演示站专用配置
+          HTTP_ADDR=:8080
+          STORAGE_PATH=storage/uploads
+          PUBLIC_BASE_URL=http://localhost:8080
+          ALLOW_REGISTRATION=false
+          FRONTEND_DIST=dist
+          
+          # 数据库配置 - 强制使用SQLite
+          DATABASE_TYPE=sqlite
+          DATABASE_PATH=storage/data/demo.db
+          
+          # CORS 配置
+          CORS_ALLOWED_ORIGINS=
+          
+          # 可信代理配置
+          TRUSTED_PROXIES=
+          
+          # 演示站站点配置（可通过环境变量覆盖）
+          SITE_NAME=${{ inputs.site_name || 'SkyImage Demo' }}
+          ADMIN_USERNAME=${{ inputs.admin_username || 'demo_admin' }}
+          ADMIN_EMAIL=${{ inputs.admin_email || 'demo@example.com' }}
+          ADMIN_PASSWORD=${{ inputs.admin_password || 'DemoPass123!' }}
+          SKIP_INSTALL=${{ inputs.skip_install || 'true' }}
+          
+          # 演示站限制配置
+          DEMO_MODE=true
+          MAX_FILE_SIZE=5242880
+          MAX_CAPACITY=104857600
+          EOF
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.demo
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            DEMO_MODE=true
+            SITE_NAME=${{ inputs.site_name || 'SkyImage Demo' }}
+            ADMIN_USERNAME=${{ inputs.admin_username || 'demo_admin' }}
+            ADMIN_EMAIL=${{ inputs.admin_email || 'demo@example.com' }}
+            ADMIN_PASSWORD=${{ inputs.admin_password || 'DemoPass123!' }}
+            SKIP_INSTALL=${{ inputs.skip_install || 'true' }}
+          cache-from: type=gha,scope=demo-build-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=demo-build-${{ matrix.platform }}
+          outputs: type=image,name=${{ env.DOCKER_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ strategy.job-index }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    permissions:
+      contents: write
+      packages: write
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Determine tags
+        id: tags
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # 标签推送触发
+            TAG="${{ github.ref_name }}"
+            VERSION="${TAG#demo-v}"
+            TAGS="${{ env.DOCKER_IMAGE }}:${TAG}"
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:demo-latest"
+            
+            # 提取主版本号和次版本号
+            MAJOR=$(echo $VERSION | cut -d. -f1)
+            MINOR=$(echo $VERSION | cut -d. -f1-2)
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:demo-v${MAJOR}"
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:demo-v${MINOR}"
+            
+            echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "tag_name=${TAG}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # 手动触发
+            VERSION="${{ inputs.version }}"
+            TAG="demo-v${VERSION}"
+            TAGS="${{ env.DOCKER_IMAGE }}:${TAG}"
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:demo-latest"
+            
+            # 提取主版本号和次版本号
+            MAJOR=$(echo $VERSION | cut -d. -f1)
+            MINOR=$(echo $VERSION | cut -d. -f1-2)
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:demo-v${MAJOR}"
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:demo-v${MINOR}"
+            
+            echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "tag_name=${TAG}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          TAGS_ARRAY=($(echo "${{ steps.tags.outputs.tags }}" | tr ',' ' '))
+          TAG_ARGS=""
+          for tag in "${TAGS_ARRAY[@]}"; do
+            TAG_ARGS="$TAG_ARGS -t $tag"
+          done
+          docker buildx imagetools create $TAG_ARGS \
+            $(printf '${{ env.DOCKER_IMAGE }}@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.DOCKER_IMAGE }}:${{ steps.tags.outputs.tag_name }}
+
+      - name: Prepare demo release notes
+        run: |
+          echo "## 演示站版本 ${TAG_NAME}" > demo_release_notes.md
+          echo "" >> demo_release_notes.md
+          echo "### 演示站配置信息" >> demo_release_notes.md
+          echo "" >> demo_release_notes.md
+          echo "- **站点名称:** ${SITE_NAME}" >> demo_release_notes.md
+          echo "- **管理员用户:** ${ADMIN_USERNAME}" >> demo_release_notes.md
+          echo "- **管理员邮箱:** ${ADMIN_EMAIL}" >> demo_release_notes.md
+          echo "- **数据库类型:** SQLite (临时存储)" >> demo_release_notes.md
+          echo "- **跳过初始化:** ${SKIP_INSTALL}" >> demo_release_notes.md
+          echo "" >> demo_release_notes.md
+          echo "### 演示站限制说明" >> demo_release_notes.md
+          echo "" >> demo_release_notes.md
+          echo "- ⚠️ **禁止添加持久化存储策略** - 所有数据仅保存在容器内" >> demo_release_notes.md
+          echo "- ⚠️ **禁止注册新用户** - 演示站仅允许使用预设管理员账户" >> demo_release_notes.md
+          echo "- ⚠️ **文件大小限制:** 最大 5MB" >> demo_release_notes.md
+          echo "- ⚠️ **存储容量限制:** 最大 100MB" >> demo_release_notes.md
+          echo "- ⚠️ **数据定期清理** - 容器重启后数据将丢失" >> demo_release_notes.md
+          echo "" >> demo_release_notes.md
+          echo "---" >> demo_release_notes.md
+          echo "" >> demo_release_notes.md
+          echo "## Docker 镜像" >> demo_release_notes.md
+          echo "- \`$DOCKER_IMAGE:$TAG_NAME\`" >> demo_release_notes.md
+          echo "- \`$DOCKER_IMAGE:demo-latest\`" >> demo_release_notes.md
+          echo "" >> demo_release_notes.md
+          echo "## 快速启动" >> demo_release_notes.md
+          echo "" >> demo_release_notes.md
+          echo '```bash' >> demo_release_notes.md
+          echo "docker run -d -p 8080:8080 --name skyimage-demo $DOCKER_IMAGE:$TAG_NAME" >> demo_release_notes.md
+          echo '```' >> demo_release_notes.md
+          echo "" >> demo_release_notes.md
+          echo "访问 http://localhost:8080 即可体验演示站功能" >> demo_release_notes.md
+        env:
+          TAG_NAME: ${{ steps.tags.outputs.tag_name }}
+          SITE_NAME: ${{ inputs.site_name || 'SkyImage Demo' }}
+          ADMIN_USERNAME: ${{ inputs.admin_username || 'demo_admin' }}
+          ADMIN_EMAIL: ${{ inputs.admin_email || 'demo@example.com' }}
+          SKIP_INSTALL: ${{ inputs.skip_install || 'true' }}
+          DOCKER_IMAGE: ${{ env.DOCKER_IMAGE }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tags.outputs.tag_name }}
+          name: Demo Release ${{ steps.tags.outputs.tag_name }}
+          body_path: demo_release_notes.md
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build summary
+        run: |
+          echo "## 演示站构建完成 ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**版本:** ${{ steps.tags.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**标签:** ${{ steps.tags.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "**类型:** 演示站版本" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 演示站配置" >> $GITHUB_STEP_SUMMARY
+          echo "- 站点名称: ${{ inputs.site_name || 'SkyImage Demo' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 管理员用户: ${{ inputs.admin_username || 'demo_admin' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 管理员邮箱: ${{ inputs.admin_email || 'demo@example.com' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 跳过初始化: ${{ inputs.skip_install || 'true' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 重要提示" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚠️ 演示站禁止添加持久化存储策略" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚠️ 所有数据仅保存在容器内，重启后将丢失" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚠️ 演示站仅用于功能展示，不建议用于生产环境" >> $GITHUB_STEP_SUMMARY

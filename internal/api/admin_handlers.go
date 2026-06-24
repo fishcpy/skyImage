@@ -340,6 +340,15 @@ func (s *Server) handleAdminListStrategies(c *gin.Context) {
 }
 
 func (s *Server) handleAdminCreateStrategy(c *gin.Context) {
+	// 演示站模式检查：禁止创建存储策略
+	if s.cfg.DemoMode {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":   "演示站禁止创建存储策略",
+			"message": "演示站环境不允许添加新的存储策略配置，所有数据仅保存在容器内临时存储中",
+		})
+		return
+	}
+
 	var payload admin.StrategyPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -354,6 +363,15 @@ func (s *Server) handleAdminCreateStrategy(c *gin.Context) {
 }
 
 func (s *Server) handleAdminUpdateStrategy(c *gin.Context) {
+	// 演示站模式检查：禁止更新存储策略
+	if s.cfg.DemoMode {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":   "演示站禁止更新存储策略",
+			"message": "演示站环境不允许修改存储策略配置，所有数据仅保存在容器内临时存储中",
+		})
+		return
+	}
+
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
@@ -382,6 +400,15 @@ func (s *Server) handleAdminUpdateStrategy(c *gin.Context) {
 }
 
 func (s *Server) handleAdminDeleteStrategy(c *gin.Context) {
+	// 演示站模式检查：禁止删除存储策略
+	if s.cfg.DemoMode {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":   "演示站禁止删除存储策略",
+			"message": "演示站环境不允许删除存储策略配置",
+		})
+		return
+	}
+
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})

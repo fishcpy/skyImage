@@ -204,6 +204,19 @@ func (s *Server) handleGenerateApiToken(c *gin.Context) {
 		return
 	}
 
+	// 演示站模式检查：禁止创建 API token
+	s.mu.RLock()
+	demoMode := s.cfg.DemoMode
+	s.mu.RUnlock()
+	
+	if demoMode {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "演示站禁止创建 API Token",
+			"message": "演示站环境不允许创建 API Token，以确保数据安全",
+		})
+		return
+	}
+
 	var req struct {
 		ExpiresAt string `json:"expiresAt"`
 	}

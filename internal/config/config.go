@@ -26,6 +26,7 @@ type Config struct {
 	AllowRegistration  bool     `mapstructure:"ALLOW_REGISTRATION"`
 	CORSAllowedOrigins []string `mapstructure:"CORS_ALLOWED_ORIGINS"`
 	TrustedProxies     []string `mapstructure:"TRUSTED_PROXIES"`
+	DemoMode           bool     `mapstructure:"DEMO_MODE"`
 }
 
 // Load reads configuration from env variables and optional .env/.yaml files.
@@ -56,6 +57,7 @@ func Load() (Config, error) {
 	viper.BindEnv("ALLOW_REGISTRATION")
 	viper.BindEnv("CORS_ALLOWED_ORIGINS")
 	viper.BindEnv("TRUSTED_PROXIES")
+	viper.BindEnv("DEMO_MODE")
 
 	_ = viper.ReadInConfig() // best-effort optional .env
 
@@ -96,6 +98,7 @@ func setDefaults() {
 	viper.SetDefault("ALLOW_REGISTRATION", true)
 	viper.SetDefault("CORS_ALLOWED_ORIGINS", "")
 	viper.SetDefault("TRUSTED_PROXIES", "")
+	viper.SetDefault("DEMO_MODE", false)
 }
 
 func parseCSVEnv(raw string) []string {
