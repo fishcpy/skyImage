@@ -27,12 +27,12 @@ on:
         description: '管理员用户名'
         required: false
         type: string
-        default: 'demo_admin'
+        default: 'admin'
       admin_email:
         description: '管理员邮箱'
         required: false
         type: string
-        default: 'demo@example.com'
+        default: 'admin@example.com'
       admin_password:
         description: '管理员密码'
         required: false
