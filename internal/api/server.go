@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	stdhtml "html"
 	"io"
 	"log"
@@ -115,6 +116,16 @@ func (s *Server) applyRuntimeConfig(cfg config.Config, db *gorm.DB) {
 }
 
 func (s *Server) Run(ctx context.Context) error {
+	// 演示站模式：自动初始化
+	if s.cfg.DemoMode && s.cfg.SkipInstall {
+		log.Println("演示站模式：开始自动初始化...")
+		if err := s.autoInitialize(ctx); err != nil {
+			log.Printf("演示站自动初始化失败: %v", err)
+		} else {
+			log.Println("演示站自动初始化完成")
+		}
+	}
+
 	srv := &http.Server{
 		Addr:    s.cfg.HTTPAddr,
 		Handler: s.engine,
@@ -134,6 +145,38 @@ func (s *Server) Run(ctx context.Context) error {
 	case err := <-errCh:
 		return err
 	}
+}
+
+// autoInitialize 演示站自动初始化
+func (s *Server) autoInitialize(ctx context.Context) error {
+	// 检查是否已初始化
+	status, err := s.installer.Status(ctx)
+	if err != nil {
+		return fmt.Errorf("检查初始化状态失败: %w", err)
+	}
+
+	if status.Installed {
+		log.Println("演示站已初始化，跳过自动初始化")
+		return nil
+	}
+
+	// 准备初始化输入
+	input := installer.RunInput{
+		DatabaseType:  "sqlite",
+		DatabasePath:  s.cfg.DatabasePath,
+		SiteName:      s.cfg.SiteName,
+		AdminName:     s.cfg.AdminUsername,
+		AdminEmail:    s.cfg.AdminEmail,
+		AdminPassword: s.cfg.AdminPassword,
+	}
+
+	// 运行初始化
+	_, err = s.installer.Run(ctx, input)
+	if err != nil {
+		return fmt.Errorf("运行初始化失败: %w", err)
+	}
+
+	return nil
 }
 
 func (s *Server) healthHandler(c *gin.Context) {
@@ -272,8 +315,9 @@ func (s *Server) registerStaticAssets() {
 				return
 			}
 		}
-		s.engine.GET(path+"/*filepath", handler)
-		s.engine.HEAD(path+"/*filepath", handler)
+		// 添加可选认证中间件，用于演示站私有图片访问控制
+		s.engine.GET(path+"/*filepath", middleware.OptionalAuth(s.users, s.sessions), handler)
+		s.engine.HEAD(path+"/*filepath", middleware.OptionalAuth(s.users, s.sessions), handler)
 		mounted[path] = struct{}{}
 	}
 
@@ -413,33 +457,33 @@ func (s *Server) serveLocalFileByRelative(c *gin.Context, rel string) bool {
 	if err != nil {
 		return false
 	}
-	
+
 	// 演示站模式：私有图片需要登录才能查看
 	s.mu.RLock()
 	demoMode := s.cfg.DemoMode
 	s.mu.RUnlock()
-	
+
 	if demoMode && strings.ToLower(strings.TrimSpace(file.Visibility)) == "private" {
 		// 检查用户是否登录
 		user, ok := middleware.CurrentUser(c)
 		if !ok {
 			// 未登录用户无法访问私有图片
 			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "需要登录才能查看私有图片",
-				"message": "演示站模式下，私有图片仅对登录用户可见",
+				"error":   "需要登录才能查看图片",
+				"message": "演示站模式下，图片仅对登录用户可见",
 			})
 			return true // 返回 true 表示已处理请求
 		}
 		// 检查是否是图片所有者或管理员
 		if file.UserID != user.ID && !user.IsAdmin {
 			c.JSON(http.StatusForbidden, gin.H{
-				"error": "无权访问此私有图片",
+				"error":   "无权访问此私有图片",
 				"message": "私有图片仅对上传者和管理员可见",
 			})
 			return true
 		}
 	}
-	
+
 	// 移除 visibility 检查 - 公开和私有图片都可以通过直接链接访问
 	// visibility 只影响是否在画廊中显示
 	driver := strings.ToLower(strings.TrimSpace(file.StorageProvider))

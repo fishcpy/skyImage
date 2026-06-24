@@ -16,6 +16,7 @@ import (
 
 const userContextKey = "currentUser"
 
+// Auth 强制认证中间件，要求用户必须登录
 func Auth(userService *users.Service, sessionManager *session.Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 尝试 Bearer Token 认证
@@ -60,6 +61,60 @@ func Auth(userService *users.Service, sessionManager *session.Manager) gin.Handl
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "account disabled"})
 			return
 		}
+		c.Set(userContextKey, user)
+		c.Next()
+	}
+}
+
+// OptionalAuth 可选认证中间件，不强制要求登录，但如果用户已登录则获取用户信息
+func OptionalAuth(userService *users.Service, sessionManager *session.Manager) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 尝试 Bearer Token 认证
+		authHeader := c.GetHeader("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token := strings.TrimPrefix(authHeader, "Bearer ")
+			user, ok := authenticateByToken(c, userService, token)
+			if ok {
+				c.Set(userContextKey, user)
+			}
+			// 即使 Token 无效，也继续执行（不强制要求登录）
+			c.Next()
+			return
+		}
+
+		// 尝试 Session Cookie 认证
+		sessionID, err := c.Cookie(session.CookieName)
+		if err != nil || sessionID == "" {
+			// 没有 session，继续执行（不强制要求登录）
+			c.Next()
+			return
+		}
+
+		userID, ok := sessionManager.Resolve(sessionID)
+		if !ok {
+			// session 无效，继续执行（不强制要求登录）
+			c.Next()
+			return
+		}
+
+		user, err := userService.FindByID(c.Request.Context(), userID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				sessionManager.Delete(sessionID)
+			}
+			// 用户不存在，继续执行（不强制要求登录）
+			c.Next()
+			return
+		}
+
+		// 用户账户被禁用，继续执行（不强制要求登录）
+		// 但不设置用户信息
+		if user.Status == 0 {
+			c.Next()
+			return
+		}
+
+		// 用户已登录且账户正常，设置用户信息
 		c.Set(userContextKey, user)
 		c.Next()
 	}

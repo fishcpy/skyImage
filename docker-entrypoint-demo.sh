@@ -20,6 +20,7 @@ echo "- 管理员用户: ${ADMIN_USERNAME}"
 echo "- 管理员邮箱: ${ADMIN_EMAIL}"
 echo "- 数据库类型: SQLite (${DATABASE_PATH})"
 echo "- 跳过初始化: ${SKIP_INSTALL}"
+echo "- 演示站模式: ${DEMO_MODE}"
 echo ""
 
 # 显示演示站限制
@@ -46,37 +47,15 @@ if [ ! -d "${STORAGE_PATH}" ]; then
     echo "创建存储目录: ${STORAGE_PATH}"
 fi
 
-# 如果设置了跳过初始化，创建预配置数据库
-if [ "${SKIP_INSTALL}" = "true" ]; then
-    echo "检测到 SKIP_INSTALL=true，准备自动初始化..."
-    
-    # 检查数据库是否已存在
-    if [ ! -f "${DATABASE_PATH}" ]; then
-        echo "数据库不存在，开始自动初始化..."
-        
-        # 创建临时初始化脚本
-        cat > /tmp/init_demo.json << EOF
-{
-  "databaseType": "sqlite",
-  "databasePath": "${DATABASE_PATH}",
-  "siteName": "${SITE_NAME}",
-  "adminName": "${ADMIN_USERNAME}",
-  "adminEmail": "${ADMIN_EMAIL}",
-  "adminPassword": "${ADMIN_PASSWORD}"
-}
-EOF
-        
-        echo "初始化配置已准备完成"
-        echo "注意: 实际初始化将由应用程序在首次启动时自动完成"
-    else
-        echo "数据库已存在，跳过初始化"
-    fi
-else
-    echo "SKIP_INSTALL=false，将进入正常安装流程"
-fi
-
-# 设置演示站环境标识
+# 设置演示站环境标识（确保环境变量正确传递）
 export DEMO_MODE=true
+export SKIP_INSTALL=${SKIP_INSTALL}
+export SITE_NAME=${SITE_NAME}
+export ADMIN_USERNAME=${ADMIN_USERNAME}
+export ADMIN_EMAIL=${ADMIN_EMAIL}
+export ADMIN_PASSWORD=${ADMIN_PASSWORD}
+export DATABASE_TYPE=sqlite
+export DATABASE_PATH=${DATABASE_PATH}
 
 echo ""
 echo "========================================="

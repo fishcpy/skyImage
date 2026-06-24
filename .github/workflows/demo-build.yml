@@ -2,7 +2,7 @@ name: Build and Push Demo Docker Image
 
 # 演示站专用CI/CD工作流
 # 特点：
-# 1. 使用 demo-v{major}.{minor}.{patch} 标签命名规范
+# 1. 使用版本号 + commit hash 作为标签
 # 2. 禁止添加任何持久化存储策略配置
 # 3. 默认使用SQLite数据库
 # 4. 支持环境变量配置站点信息
@@ -10,14 +10,11 @@ name: Build and Push Demo Docker Image
 
 on:
   push:
-    tags:
-      - 'demo-v*.*.*'  # 匹配 demo-v1.0.0, demo-v1.2.3 等格式
+    branches:
+      - main
+      - master
   workflow_dispatch:
     inputs:
-      version:
-        description: '演示站版本号 (例如: 1.0.0)'
-        required: true
-        type: string
       site_name:
         description: '站点名称'
         required: false
@@ -65,6 +62,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Get version and commit hash
+        id: version
+        run: |
+          # 从 version.go 文件中读取版本号
+          VERSION=$(grep 'const Version = "' internal/version/version.go | sed 's/const Version = "//;s/"//' | tr -d ' ')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          
+          # 获取 commit hash 的前7位
+          COMMIT_HASH=$(git rev-parse --short=7 HEAD)
+          echo "commit_hash=${COMMIT_HASH}" >> $GITHUB_OUTPUT
+          
+          # 组合版本标识：版本号-commit hash
+          VERSION_TAG="${VERSION}-${COMMIT_HASH}"
+          echo "version_tag=${VERSION_TAG}" >> $GITHUB_OUTPUT
+          
+          echo "版本号: ${VERSION}"
+          echo "Commit Hash: ${COMMIT_HASH}"
+          echo "版本标识: ${VERSION_TAG}"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -80,7 +96,7 @@ jobs:
         with:
           images: ${{ env.DOCKER_IMAGE }}
           tags: |
-            type=ref,event=tag
+            type=raw,value=demo-${{ steps.version.outputs.version_tag }}
             type=raw,value=demo-latest
 
       - name: Prepare demo environment config
@@ -161,6 +177,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Get version and commit hash
+        id: version
+        run: |
+          # 从 version.go 文件中读取版本号
+          VERSION=$(grep 'const Version = "' internal/version/version.go | sed 's/const Version = "//;s/"//' | tr -d ' ')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          
+          # 获取 commit hash 的前7位
+          COMMIT_HASH=$(git rev-parse --short=7 HEAD)
+          echo "commit_hash=${COMMIT_HASH}" >> $GITHUB_OUTPUT
+          
+          # 组合版本标识：版本号-commit hash
+          VERSION_TAG="${VERSION}-${COMMIT_HASH}"
+          echo "version_tag=${VERSION_TAG}" >> $GITHUB_OUTPUT
+          
+          echo "版本号: ${VERSION}"
+          echo "Commit Hash: ${COMMIT_HASH}"
+          echo "版本标识: ${VERSION_TAG}"
+
       - name: Download digests
         uses: actions/download-artifact@v4
         with:
@@ -180,39 +215,23 @@ jobs:
       - name: Determine tags
         id: tags
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            # 标签推送触发
-            TAG="${{ github.ref_name }}"
-            VERSION="${TAG#demo-v}"
-            TAGS="${{ env.DOCKER_IMAGE }}:${TAG}"
-            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:demo-latest"
-            
-            # 提取主版本号和次版本号
-            MAJOR=$(echo $VERSION | cut -d. -f1)
-            MINOR=$(echo $VERSION | cut -d. -f1-2)
-            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:demo-v${MAJOR}"
-            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:demo-v${MINOR}"
-            
-            echo "tags=${TAGS}" >> $GITHUB_OUTPUT
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
-            echo "tag_name=${TAG}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # 手动触发
-            VERSION="${{ inputs.version }}"
-            TAG="demo-v${VERSION}"
-            TAGS="${{ env.DOCKER_IMAGE }}:${TAG}"
-            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:demo-latest"
-            
-            # 提取主版本号和次版本号
-            MAJOR=$(echo $VERSION | cut -d. -f1)
-            MINOR=$(echo $VERSION | cut -d. -f1-2)
-            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:demo-v${MAJOR}"
-            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:demo-v${MINOR}"
-            
-            echo "tags=${TAGS}" >> $GITHUB_OUTPUT
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
-            echo "tag_name=${TAG}" >> $GITHUB_OUTPUT
-          fi
+          VERSION_TAG="${{ steps.version.outputs.version_tag }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # 生成标签：demo-{version}-{hash} 和 demo-latest
+          TAGS="${{ env.DOCKER_IMAGE }}:demo-${VERSION_TAG}"
+          TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:demo-latest"
+          
+          # 提取主版本号和次版本号
+          MAJOR=$(echo $VERSION | cut -d. -f1)
+          MINOR=$(echo $VERSION | cut -d. -f1-2)
+          TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:demo-v${MAJOR}-${{ steps.version.outputs.commit_hash }}"
+          TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:demo-v${MINOR}-${{ steps.version.outputs.commit_hash }}"
+          
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version_tag=${VERSION_TAG}" >> $GITHUB_OUTPUT
+          echo "tag_name=demo-${VERSION_TAG}" >> $GITHUB_OUTPUT
 
       - name: Create manifest list and push
         working-directory: /tmp/digests
@@ -231,7 +250,13 @@ jobs:
 
       - name: Prepare demo release notes
         run: |
-          echo "## 演示站版本 ${TAG_NAME}" > demo_release_notes.md
+          echo "## 演示站版本 ${VERSION_TAG}" > demo_release_notes.md
+          echo "" >> demo_release_notes.md
+          echo "### 版本信息" >> demo_release_notes.md
+          echo "" >> demo_release_notes.md
+          echo "- **版本号:** ${VERSION}" >> demo_release_notes.md
+          echo "- **Commit Hash:** ${COMMIT_HASH}" >> demo_release_notes.md
+          echo "- **完整标识:** ${VERSION_TAG}" >> demo_release_notes.md
           echo "" >> demo_release_notes.md
           echo "### 演示站配置信息" >> demo_release_notes.md
           echo "" >> demo_release_notes.md
@@ -245,6 +270,8 @@ jobs:
           echo "" >> demo_release_notes.md
           echo "- ⚠️ **禁止添加持久化存储策略** - 所有数据仅保存在容器内" >> demo_release_notes.md
           echo "- ⚠️ **禁止注册新用户** - 演示站仅允许使用预设管理员账户" >> demo_release_notes.md
+          echo "- ⚠️ **禁止创建 API Token** - 确保数据安全" >> demo_release_notes.md
+          echo "- ⚠️ **上传图片强制私有** - 私有图片需登录查看" >> demo_release_notes.md
           echo "- ⚠️ **文件大小限制:** 最大 5MB" >> demo_release_notes.md
           echo "- ⚠️ **存储容量限制:** 最大 100MB" >> demo_release_notes.md
           echo "- ⚠️ **数据定期清理** - 容器重启后数据将丢失" >> demo_release_notes.md
@@ -252,18 +279,20 @@ jobs:
           echo "---" >> demo_release_notes.md
           echo "" >> demo_release_notes.md
           echo "## Docker 镜像" >> demo_release_notes.md
-          echo "- \`$DOCKER_IMAGE:$TAG_NAME\`" >> demo_release_notes.md
+          echo "- \`$DOCKER_IMAGE:demo-${VERSION_TAG}\`" >> demo_release_notes.md
           echo "- \`$DOCKER_IMAGE:demo-latest\`" >> demo_release_notes.md
           echo "" >> demo_release_notes.md
           echo "## 快速启动" >> demo_release_notes.md
           echo "" >> demo_release_notes.md
           echo '```bash' >> demo_release_notes.md
-          echo "docker run -d -p 8080:8080 --name skyimage-demo $DOCKER_IMAGE:$TAG_NAME" >> demo_release_notes.md
+          echo "docker run -d -p 8080:8080 --name skyimage-demo $DOCKER_IMAGE:demo-${VERSION_TAG}" >> demo_release_notes.md
           echo '```' >> demo_release_notes.md
           echo "" >> demo_release_notes.md
           echo "访问 http://localhost:8080 即可体验演示站功能" >> demo_release_notes.md
         env:
-          TAG_NAME: ${{ steps.tags.outputs.tag_name }}
+          VERSION_TAG: ${{ steps.version.outputs.version_tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT_HASH: ${{ steps.version.outputs.commit_hash }}
           SITE_NAME: ${{ inputs.site_name || 'SkyImage Demo' }}
           ADMIN_USERNAME: ${{ inputs.admin_username || 'demo_admin' }}
           ADMIN_EMAIL: ${{ inputs.admin_email || 'demo@example.com' }}
@@ -273,8 +302,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tags.outputs.tag_name }}
-          name: Demo Release ${{ steps.tags.outputs.tag_name }}
+          tag_name: demo-${{ steps.version.outputs.version_tag }}
+          name: Demo Release ${{ steps.version.outputs.version_tag }}
           body_path: demo_release_notes.md
           draft: false
           prerelease: true
@@ -285,8 +314,10 @@ jobs:
         run: |
           echo "## 演示站构建完成 ✅" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**版本:** ${{ steps.tags.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "**标签:** ${{ steps.tags.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "**版本号:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit Hash:** ${COMMIT_HASH}" >> $GITHUB_STEP_SUMMARY
+          echo "**版本标识:** ${VERSION_TAG}" >> $GITHUB_STEP_SUMMARY
+          echo "**标签:** ${TAGS}" >> $GITHUB_STEP_SUMMARY
           echo "**类型:** 演示站版本" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 演示站配置" >> $GITHUB_STEP_SUMMARY
@@ -297,5 +328,12 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 重要提示" >> $GITHUB_STEP_SUMMARY
           echo "- ⚠️ 演示站禁止添加持久化存储策略" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚠️ 演示站禁止创建 API Token" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚠️ 上传图片强制设置为私有" >> $GITHUB_STEP_SUMMARY
           echo "- ⚠️ 所有数据仅保存在容器内，重启后将丢失" >> $GITHUB_STEP_SUMMARY
           echo "- ⚠️ 演示站仅用于功能展示，不建议用于生产环境" >> $GITHUB_STEP_SUMMARY
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT_HASH: ${{ steps.version.outputs.commit_hash }}
+          VERSION_TAG: ${{ steps.version.outputs.version_tag }}
+          TAGS: ${{ steps.tags.outputs.tags }}
