@@ -59,23 +59,39 @@ export const Turnstile = forwardRef<TurnstileRef, TurnstileProps>(
     }));
 
     useEffect(() => {
-      if (!containerRef.current || !window.turnstile) return;
+      if (!containerRef.current) return;
 
-      widgetIdRef.current = window.turnstile.render(containerRef.current, {
-        sitekey: siteKey,
-        callback: (token: string) => {
-          verifyRef.current?.(token);
-        },
-        "error-callback": () => {
-          errorRef.current?.();
-        },
-        "expired-callback": () => {
-          expireRef.current?.();
-        },
-        theme: "auto",
-      });
+      // window.turnstile 可能尚未就绪（脚本刚加载完但 API 未初始化），轮询等待
+      let retryTimer: ReturnType<typeof setTimeout> | null = null;
+      let disposed = false;
+
+      const tryRender = () => {
+        if (disposed) return;
+        if (!containerRef.current || !window.turnstile) {
+          retryTimer = setTimeout(tryRender, 100);
+          return;
+        }
+
+        widgetIdRef.current = window.turnstile.render(containerRef.current, {
+          sitekey: siteKey,
+          callback: (token: string) => {
+            verifyRef.current?.(token);
+          },
+          "error-callback": () => {
+            errorRef.current?.();
+          },
+          "expired-callback": () => {
+            expireRef.current?.();
+          },
+          theme: "auto",
+        });
+      };
+
+      tryRender();
 
       return () => {
+        disposed = true;
+        if (retryTimer) clearTimeout(retryTimer);
         if (widgetIdRef.current && window.turnstile) {
           window.turnstile.remove(widgetIdRef.current);
           widgetIdRef.current = null;

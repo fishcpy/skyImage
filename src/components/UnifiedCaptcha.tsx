@@ -75,6 +75,23 @@ export const UnifiedCaptcha = forwardRef<UnifiedCaptchaRef, UnifiedCaptchaProps>
           className="flex items-center justify-center"
           ref={(el) => {
             if (el && !geetestInitialized.current) {
+              // 等待 window.initGeetest4 就绪后再标记已初始化，避免竞态
+              if (!(window as any).initGeetest4) {
+                // API 尚未就绪，延迟重试
+                const retry = () => {
+                  if (geetestInitialized.current) return;
+                  if ((window as any).initGeetest4) {
+                    geetestInitialized.current = true;
+                    initGeetest4(el, siteKey, (captchaObj) => {
+                      geetestRef.current = captchaObj;
+                    }, onVerify, onError);
+                  } else {
+                    setTimeout(retry, 100);
+                  }
+                };
+                setTimeout(retry, 100);
+                return;
+              }
               geetestInitialized.current = true;
               initGeetest4(el, siteKey, (captchaObj) => {
                 geetestRef.current = captchaObj;
