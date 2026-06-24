@@ -23,6 +23,39 @@ import (
 
 const defaultConsoleBaseURL = "http://localhost:8080"
 
+// isCDNEnabled 从 admin settings 检查 CDN 模式是否开启
+func (s *Server) isCDNEnabled(ctx context.Context) bool {
+	settings, err := s.admin.GetSettings(ctx)
+	if err != nil {
+		return false
+	}
+	return settings["mail.cdn.enabled"] == "true"
+}
+
+// getClientIP 根据 CDN 配置获取客户端真实 IP
+// CDN 模式下依次检查 CF-Connecting-IP → X-Forwarded-For → X-Real-IP
+func getClientIP(c *gin.Context, cdnEnabled bool) string {
+	if !cdnEnabled {
+		return c.ClientIP()
+	}
+	// Cloudflare
+	if ip := strings.TrimSpace(c.Request.Header.Get("CF-Connecting-IP")); ip != "" {
+		return ip
+	}
+	// X-Forwarded-For: 取第一个 IP（客户端真实 IP）
+	if xff := strings.TrimSpace(c.Request.Header.Get("X-Forwarded-For")); xff != "" {
+		if idx := strings.Index(xff, ","); idx != -1 {
+			return strings.TrimSpace(xff[:idx])
+		}
+		return xff
+	}
+	// X-Real-IP
+	if ip := strings.TrimSpace(c.Request.Header.Get("X-Real-IP")); ip != "" {
+		return ip
+	}
+	return c.ClientIP()
+}
+
 const registrationVerificationMessage = "验证码已发送，请查收邮件"
 
 func (s *Server) registerAuthRoutes(r *gin.RouterGroup) {
@@ -103,7 +136,7 @@ func (s *Server) handleSendVerificationCode(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请输入有效的邮箱地址"})
 		return
 	}
-	clientIP := c.ClientIP()
+	clientIP := getClientIP(c, settings["mail.cdn.enabled"] == "true")
 	emailKey := strings.ToLower(strings.TrimSpace(input.Email))
 	if ok, retry := s.authLimiter.Allow("verify:ip:"+clientIP, 10, time.Minute); !ok {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "请求过于频繁，请稍后再试", "retryAfterSeconds": int(retry.Seconds()) + 1})
@@ -208,7 +241,7 @@ func (s *Server) handleRegister(c *gin.Context) {
 	}
 
 	// 设置注册IP
-	input.RegisterInput.RegisteredIP = c.ClientIP()
+	input.RegisterInput.RegisteredIP = getClientIP(c, settings["mail.cdn.enabled"] == "true")
 
 	// 检查是否需要验证码
 	captchaConfig, err := s.captcha.GetConfig(c.Request.Context(), "register")
@@ -222,7 +255,7 @@ func (s *Server) handleRegister(c *gin.Context) {
 		if provider == "" {
 			provider = captchaConfig.Provider
 		}
-		if err := s.verifyCaptcha(c.Request.Context(), provider, input.CaptchaToken, c.ClientIP(), input.CaptchaData); err != nil {
+		if err := s.verifyCaptcha(c.Request.Context(), provider, input.CaptchaToken, getClientIP(c, settings["mail.cdn.enabled"] == "true"), input.CaptchaData); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "人机验证失败，请重试"})
 			return
 		}
@@ -272,7 +305,7 @@ func (s *Server) handleLogin(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	clientIP := c.ClientIP()
+	clientIP := getClientIP(c, s.isCDNEnabled(c.Request.Context()))
 	emailKey := strings.ToLower(strings.TrimSpace(input.Email))
 	if ok, retry := s.authLimiter.Allow("login:ip:"+clientIP, 20, time.Minute); !ok {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "登录请求过于频繁，请稍后再试", "retryAfterSeconds": int(retry.Seconds()) + 1})
@@ -319,8 +352,9 @@ func (s *Server) handleLogin(c *gin.Context) {
 	// 发送登录提醒邮件（异步，不阻塞响应）
 	go func() {
 		ctx := context.Background()
-		log.Printf("[邮件] 准备发送登录提醒邮件到: %s, 用户: %s, IP: %s", user.Email, user.Name, clientIP)
-		if err := s.mail.SendLoginNotification(ctx, user.Email, user.Name, clientIP); err != nil {
+		userNotifyEnabled := users.LoginNotificationEnabled(user)
+		log.Printf("[邮件] 准备发送登录提醒邮件到: %s, 用户: %s, IP: %s, 用户级开关: %v", user.Email, user.Name, clientIP, userNotifyEnabled)
+		if err := s.mail.SendLoginNotification(ctx, user.Email, user.Name, clientIP, userNotifyEnabled); err != nil {
 			log.Printf("[邮件] 发送登录提醒邮件失败: %v", err)
 		} else {
 			log.Printf("[邮件] 登录提醒邮件发送成功")
@@ -461,7 +495,7 @@ func (s *Server) handleForgotPassword(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请输入有效的邮箱地址"})
 		return
 	}
-	clientIP := c.ClientIP()
+	clientIP := getClientIP(c, s.isCDNEnabled(c.Request.Context()))
 	emailKey := strings.ToLower(strings.TrimSpace(input.Email))
 	if ok, retry := s.authLimiter.Allow("forgot:ip:"+clientIP, 10, time.Minute); !ok {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "请求过于频繁，请稍后再试", "retryAfterSeconds": int(retry.Seconds()) + 1})
@@ -552,7 +586,7 @@ func (s *Server) handleResetPassword(c *gin.Context) {
 		if provider == "" {
 			provider = captchaConfig.Provider
 		}
-		if err := s.verifyCaptcha(c.Request.Context(), provider, input.CaptchaToken, c.ClientIP(), input.CaptchaData); err != nil {
+		if err := s.verifyCaptcha(c.Request.Context(), provider, input.CaptchaToken, getClientIP(c, s.isCDNEnabled(c.Request.Context())), input.CaptchaData); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "人机验证失败，请重试"})
 			return
 		}

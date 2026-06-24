@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -43,8 +44,10 @@ export function ProfileSettingsPage() {
     queryKey: ["account", "profile"],
     queryFn: fetchAccountProfile
   });
-  
-  const isSuperAdmin = data?.isSuperAdmin || false;
+
+  const profile = data?.user;
+  const globalLoginNotify = data?.globalLoginNotificationEnabled ?? false;
+  const isSuperAdmin = profile?.isSuperAdmin || false;
   const [countdown, setCountdown] = useState(5);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [form, setForm] = useState({
@@ -53,21 +56,23 @@ export function ProfileSettingsPage() {
     url: "",
     password: "",
     defaultVisibility: "private" as "public" | "private",
-    theme: "system" as "light" | "dark" | "system"
+    theme: "system" as "light" | "dark" | "system",
+    loginNotification: false
   });
 
   useEffect(() => {
-    if (data) {
+    if (profile) {
       setForm({
-        name: data.name ?? "",
-        email: data.email ?? "",
-        url: data.url ?? "",
+        name: profile.name ?? "",
+        email: profile.email ?? "",
+        url: profile.url ?? "",
         password: "",
-        defaultVisibility: extractDefaultVisibility(data),
-        theme: extractThemePreference(data)
+        defaultVisibility: extractDefaultVisibility(profile),
+        theme: extractThemePreference(profile),
+        loginNotification: extractLoginNotification(profile)
       });
     }
-  }, [data]);
+  }, [profile]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -114,7 +119,8 @@ export function ProfileSettingsPage() {
       url: form.url,
       password: form.password,
       defaultVisibility: form.defaultVisibility,
-      theme: form.theme
+      theme: form.theme,
+      loginNotification: form.loginNotification
     });
   };
 
@@ -202,6 +208,23 @@ export function ProfileSettingsPage() {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex items-center justify-between space-x-2 rounded-md border p-3">
+            <div className="space-y-0.5">
+              <Label>{t("profile.loginNotification")}</Label>
+              {!globalLoginNotify && (
+                <p className="text-xs text-muted-foreground">
+                  {t("profile.loginNotificationDisabled")}
+                </p>
+              )}
+            </div>
+            <Switch
+              checked={form.loginNotification}
+              onCheckedChange={(checked) =>
+                setForm((prev) => ({ ...prev, loginNotification: checked }))
+              }
+              disabled={!globalLoginNotify}
+            />
+          </div>
           <Button onClick={handleSubmit} disabled={mutation.isPending}>
             {mutation.isPending ? t("profile.saving") : t("profile.save")}
           </Button>
@@ -288,5 +311,22 @@ function extractThemePreference(user: any): "light" | "dark" | "system" {
     return raw === "light" || raw === "dark" ? raw : "system";
   } catch {
     return "system";
+  }
+}
+
+function extractLoginNotification(user: any): boolean {
+  const configs =
+    user?.configs ??
+    user?.Configs ??
+    user?.preferences ??
+    user?.preferences_json ??
+    null;
+  if (!configs) return false;
+  try {
+    const parsed =
+      typeof configs === "string" ? JSON.parse(configs) : configs;
+    return parsed?.login_notification === true;
+  } catch {
+    return false;
   }
 }

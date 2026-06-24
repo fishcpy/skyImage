@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	defaultVisibilityKey = "default_visibility"
-	defaultStrategyKey   = "default_strategy"
-	themePreferenceKey   = "theme_preference"
+	defaultVisibilityKey    = "default_visibility"
+	defaultStrategyKey      = "default_strategy"
+	themePreferenceKey      = "theme_preference"
+	loginNotificationKey    = "login_notification"
 )
 
 // NormalizeVisibility coerces arbitrary user input into supported visibility values.
@@ -127,6 +128,32 @@ func UpdateThemePreference(existing datatypes.JSON, theme string) datatypes.JSON
 		_ = json.Unmarshal(existing, &cfg)
 	}
 	cfg[themePreferenceKey] = theme
+	bytes, _ := json.Marshal(cfg)
+	return datatypes.JSON(bytes)
+}
+
+// LoginNotificationEnabled 返回用户是否启用了登录邮件提醒（默认关闭）
+func LoginNotificationEnabled(user data.User) bool {
+	if len(user.Configs) == 0 {
+		return false
+	}
+	var cfg map[string]interface{}
+	if err := json.Unmarshal(user.Configs, &cfg); err != nil {
+		return false
+	}
+	if val, ok := cfg[loginNotificationKey].(bool); ok {
+		return val
+	}
+	return false
+}
+
+// UpdateLoginNotificationEnabled 写入用户登录邮件提醒偏好
+func UpdateLoginNotificationEnabled(existing datatypes.JSON, enabled bool) datatypes.JSON {
+	cfg := map[string]interface{}{}
+	if len(existing) > 0 {
+		_ = json.Unmarshal(existing, &cfg)
+	}
+	cfg[loginNotificationKey] = enabled
 	bytes, _ := json.Marshal(cfg)
 	return datatypes.JSON(bytes)
 }

@@ -184,6 +184,7 @@ func (s *Service) Run(ctx context.Context, in RunInput) (Status, error) {
 			"mail.template.forgot_password.body":       "",
 			"mail.register.verify":                     "false",
 			"mail.login.notification":                  "false",
+			"mail.cdn.enabled":                         "false",
 			"mail.forgot_password.enabled":             "false",
 			"mail.forgot_password.turnstile_request":   "false",
 			"mail.forgot_password.turnstile_reset":     "false",

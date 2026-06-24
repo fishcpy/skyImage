@@ -152,6 +152,7 @@ type generalSettingsPayload struct {
 	UserNotificationLimit        int    `json:"userNotificationLimit"`
 	AdminImageDeleteDefaultReason string `json:"adminImageDeleteDefaultReason"`
 	SystemAutoDeleteDefaultReason string `json:"systemAutoDeleteDefaultReason"`
+	EnableCDN                    bool   `json:"enableCDN"`
 }
 
 func (s *Server) handleAdminGeneralSettings(c *gin.Context) {
@@ -169,6 +170,7 @@ func (s *Server) handleAdminGeneralSettings(c *gin.Context) {
 		UserNotificationLimit:        notifications.NormalizeRetentionLimit(settings[notifications.ConfigUserRetentionLimit]),
 		AdminImageDeleteDefaultReason: notifications.NormalizeAdminDeleteReason(settings[notifications.ConfigAdminImageDeleteReason]),
 		SystemAutoDeleteDefaultReason: notifications.NormalizeSystemAutoDeleteReason(settings[notifications.ConfigSystemAutoDeleteReason]),
+		EnableCDN:                    settings["mail.cdn.enabled"] == "true",
 	}
 	c.JSON(http.StatusOK, gin.H{"data": payload})
 }
@@ -191,6 +193,7 @@ func (s *Server) handleAdminUpdateGeneralSettings(c *gin.Context) {
 		notifications.ConfigUserRetentionLimit:      strconv.Itoa(normalizeUserNotificationLimit(payload.UserNotificationLimit)),
 		notifications.ConfigAdminImageDeleteReason:  adminDeleteReason,
 		notifications.ConfigSystemAutoDeleteReason:  systemAutoDeleteReason,
+		"mail.cdn.enabled":                         strconv.FormatBool(payload.EnableCDN),
 	}
 
 	if err := s.admin.UpdateSettings(c.Request.Context(), values); err != nil {

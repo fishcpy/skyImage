@@ -771,7 +771,7 @@ func (s *Server) handleAdminTestTurnstile(c *gin.Context) {
 		return
 	}
 	// Use the Cloudflare service from the unified captcha service
-	ok, err := s.captcha.Verify(c.Request.Context(), captcha.ProviderCloudflare, payload.Token, c.ClientIP(), nil)
+	ok, err := s.captcha.Verify(c.Request.Context(), captcha.ProviderCloudflare, payload.Token, getClientIP(c, s.isCDNEnabled(c.Request.Context())), nil)
 	if err != nil || !ok {
 		message := "Turnstile 验证失败"
 		if err != nil {

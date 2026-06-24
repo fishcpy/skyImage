@@ -15,6 +15,7 @@ type User = {
   defaultStrategyId?: number;
   groupId?: number | null;
   themePreference?: "light" | "dark" | "system";
+  loginNotification?: boolean;
 };
 
 type AuthState = {
@@ -68,6 +69,7 @@ const normalizeUser = (user: any): User | null => {
     defaultStrategyId: readDefaultStrategy(user),
     groupId: user.groupId ?? user.group?.id ?? null,
     themePreference: readThemePreference(user),
+    loginNotification: readLoginNotification(user),
     status: Number.isFinite(status) ? status : 1
   };
 };
@@ -130,6 +132,23 @@ const readThemePreference = (user: any): "light" | "dark" | "system" => {
     return raw === "light" || raw === "dark" ? raw : "system";
   } catch {
     return "system";
+  }
+};
+
+const readLoginNotification = (user: any): boolean => {
+  const configs =
+    user.configs ??
+    user.Configs ??
+    user.preferences ??
+    user.preferences_json ??
+    null;
+  if (!configs) return false;
+  try {
+    const parsed =
+      typeof configs === "string" ? JSON.parse(configs) : configs;
+    return parsed?.login_notification === true;
+  } catch {
+    return false;
   }
 };
 

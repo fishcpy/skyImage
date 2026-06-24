@@ -212,11 +212,13 @@ func (s *Service) IsForgotPasswordEnabled(ctx context.Context) bool {
 	return settings["mail.forgot_password.enabled"] == "true"
 }
 
-func (s *Service) SendLoginNotification(ctx context.Context, email, userName, ip string) error {
-	// 检查是否启用登录通知
-	enabled := s.IsLoginNotificationEnabled(ctx)
-	if !enabled {
+func (s *Service) SendLoginNotification(ctx context.Context, email, userName, ip string, userLoginNotifyEnabled bool) error {
+	// 检查是否启用登录通知（全局 AND 用户级）
+	if !s.IsLoginNotificationEnabled(ctx) {
 		return fmt.Errorf("登录邮件提醒未启用")
+	}
+	if !userLoginNotifyEnabled {
+		return fmt.Errorf("用户未启用登录邮件提醒")
 	}
 
 	// 检查 SMTP 配置

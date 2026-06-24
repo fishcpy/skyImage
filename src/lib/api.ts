@@ -407,8 +407,11 @@ export type FileRecord = {
 };
 
 export async function fetchAccountProfile() {
-  const res = await apiClient.get<{ data: any }>("/account/profile");
-  return res.data.data;
+  const res = await apiClient.get<{ data: any; globalLoginNotificationEnabled?: boolean }>("/account/profile");
+  return {
+    user: res.data.data,
+    globalLoginNotificationEnabled: res.data.globalLoginNotificationEnabled ?? false,
+  };
 }
 
 export async function updateAccountProfile(input: {
@@ -417,6 +420,7 @@ export async function updateAccountProfile(input: {
   password?: string;
   defaultVisibility?: "public" | "private";
   theme?: "light" | "dark" | "system";
+  loginNotification?: boolean;
 }) {
   const res = await apiClient.put<{ data: any }>("/account/profile", input);
   return res.data.data;
@@ -704,6 +708,7 @@ export type GeneralSettings = {
   userNotificationLimit: number;
   adminImageDeleteDefaultReason: string;
   systemAutoDeleteDefaultReason: string;
+  enableCDN: boolean;
 };
 
 export async function fetchGeneralSettings() {

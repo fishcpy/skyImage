@@ -7,13 +7,14 @@ import (
 func (s *Server) registerLskyV1Routes(apiGroup *gin.RouterGroup) {
 	s.mu.RLock()
 	db := s.db
+	adminSvc := s.admin
 	userService := s.users
 	fileService := s.files
 	authLimiter := s.authLimiter
 	captchaSvc := s.captcha
 	s.mu.RUnlock()
 
-	handler := NewLskyV1Handler(db, userService, fileService, authLimiter, captchaSvc)
+	handler := NewLskyV1Handler(db, adminSvc, userService, fileService, authLimiter, captchaSvc)
 
 	v1 := apiGroup.Group("/v1")
 	{

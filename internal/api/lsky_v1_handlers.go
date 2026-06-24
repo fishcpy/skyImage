@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"skyimage/internal/admin"
 	"skyimage/internal/captcha"
 	"skyimage/internal/data"
 	"skyimage/internal/files"
@@ -20,20 +22,31 @@ import (
 // LskyV1Handler Lsky v2 API 兼容处理器
 type LskyV1Handler struct {
 	db          *gorm.DB
+	admin       *admin.Service
 	userService *users.Service
 	fileService *files.Service
 	authLimiter *requestLimiter
 	captcha     *captcha.Service
 }
 
-func NewLskyV1Handler(db *gorm.DB, userService *users.Service, fileService *files.Service, authLimiter *requestLimiter, captchaSvc *captcha.Service) *LskyV1Handler {
+func NewLskyV1Handler(db *gorm.DB, adminSvc *admin.Service, userService *users.Service, fileService *files.Service, authLimiter *requestLimiter, captchaSvc *captcha.Service) *LskyV1Handler {
 	return &LskyV1Handler{
 		db:          db,
+		admin:       adminSvc,
 		userService: userService,
 		fileService: fileService,
 		authLimiter: authLimiter,
 		captcha:     captchaSvc,
 	}
+}
+
+// isCDNEnabled 从 admin settings 检查 CDN 模式是否开启
+func (h *LskyV1Handler) isCDNEnabled(ctx context.Context) bool {
+	settings, err := h.admin.GetSettings(ctx)
+	if err != nil {
+		return false
+	}
+	return settings["mail.cdn.enabled"] == "true"
 }
 
 // 生成 Token
@@ -53,7 +66,7 @@ func (h *LskyV1Handler) CreateToken(c *gin.Context) {
 		return
 	}
 
-	clientIP := c.ClientIP()
+	clientIP := getClientIP(c, h.isCDNEnabled(c.Request.Context()))
 	emailKey := strings.ToLower(strings.TrimSpace(req.Email))
 	if h.authLimiter != nil {
 		if ok, retry := h.authLimiter.Allow("v1token:ip:"+clientIP, 20, time.Minute); !ok {

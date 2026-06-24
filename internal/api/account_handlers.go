@@ -77,7 +77,13 @@ func (s *Server) handleAccountProfile(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": user})
+	// 读取全局登录邮件提醒开关状态
+	settings, _ := s.admin.GetSettings(c.Request.Context())
+	globalLoginNotify := settings["mail.login.notification"] == "true"
+	c.JSON(http.StatusOK, gin.H{
+		"data":                          user,
+		"globalLoginNotificationEnabled": globalLoginNotify,
+	})
 }
 
 func (s *Server) handleAccountUpdateProfile(c *gin.Context) {

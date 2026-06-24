@@ -69,6 +69,7 @@ type ProfileUpdateInput struct {
 	Password          string `json:"password"`
 	DefaultVisibility string `json:"defaultVisibility"`
 	ThemePreference   string `json:"theme"`
+	LoginNotification *bool  `json:"loginNotification"`
 }
 
 // validateEmail 验证邮箱格式
@@ -445,6 +446,11 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint, input ProfileU
 			theme = "system"
 		}
 		cfg["theme_preference"] = theme
+	}
+
+	// Update login notification preference if provided
+	if input.LoginNotification != nil {
+		cfg["login_notification"] = *input.LoginNotification
 	}
 
 	// Marshal updated configs

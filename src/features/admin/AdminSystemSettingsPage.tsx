@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   fetchGeneralSettings,
@@ -22,7 +23,8 @@ const defaultGeneralSettingsForm: GeneralSettings = {
   imageLoadRows: 4,
   userNotificationLimit: 50,
   adminImageDeleteDefaultReason: defaultAdminImageDeleteReasonText,
-  systemAutoDeleteDefaultReason: defaultSystemAutoDeleteReasonText
+  systemAutoDeleteDefaultReason: defaultSystemAutoDeleteReasonText,
+  enableCDN: false
 };
 
 export function AdminSystemSettingsPage() {
@@ -169,6 +171,25 @@ export function AdminSystemSettingsPage() {
             <p className="text-xs text-muted-foreground">
               {t("admin.systemSettings.systemAutoDeleteReasonHint")}
             </p>
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("admin.systemSettings.network")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between space-x-2 rounded-md border p-3">
+            <div className="space-y-0.5">
+              <Label>{t("admin.systemSettings.enableCDN")}</Label>
+              <p className="text-xs text-muted-foreground">
+                {t("admin.systemSettings.enableCDNHint")}
+              </p>
+            </div>
+            <Switch
+              checked={form.enableCDN}
+              onCheckedChange={(checked) => handleChange("enableCDN", checked)}
+            />
           </div>
         </CardContent>
       </Card>
