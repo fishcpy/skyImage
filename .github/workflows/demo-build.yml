@@ -254,26 +254,13 @@ jobs:
       - name: Create manifest list and push
         working-directory: /tmp/digests
         run: |
-          TAGS="${{ steps.tags.outputs.tags }}"
-          DOCKER_IMAGE="${{ env.DOCKER_IMAGE }}"
-          
-          # 构建标签参数
+          TAGS_ARRAY=($(echo "${{ steps.tags.outputs.tags }}" | tr ',' ' '))
           TAG_ARGS=""
-          IFS=',' read -ra TAG_ARRAY <<< "$TAGS"
-          for tag in "${TAG_ARRAY[@]}"; do
+          for tag in "${TAGS_ARRAY[@]}"; do
             TAG_ARGS="$TAG_ARGS -t $tag"
           done
-          
-          # 构建digest参数
-          DIGEST_ARGS=""
-          for digest_file in *; do
-            if [ -f "$digest_file" ]; then
-              DIGEST_ARGS="$DIGEST_ARGS ${DOCKER_IMAGE}@sha256:$digest_file"
-            fi
-          done
-          
-          echo "执行: docker buildx imagetools create $TAG_ARGS $DIGEST_ARGS"
-          docker buildx imagetools create $TAG_ARGS $DIGEST_ARGS
+          docker buildx imagetools create $TAG_ARGS \
+            $(printf '${{ env.DOCKER_IMAGE }}@sha256:%s ' *)
 
       - name: Inspect image
         run: |
