@@ -316,8 +316,8 @@ func (s *Server) registerStaticAssets() {
 			}
 		}
 		// 添加可选认证中间件，用于演示站私有图片访问控制
-		s.engine.GET(path+"/*filepath", middleware.OptionalAuth(s.users, s.sessions), handler)
-		s.engine.HEAD(path+"/*filepath", middleware.OptionalAuth(s.users, s.sessions), handler)
+		s.engine.GET(path+"/*filepath", middleware.OptionalAuth(s.users, s.session), handler)
+		s.engine.HEAD(path+"/*filepath", middleware.OptionalAuth(s.users, s.session), handler)
 		mounted[path] = struct{}{}
 	}
 
