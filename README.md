@@ -2,13 +2,16 @@
 
 SkyImage 是一个现代化的图床系统，采用前后端分离架构。
 
-# 预览
+# 演示站
 
-![首页](/docs/img/preview1.png)
-![上传图片](/docs/img/preview2.png)
-![系统设置1](/docs/img/preview3.png)
-![系统设置2](/docs/img/preview4.png)
-![系统设置3](/docs/img/preview5.png)
+🔗 演示地址：https://skyimage.demo.nxtcorex.top
+
+| 角色 | 邮箱 | 密码 |
+| --- | --- | --- |
+| 管理员 | demo@example.com | adminpassword |
+| 普通用户 | user@example.com | userpassword |
+
+> ⚠️ 演示站数据会定期清理，请勿上传重要文件。
 
 # 安装
 
