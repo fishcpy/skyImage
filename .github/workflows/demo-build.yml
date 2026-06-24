@@ -238,15 +238,11 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           DOCKER_IMAGE="${{ env.DOCKER_IMAGE }}"
           
-          # 生成标签：demo-{version}-{hash} 和 demo-latest
+          # 生成标签：只保留必要的标签
+          # demo-{version}-{hash}: 完整版本标识
+          # demo-latest: 最新版本
           TAGS="${DOCKER_IMAGE}:demo-${VERSION_TAG}"
           TAGS="${TAGS},${DOCKER_IMAGE}:demo-latest"
-          
-          # 提取主版本号和次版本号
-          MAJOR=$(echo $VERSION | cut -d. -f1)
-          MINOR=$(echo $VERSION | cut -d. -f1-2)
-          TAGS="${TAGS},${DOCKER_IMAGE}:demo-v${MAJOR}-${{ steps.version.outputs.commit_hash }}"
-          TAGS="${TAGS},${DOCKER_IMAGE}:demo-v${MINOR}-${{ steps.version.outputs.commit_hash }}"
           
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
