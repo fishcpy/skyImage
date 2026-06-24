@@ -73,12 +73,12 @@ jobs:
       - name: Get version and commit hash
         id: version
         run: |
-          # 从 version.go 文件中读取版本号
-          VERSION=$(grep 'const Version = "' internal/version/version.go | sed 's/const Version = "//;s/"//' | tr -d ' ')
+          # 从 version.go 文件中读取版本号（去除空格、换行、回车等空白字符）
+          VERSION=$(grep 'const Version = "' internal/version/version.go | sed 's/const Version = "//;s/"//' | tr -d ' \r\n')
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           
-          # 获取 commit hash 的前7位
-          COMMIT_HASH=$(git rev-parse --short=7 HEAD)
+          # 获取 commit hash 的前7位（去除换行、回车等空白字符）
+          COMMIT_HASH=$(git rev-parse --short=7 HEAD | tr -d ' \r\n')
           echo "commit_hash=${COMMIT_HASH}" >> $GITHUB_OUTPUT
           
           # 组合版本标识：版本号-commit hash
@@ -199,12 +199,12 @@ jobs:
       - name: Get version and commit hash
         id: version
         run: |
-          # 从 version.go 文件中读取版本号
-          VERSION=$(grep 'const Version = "' internal/version/version.go | sed 's/const Version = "//;s/"//' | tr -d ' ')
+          # 从 version.go 文件中读取版本号（去除空格、换行、回车等空白字符）
+          VERSION=$(grep 'const Version = "' internal/version/version.go | sed 's/const Version = "//;s/"//' | tr -d ' \r\n')
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           
-          # 获取 commit hash 的前7位
-          COMMIT_HASH=$(git rev-parse --short=7 HEAD)
+          # 获取 commit hash 的前7位（去除换行、回车等空白字符）
+          COMMIT_HASH=$(git rev-parse --short=7 HEAD | tr -d ' \r\n')
           echo "commit_hash=${COMMIT_HASH}" >> $GITHUB_OUTPUT
           
           # 组合版本标识：版本号-commit hash
