@@ -3,12 +3,16 @@ package files
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,7 +24,8 @@ import (
 )
 
 const (
-	auditProviderUAPINSFW = "uapis_nsfw"
+	auditProviderUAPINSFW  = "uapis_nsfw"
+	auditProviderTencentCI = "tencent_ci"
 
 	auditStatusNone     = "none"
 	auditStatusApproved = "approved"
@@ -38,6 +43,7 @@ const (
 )
 
 var uapiNSFWEndpoint = "https://uapis.cn/api/v1/image/nsfw"
+var tencentCIEndpoint = "https://ci.tencentcloudapi.com"
 
 var auditRetryDelays = []time.Duration{
 	5 * time.Second,
@@ -112,6 +118,69 @@ type uapiNSFWResponse struct {
 	Message         string  `json:"message"`
 }
 
+type tencentCIProfileConfig struct {
+	SecretID       string
+	SecretKey      string
+	Region         string
+	Bucket         string
+	AppID          string
+	BizType        string
+	MaxConcurrency int
+}
+
+type tencentCIBatchResponse struct {
+	RequestId  string               `json:"RequestId"`
+	JobsDetail []tencentCIJobDetail `json:"JobsDetail"`
+}
+
+type tencentCIJobDetail struct {
+	Code       int                 `json:"Code"`
+	Message    string              `json:"Message"`
+	DataId     string              `json:"DataId"`
+	Result     int                 `json:"Result"`
+	Label      string              `json:"Label"`
+	SubLabel   string              `json:"SubLabel"`
+	Score      int                 `json:"Score"`
+	Suggestion string              `json:"Suggestion"`
+	PornInfo   *tencentCISceneInfo `json:"PornInfo"`
+	AdsInfo    *tencentCISceneInfo `json:"AdsInfo"`
+}
+
+type tencentCISceneInfo struct {
+	Code     int    `json:"Code"`
+	HitFlag  int    `json:"HitFlag"`
+	Score    int    `json:"Score"`
+	Label    string `json:"Label"`
+	SubLabel string `json:"SubLabel"`
+}
+
+func parseTencentCIProfileConfig(profile data.AuditProfile) tencentCIProfileConfig {
+	cfg := tencentCIProfileConfig{Region: "ap-guangzhou", MaxConcurrency: 1}
+	if len(profile.Configs) == 0 {
+		return cfg
+	}
+	var raw map[string]interface{}
+	if err := json.Unmarshal(profile.Configs, &raw); err != nil {
+		return cfg
+	}
+	cfg.SecretID = strings.TrimSpace(firstString(raw, "secret_id", "secretId"))
+	cfg.SecretKey = strings.TrimSpace(firstString(raw, "secret_key", "secretKey"))
+	if v := strings.TrimSpace(firstString(raw, "region")); v != "" {
+		cfg.Region = v
+	}
+	cfg.Bucket = strings.TrimSpace(firstString(raw, "bucket"))
+	cfg.AppID = strings.TrimSpace(firstString(raw, "app_id", "appId"))
+	cfg.BizType = strings.TrimSpace(firstString(raw, "biz_type", "bizType"))
+	cfg.MaxConcurrency = intFromAny(raw["max_concurrency"])
+	if cfg.MaxConcurrency <= 0 {
+		cfg.MaxConcurrency = intFromAny(raw["maxConcurrency"])
+	}
+	if cfg.MaxConcurrency <= 0 {
+		cfg.MaxConcurrency = 1
+	}
+	return cfg
+}
+
 func normalizeAuditAction(value string, fallback string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case auditActionDelete, auditActionKeep:
@@ -180,7 +249,7 @@ func (s *Service) processAuditUpload(ctx context.Context, file data.FileAsset, c
 		s.completeAuditFailure(ctx, file, cfg, time.Now(), profile.Provider, fmt.Sprintf("加载图片审核配置失败: %v", err), nil)
 		return
 	}
-	result, checkedAt, err := s.callAuditProviderWithRetry(ctx, profile, settings, fileName, dataBytes)
+	result, checkedAt, err := s.callAuditProviderWithRetry(ctx, profile, settings, fileName, dataBytes, file.PublicURL)
 	if err != nil {
 		var providerErr *auditCallError
 		if errors.As(err, &providerErr) {
@@ -213,11 +282,12 @@ func (s *Service) callAuditProviderWithRetry(
 	settings auditProfileConfig,
 	fileName string,
 	dataBytes []byte,
+	publicURL string,
 ) (storedAuditResult, time.Time, error) {
 	var checkedAt time.Time
 	for attempt := 0; ; attempt++ {
 		checkedAt = time.Now()
-		result, err := s.callAuditProvider(ctx, profile, settings, fileName, dataBytes)
+		result, err := s.callAuditProvider(ctx, profile, settings, fileName, dataBytes, publicURL)
 		if err == nil {
 			return result, checkedAt, nil
 		}
@@ -260,17 +330,25 @@ func (s *Service) findAuditProfile(ctx context.Context, id uint) (data.AuditProf
 	return profile, parseAuditProfileConfig(profile), nil
 }
 
-func (s *Service) callAuditProvider(ctx context.Context, profile data.AuditProfile, settings auditProfileConfig, fileName string, dataBytes []byte) (storedAuditResult, error) {
+func (s *Service) callAuditProvider(ctx context.Context, profile data.AuditProfile, settings auditProfileConfig, fileName string, dataBytes []byte, publicURL string) (storedAuditResult, error) {
 	provider := strings.ToLower(strings.TrimSpace(profile.Provider))
 	if provider == "" {
 		provider = auditProviderUAPINSFW
 	}
-	if provider != auditProviderUAPINSFW {
-		return storedAuditResult{}, fmt.Errorf("不支持的审核服务提供商: %s", provider)
-	}
 	release := s.acquireAuditSlot(profile.ID, settings.MaxConcurrency)
 	defer release()
 
+	switch provider {
+	case auditProviderUAPINSFW:
+		return s.callUAPIProvider(ctx, settings, fileName, dataBytes)
+	case auditProviderTencentCI:
+		return s.callTencentCIProvider(ctx, profile, publicURL)
+	default:
+		return storedAuditResult{}, fmt.Errorf("不支持的审核服务提供商: %s", provider)
+	}
+}
+
+func (s *Service) callUAPIProvider(ctx context.Context, settings auditProfileConfig, fileName string, dataBytes []byte) (storedAuditResult, error) {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	part, err := writer.CreateFormFile("file", fileName)
@@ -335,7 +413,7 @@ func (s *Service) callAuditProvider(ctx context.Context, profile data.AuditProfi
 	}
 
 	return storedAuditResult{
-		Provider:        provider,
+		Provider:        auditProviderUAPINSFW,
 		Decision:        decision,
 		Label:           strings.TrimSpace(payload.Label),
 		RiskLevel:       strings.TrimSpace(payload.RiskLevel),
@@ -347,6 +425,194 @@ func (s *Service) callAuditProvider(ctx context.Context, profile data.AuditProfi
 		Message:         strings.TrimSpace(payload.Message),
 		Raw:             encodedRaw,
 	}, nil
+}
+
+func (s *Service) callTencentCIProvider(ctx context.Context, profile data.AuditProfile, publicURL string) (storedAuditResult, error) {
+	if strings.TrimSpace(publicURL) == "" {
+		return storedAuditResult{}, &auditCallError{message: "图片公开链接为空，无法调用腾讯云审核"}
+	}
+	cfg := parseTencentCIProfileConfig(profile)
+	if cfg.SecretID == "" || cfg.SecretKey == "" {
+		return storedAuditResult{}, &auditCallError{message: "腾讯云审核配置缺少 SecretID 或 SecretKey"}
+	}
+
+	payload := map[string]interface{}{
+		"Input": map[string]interface{}{
+			"Url": publicURL,
+		},
+	}
+	if cfg.BizType != "" {
+		payload["Conf"] = map[string]interface{}{
+			"BizType": cfg.BizType,
+		}
+	}
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return storedAuditResult{}, fmt.Errorf("生成审核请求失败")
+	}
+
+	timestamp := time.Now().Unix()
+	headers, signedHeaders, signature := signTencentRequest(
+		cfg.SecretID, cfg.SecretKey, cfg.Region,
+		"ci", "ImageAuditing", "2019-03-18",
+		string(bodyBytes), timestamp,
+	)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tencentCIEndpoint, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return storedAuditResult{}, fmt.Errorf("创建审核请求失败")
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-TC-Action", "ImageAuditing")
+	req.Header.Set("X-TC-Version", "2019-03-18")
+	req.Header.Set("X-TC-Region", cfg.Region)
+	req.Header.Set("X-TC-Timestamp", strconv.FormatInt(timestamp, 10))
+	req.Header.Set("Authorization", fmt.Sprintf(
+		"TC3-HMAC-SHA256 Credential=%s/%s/%s/tc3_request, SignedHeaders=%s, Signature=%s",
+		cfg.SecretID, time.Unix(timestamp, 0).UTC().Format("2006-01-02"),
+		"ci", signedHeaders, signature,
+	))
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return storedAuditResult{}, &auditCallError{
+			message:   fmt.Sprintf("调用腾讯云图片审核服务失败: %v", err),
+			retryable: true,
+		}
+	}
+	defer resp.Body.Close()
+
+	rawBody, err := ioReadAllLimit(resp.Body, 2*1024*1024)
+	if err != nil {
+		return storedAuditResult{}, fmt.Errorf("读取审核结果失败")
+	}
+	encodedRaw := normalizeAuditRaw(rawBody)
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		message := fmt.Sprintf("腾讯云图片审核服务响应异常: HTTP %d", resp.StatusCode)
+		var errResp struct {
+			Response struct {
+				Error struct {
+					Code    string `json:"Code"`
+					Message string `json:"Message"`
+				} `json:"Error"`
+			} `json:"Response"`
+		}
+		if len(rawBody) > 0 && json.Unmarshal(rawBody, &errResp) == nil {
+			if strings.TrimSpace(errResp.Response.Error.Message) != "" {
+				message = errResp.Response.Error.Message
+			}
+		}
+		return storedAuditResult{}, &auditCallError{
+			message:    message,
+			raw:        encodedRaw,
+			statusCode: resp.StatusCode,
+			retryable:  resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= http.StatusInternalServerError,
+		}
+	}
+
+	var batchResp tencentCIBatchResponse
+	if err := json.Unmarshal(rawBody, &batchResp); err != nil {
+		return storedAuditResult{}, &auditCallError{message: "腾讯云图片审核服务返回了无效数据", raw: encodedRaw}
+	}
+	if len(batchResp.JobsDetail) == 0 {
+		return storedAuditResult{}, &auditCallError{message: "腾讯云图片审核服务返回了空结果", raw: encodedRaw}
+	}
+
+	job := batchResp.JobsDetail[0]
+	if job.Code != 0 {
+		return storedAuditResult{}, &auditCallError{
+			message:    fmt.Sprintf("腾讯云图片审核失败: [%d] %s", job.Code, job.Message),
+			raw:        encodedRaw,
+			retryable:  false,
+		}
+	}
+
+	var decision string
+	switch job.Result {
+	case 0:
+		decision = auditDecisionPass
+	case 1:
+		decision = auditDecisionBlock
+	case 2:
+		decision = auditDecisionReview
+	default:
+		return storedAuditResult{}, &auditCallError{message: "腾讯云图片审核服务返回了无法识别的结果", raw: encodedRaw}
+	}
+
+	label := strings.TrimSpace(job.Label)
+	if sub := strings.TrimSpace(job.SubLabel); sub != "" {
+		label = label + "/" + sub
+	}
+
+	score := float64(job.Score) / 100.0
+	riskLevel := "low"
+	if job.Score >= 90 {
+		riskLevel = "high"
+	} else if job.Score >= 60 {
+		riskLevel = "medium"
+	}
+
+	return storedAuditResult{
+		Provider:    auditProviderTencentCI,
+		Decision:    decision,
+		Label:       label,
+		RiskLevel:   riskLevel,
+		IsNSFW:      strings.EqualFold(strings.TrimSpace(job.Label), "Porn"),
+		NSFWScore:   score,
+		NormalScore: 1.0 - score,
+		Confidence:  score,
+		Message:     strings.TrimSpace(job.Message),
+		Raw:         encodedRaw,
+	}, nil
+}
+
+func signTencentRequest(secretID, secretKey, region, service, action, version, payload string, timestamp int64) (map[string]string, string, string) {
+	date := time.Unix(timestamp, 0).UTC().Format("2006-01-02")
+
+	// Step 1: Canonical request
+	hashedPayload := sha256Hex(payload)
+	canonicalHeaders := fmt.Sprintf("content-type:application/json\nhost:ci.tencentcloudapi.com\nx-tc-action:%s\n", strings.ToLower(action))
+	signedHeaders := "content-type;host;x-tc-action"
+	canonicalRequest := fmt.Sprintf("POST\n/\n\n%s\n%s\n%s",
+		canonicalHeaders, signedHeaders, hashedPayload)
+
+	// Step 2: String to sign
+	credentialScope := fmt.Sprintf("%s/%s/tc3_request", date, service)
+	stringToSign := fmt.Sprintf("TC3-HMAC-SHA256\n%d\n%s\n%s",
+		timestamp, credentialScope, sha256Hex(canonicalRequest))
+
+	// Step 3: Signature
+	secretDate := hmacSHA256([]byte("TC3"+secretKey), date)
+	secretService := hmacSHA256(secretDate, service)
+	secretSigning := hmacSHA256(secretService, "tc3_request")
+	signature := hmacSHA256Hex(secretSigning, stringToSign)
+
+	return map[string]string{
+		"Host":         "ci.tencentcloudapi.com",
+		"X-TC-Action":  action,
+		"X-TC-Version": version,
+		"X-TC-Region":  region,
+	}, signedHeaders, signature
+}
+
+func sha256Hex(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(h[:])
+}
+
+func hmacSHA256(key []byte, data string) []byte {
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte(data))
+	return h.Sum(nil)
+}
+
+func hmacSHA256Hex(key []byte, data string) string {
+	return hex.EncodeToString(hmacSHA256(key, data))
 }
 
 func shouldRetryAuditCall(err error) bool {

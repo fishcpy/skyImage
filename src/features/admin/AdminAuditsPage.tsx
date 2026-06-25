@@ -63,7 +63,10 @@ export function AdminAuditsPage() {
               <div className="space-y-1">
                 <p className="text-sm font-medium">{audit.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {t("admin.audits.providerLabel")} UAPI NSFW
+                  {t("admin.audits.providerLabel")}{" "}
+                  {audit.provider === "tencent_ci"
+                    ? t("admin.auditEditor.provider.tencent")
+                    : "UAPI NSFW"}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {t("admin.audits.concurrencyLabel", {
@@ -71,9 +74,13 @@ export function AdminAuditsPage() {
                   })}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {audit.configs?.api_key
-                    ? t("admin.audits.usingApiKey")
-                    : t("admin.audits.usingFreeCredits")}
+                  {audit.provider === "tencent_ci"
+                    ? (audit.configs?.secret_id
+                        ? t("admin.audits.usingApiKey")
+                        : t("admin.audits.usingFreeCredits"))
+                    : (audit.configs?.api_key
+                        ? t("admin.audits.usingApiKey")
+                        : t("admin.audits.usingFreeCredits"))}
                 </p>
               </div>
               <div className="flex gap-2">

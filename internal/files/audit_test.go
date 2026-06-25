@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -139,6 +140,26 @@ func createAuditProfile(t *testing.T, db *gorm.DB, apiKey string, maxConcurrency
 	}
 	if err := db.Create(&profile).Error; err != nil {
 		t.Fatalf("failed to create audit profile: %v", err)
+	}
+	return profile
+}
+
+func createTencentCIAuditProfile(t *testing.T, db *gorm.DB, secretID, secretKey string, maxConcurrency int) data.AuditProfile {
+	t.Helper()
+
+	cfgBytes, _ := json.Marshal(map[string]interface{}{
+		"secret_id":       secretID,
+		"secret_key":      secretKey,
+		"region":          "ap-guangzhou",
+		"max_concurrency": maxConcurrency,
+	})
+	profile := data.AuditProfile{
+		Name:     "腾讯云审核",
+		Provider: auditProviderTencentCI,
+		Configs:  datatypes.JSON(cfgBytes),
+	}
+	if err := db.Create(&profile).Error; err != nil {
+		t.Fatalf("failed to create tencent audit profile: %v", err)
 	}
 	return profile
 }
@@ -373,7 +394,7 @@ func TestCallAuditProvider_RespectsConfiguredConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, err := svc.callAuditProvider(context.Background(), profile, settings, "sample.png", []byte("png")); err != nil {
+			if _, err := svc.callAuditProvider(context.Background(), profile, settings, "sample.png", []byte("png"), ""); err != nil {
 				t.Errorf("callAuditProvider failed: %v", err)
 			}
 		}()
@@ -500,4 +521,133 @@ func waitForCondition(t *testing.T, timeout time.Duration, fn func() bool) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatal("condition was not satisfied before timeout")
+}
+
+func TestTencentCI_DecisionMapping(t *testing.T) {
+	previousRetryDelays := auditRetryDelays
+	auditRetryDelays = []time.Duration{10 * time.Millisecond}
+	defer func() { auditRetryDelays = previousRetryDelays }()
+
+	cases := []struct {
+		name            string
+		responseBody    string
+		responseStatus  int
+		expectedStatus  string
+		expectedLabel   string
+		expectedIsNSFW  bool
+	}{
+		{
+			name:           "result 0 becomes approved",
+			responseBody:   `{"RequestId":"req-1","JobsDetail":[{"Code":0,"Result":0,"Label":"Normal","SubLabel":"","Score":10}]}`,
+			responseStatus: http.StatusOK,
+			expectedStatus: auditStatusApproved,
+			expectedLabel:  "Normal",
+			expectedIsNSFW: false,
+		},
+		{
+			name:           "result 1 becomes rejected",
+			responseBody:   `{"RequestId":"req-2","JobsDetail":[{"Code":0,"Result":1,"Label":"Porn","SubLabel":"SexBehavior","Score":95}]}`,
+			responseStatus: http.StatusOK,
+			expectedStatus: auditStatusRejected,
+			expectedLabel:  "Porn/SexBehavior",
+			expectedIsNSFW: true,
+		},
+		{
+			name:           "result 2 becomes pending",
+			responseBody:   `{"RequestId":"req-3","JobsDetail":[{"Code":0,"Result":2,"Label":"Porn","SubLabel":"Sexy","Score":70}]}`,
+			responseStatus: http.StatusOK,
+			expectedStatus: auditStatusPending,
+			expectedLabel:  "Porn/Sexy",
+			expectedIsNSFW: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.responseStatus)
+				_, _ = w.Write([]byte(tc.responseBody))
+			}))
+			defer server.Close()
+
+			previousEndpoint := tencentCIEndpoint
+			tencentCIEndpoint = server.URL
+			defer func() { tencentCIEndpoint = previousEndpoint }()
+
+			db := setupFilesTestDB(t)
+			svc := New(db, config.Config{PublicBaseURL: "https://cdn.example.com"})
+			profile := data.AuditProfile{
+				ID:       1,
+				Provider: auditProviderTencentCI,
+				Configs:  datatypes.JSON([]byte(`{"secret_id":"AKID","secret_key":"SECRET","region":"ap-guangzhou"}`)),
+			}
+			settings := auditProfileConfig{MaxConcurrency: 1}
+
+			result, err := svc.callAuditProvider(context.Background(), profile, settings, "test.png", nil, "https://cdn.example.com/test.png")
+			if err != nil {
+				t.Fatalf("callAuditProvider failed: %v", err)
+			}
+			if result.Label != tc.expectedLabel {
+				t.Fatalf("expected label %q, got %q", tc.expectedLabel, result.Label)
+			}
+			if result.IsNSFW != tc.expectedIsNSFW {
+				t.Fatalf("expected isNSFW %v, got %v", tc.expectedIsNSFW, result.IsNSFW)
+			}
+		})
+	}
+}
+
+func TestTencentCI_MissingPublicURL(t *testing.T) {
+	db := setupFilesTestDB(t)
+	svc := New(db, config.Config{})
+	profile := data.AuditProfile{
+		ID:       1,
+		Provider: auditProviderTencentCI,
+		Configs:  datatypes.JSON([]byte(`{"secret_id":"AKID","secret_key":"SECRET"}`)),
+	}
+	settings := auditProfileConfig{MaxConcurrency: 1}
+
+	_, err := svc.callAuditProvider(context.Background(), profile, settings, "test.png", nil, "")
+	if err == nil {
+		t.Fatal("expected error when publicURL is empty")
+	}
+	var callErr *auditCallError
+	if !errors.As(err, &callErr) {
+		t.Fatalf("expected auditCallError, got %T", err)
+	}
+}
+
+func TestTencentCI_Signing(t *testing.T) {
+	var capturedAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"RequestId":"req-1","JobsDetail":[{"Code":0,"Result":0,"Label":"Normal","Score":5}]}`))
+	}))
+	defer server.Close()
+
+	previousEndpoint := tencentCIEndpoint
+	tencentCIEndpoint = server.URL
+	defer func() { tencentCIEndpoint = previousEndpoint }()
+
+	db := setupFilesTestDB(t)
+	svc := New(db, config.Config{})
+	profile := data.AuditProfile{
+		ID:       1,
+		Provider: auditProviderTencentCI,
+		Configs:  datatypes.JSON([]byte(`{"secret_id":"AKIDtest","secret_key":"SECRETtest","region":"ap-guangzhou"}`)),
+	}
+	settings := auditProfileConfig{MaxConcurrency: 1}
+
+	_, err := svc.callAuditProvider(context.Background(), profile, settings, "test.png", nil, "https://cdn.example.com/test.png")
+	if err != nil {
+		t.Fatalf("callAuditProvider failed: %v", err)
+	}
+	if !strings.HasPrefix(capturedAuth, "TC3-HMAC-SHA256 Credential=AKIDtest/") {
+		t.Fatalf("expected TC3 auth header, got %q", capturedAuth)
+	}
+	if !strings.Contains(capturedAuth, "SignedHeaders=content-type;host;x-tc-action") {
+		t.Fatalf("expected signed headers in auth, got %q", capturedAuth)
+	}
 }

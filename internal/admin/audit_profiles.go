@@ -13,7 +13,10 @@ import (
 	"skyimage/internal/data"
 )
 
-const AuditProviderUAPINSFW = "uapis_nsfw"
+const (
+	AuditProviderUAPINSFW  = "uapis_nsfw"
+	AuditProviderTencentCI = "tencent_ci"
+)
 
 var ErrAuditProfileInUse = errors.New("audit profile in use")
 
@@ -41,9 +44,13 @@ func (s *Service) CreateAuditProfile(ctx context.Context, payload AuditProfilePa
 		return data.AuditProfile{}, err
 	}
 	cfgBytes, _ := json.Marshal(configs)
+	provider := strings.ToLower(strings.TrimSpace(payload.Provider))
+	if provider == "" {
+		provider = AuditProviderUAPINSFW
+	}
 	profile := data.AuditProfile{
 		Name:     strings.TrimSpace(payload.Name),
-		Provider: AuditProviderUAPINSFW,
+		Provider: provider,
 		Configs:  datatypes.JSON(cfgBytes),
 	}
 	if profile.Name == "" {
@@ -68,9 +75,13 @@ func (s *Service) UpdateAuditProfile(ctx context.Context, id uint, payload Audit
 	if name == "" {
 		return data.AuditProfile{}, fmt.Errorf("审核配置名称不能为空")
 	}
+	provider := strings.ToLower(strings.TrimSpace(payload.Provider))
+	if provider == "" {
+		provider = AuditProviderUAPINSFW
+	}
 	cfgBytes, _ := json.Marshal(configs)
 	profile.Name = name
-	profile.Provider = AuditProviderUAPINSFW
+	profile.Provider = provider
 	profile.Configs = datatypes.JSON(cfgBytes)
 	if err := s.db.WithContext(ctx).Save(&profile).Error; err != nil {
 		return data.AuditProfile{}, err
@@ -105,10 +116,7 @@ func normalizeAuditProfileConfigs(provider string, configs map[string]interface{
 	if normalizedProvider == "" {
 		normalizedProvider = AuditProviderUAPINSFW
 	}
-	if normalizedProvider != AuditProviderUAPINSFW {
-		return nil, fmt.Errorf("仅支持 UAPI 图片审核配置")
-	}
-	apiKey := strings.TrimSpace(firstConfigString(configs, "api_key", "apiKey"))
+
 	maxConcurrency := auditIntFromAny(configs["max_concurrency"])
 	if maxConcurrency <= 0 {
 		maxConcurrency = auditIntFromAny(configs["maxConcurrency"])
@@ -116,10 +124,35 @@ func normalizeAuditProfileConfigs(provider string, configs map[string]interface{
 	if maxConcurrency <= 0 {
 		maxConcurrency = 1
 	}
-	return map[string]interface{}{
-		"api_key":         apiKey,
-		"max_concurrency": maxConcurrency,
-	}, nil
+
+	switch normalizedProvider {
+	case AuditProviderUAPINSFW:
+		return map[string]interface{}{
+			"api_key":         strings.TrimSpace(firstConfigString(configs, "api_key", "apiKey")),
+			"max_concurrency": maxConcurrency,
+		}, nil
+	case AuditProviderTencentCI:
+		secretID := strings.TrimSpace(firstConfigString(configs, "secret_id", "secretId"))
+		secretKey := strings.TrimSpace(firstConfigString(configs, "secret_key", "secretKey"))
+		if secretID == "" || secretKey == "" {
+			return nil, fmt.Errorf("腾讯云审核配置需要填写 SecretID 和 SecretKey")
+		}
+		region := strings.TrimSpace(firstConfigString(configs, "region"))
+		if region == "" {
+			region = "ap-guangzhou"
+		}
+		return map[string]interface{}{
+			"secret_id":       secretID,
+			"secret_key":      secretKey,
+			"region":          region,
+			"bucket":          strings.TrimSpace(firstConfigString(configs, "bucket")),
+			"app_id":          strings.TrimSpace(firstConfigString(configs, "app_id", "appId")),
+			"biz_type":        strings.TrimSpace(firstConfigString(configs, "biz_type", "bizType")),
+			"max_concurrency": maxConcurrency,
+		}, nil
+	default:
+		return nil, fmt.Errorf("不支持的审核服务提供商: %s", normalizedProvider)
+	}
 }
 
 func (s *Service) findStrategiesUsingAuditProfile(ctx context.Context, profileID uint) ([]data.Strategy, error) {
