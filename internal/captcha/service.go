@@ -13,6 +13,7 @@ type Provider string
 const (
 	ProviderCloudflare Provider = "cloudflare"
 	ProviderGeetest    Provider = "geetest"
+	ProviderCap        Provider = "cap"
 )
 
 // Service handles unified captcha verification
@@ -20,6 +21,7 @@ type Service struct {
 	admin      *admin.Service
 	cloudflare *CloudflareService
 	geetest    *GeetestService
+	cap        *CapService
 }
 
 // New creates a new unified captcha service
@@ -28,14 +30,16 @@ func New(adminService *admin.Service) *Service {
 		admin:      adminService,
 		cloudflare: NewCloudflareService(adminService),
 		geetest:    NewGeetestService(adminService),
+		cap:        NewCapService(adminService),
 	}
 }
 
 // Config represents the captcha configuration
 type Config struct {
-	Enabled  bool     `json:"enabled"`
-	Provider Provider `json:"provider"`
-	SiteKey  string   `json:"siteKey,omitempty"`
+	Enabled     bool     `json:"enabled"`
+	Provider    Provider `json:"provider"`
+	SiteKey     string   `json:"siteKey,omitempty"`
+	ApiEndpoint string   `json:"apiEndpoint,omitempty"`
 }
 
 // GetConfig returns the current captcha configuration for a specific context
@@ -79,11 +83,19 @@ func (s *Service) GetConfig(ctx context.Context, context string) (Config, error)
 	}
 
 	var siteKey string
+	var apiEndpoint string
 	switch provider {
 	case ProviderCloudflare:
 		siteKey = settings["captcha.cloudflare.site_key"]
 	case ProviderGeetest:
 		siteKey = settings["captcha.geetest.captcha_id"]
+	case ProviderCap:
+		siteKey = settings["captcha.cap.site_key"]
+		endpoint, err := BuildCapAPIEndpoint(settings["captcha.cap.instance_url"], siteKey)
+		if err != nil || siteKey == "" {
+			return Config{Enabled: false}, nil
+		}
+		apiEndpoint = endpoint
 	default:
 		return Config{Enabled: false}, fmt.Errorf("unknown provider: %s", provider)
 	}
@@ -93,9 +105,10 @@ func (s *Service) GetConfig(ctx context.Context, context string) (Config, error)
 	}
 
 	return Config{
-		Enabled:  true,
-		Provider: provider,
-		SiteKey:  siteKey,
+		Enabled:     true,
+		Provider:    provider,
+		SiteKey:     siteKey,
+		ApiEndpoint: apiEndpoint,
 	}, nil
 }
 
@@ -129,6 +142,8 @@ func (s *Service) Verify(ctx context.Context, provider Provider, token string, r
 		seccode := extraData["seccode"]
 		captchaOutput := extraData["captcha_output"]
 		return s.geetest.Verify(ctx, challenge, validate, seccode, captchaOutput)
+	case ProviderCap:
+		return s.cap.Verify(ctx, token)
 	default:
 		return false, fmt.Errorf("unsupported provider: %s", provider)
 	}
@@ -157,6 +172,14 @@ func (s *Service) TestConfig(ctx context.Context, provider Provider, config map[
 		seccode := extraData["seccode"]
 		captchaOutput := extraData["captcha_output"]
 		return s.geetest.VerifyWithConfig(ctx, captchaID, captchaKey, challenge, validate, seccode, captchaOutput)
+	case ProviderCap:
+		instanceURL := config["instance_url"]
+		siteKey := config["site_key"]
+		secretKey := config["secret_key"]
+		if instanceURL == "" || siteKey == "" || secretKey == "" {
+			return false, fmt.Errorf("cap instance_url, site_key and secret_key are required")
+		}
+		return s.cap.VerifyWithConfig(ctx, instanceURL, siteKey, secretKey, token)
 	default:
 		return false, fmt.Errorf("unsupported provider: %s", provider)
 	}

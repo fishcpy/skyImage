@@ -99,7 +99,8 @@ func redactSettings(settings map[string]string) map[string]string {
 		switch strings.ToLower(strings.TrimSpace(key)) {
 		case "mail.smtp.password",
 			"captcha.cloudflare.secret_key", "captcha.cloudflare.last_verified_signature",
-			"captcha.geetest.captcha_key", "captcha.geetest.last_verified_signature":
+			"captcha.geetest.captcha_key", "captcha.geetest.last_verified_signature",
+			"captcha.cap.secret_key", "captcha.cap.last_verified_signature":
 			redacted[key] = "***"
 		}
 	}
@@ -1014,13 +1015,14 @@ func (s *Server) handleAdminTestSMTP(c *gin.Context) {
 }
 
 type testCaptchaPayload struct {
-	Provider   string            `json:"provider" binding:"required"`
-	SiteKey    string            `json:"siteKey"`
-	SecretKey  string            `json:"secretKey"`
-	CaptchaID  string            `json:"captchaId"`
-	CaptchaKey string            `json:"captchaKey"`
-	Token      string            `json:"token" binding:"required"`
-	ExtraData  map[string]string `json:"extraData"`
+	Provider    string            `json:"provider" binding:"required"`
+	SiteKey     string            `json:"siteKey"`
+	SecretKey   string            `json:"secretKey"`
+	CaptchaID   string            `json:"captchaId"`
+	CaptchaKey  string            `json:"captchaKey"`
+	InstanceURL string            `json:"instanceUrl"`
+	Token       string            `json:"token" binding:"required"`
+	ExtraData   map[string]string `json:"extraData"`
 }
 
 func (s *Server) handleAdminTestCaptcha(c *gin.Context) {
@@ -1061,6 +1063,31 @@ func (s *Server) handleAdminTestCaptcha(c *gin.Context) {
 		}
 		config["captcha_id"] = payload.CaptchaID
 		config["captcha_key"] = captchaKey
+	} else if provider == captcha.ProviderCap {
+		secretKey := strings.TrimSpace(payload.SecretKey)
+		if secretKey == "***" && settings != nil {
+			secretKey = settings["captcha.cap.secret_key"]
+		}
+		instanceURL := strings.TrimSpace(payload.InstanceURL)
+		if instanceURL == "" && settings != nil {
+			instanceURL = settings["captcha.cap.instance_url"]
+		}
+		siteKey := strings.TrimSpace(payload.SiteKey)
+		if siteKey == "" && settings != nil {
+			siteKey = settings["captcha.cap.site_key"]
+		}
+		if instanceURL == "" || siteKey == "" || secretKey == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cap 需要 Instance URL、Site Key 和 Secret Key"})
+			return
+		}
+		normalized, err := captcha.NormalizeCapInstanceURL(instanceURL)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		config["instance_url"] = normalized
+		config["site_key"] = siteKey
+		config["secret_key"] = secretKey
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "不支持的验证码提供商"})
 		return
@@ -1091,6 +1118,10 @@ func (s *Server) handleAdminTestCaptcha(c *gin.Context) {
 		signature := captcha.GenerateGeetestSignature(payload.CaptchaID, config["captcha_key"])
 		settingsUpdate["captcha.geetest.last_verified_signature"] = signature
 		settingsUpdate["captcha.geetest.last_verified_at"] = now
+	} else if provider == captcha.ProviderCap {
+		signature := captcha.GenerateCapSignature(config["instance_url"], config["site_key"], config["secret_key"])
+		settingsUpdate["captcha.cap.last_verified_signature"] = signature
+		settingsUpdate["captcha.cap.last_verified_at"] = now
 	}
 
 	if err := s.admin.UpdateSettings(c.Request.Context(), settingsUpdate); err != nil {

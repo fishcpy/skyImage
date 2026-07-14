@@ -263,8 +263,9 @@ export function RegisterForm({
                       <div className="flex justify-center">
                         <UnifiedCaptcha
                           ref={sendCodeCaptchaRef}
-                          provider={sendCodeCaptchaConfig.provider as "cloudflare" | "geetest"}
+                          provider={sendCodeCaptchaConfig.provider as "cloudflare" | "geetest" | "cap"}
                           siteKey={sendCodeCaptchaConfig.siteKey}
+                          apiEndpoint={sendCodeCaptchaConfig.apiEndpoint}
                           onVerify={handleSendCodeCaptchaVerify}
                           onExpire={() => {
                             setSendCodeCaptchaToken("");
@@ -310,8 +311,9 @@ export function RegisterForm({
                   <div className="flex justify-center">
                     <UnifiedCaptcha
                       ref={captchaRef}
-                      provider={captchaConfig.provider as "cloudflare" | "geetest"}
+                      provider={captchaConfig.provider as "cloudflare" | "geetest" | "cap"}
                       siteKey={captchaConfig.siteKey}
+                      apiEndpoint={captchaConfig.apiEndpoint}
                       onVerify={(token, extraData) => {
                         setCaptchaToken(token);
                         setCaptchaData(extraData);

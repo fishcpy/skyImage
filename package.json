@@ -4,7 +4,9 @@
   "version": "0.2.1",
   "type": "module",
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   },
   "scripts": {
     "dev:frontend": "vite",
@@ -39,6 +41,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@types/dompurify": "^3.2.0",
     "axios": "^1.16.0",
+    "cap-widget": "^0.1.56",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

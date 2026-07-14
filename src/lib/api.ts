@@ -764,11 +764,14 @@ export async function updateEmailSettings(input: EmailSettings) {
 
 export type CaptchaSettings = {
   enableCaptcha: boolean;
-  captchaProvider: "cloudflare" | "geetest" | "";
+  captchaProvider: "cloudflare" | "geetest" | "cap" | "";
   cloudflareSiteKey: string;
   cloudflareSecretKey: string;
   geetestCaptchaId: string;
   geetestCaptchaKey: string;
+  capInstanceUrl: string;
+  capSiteKey: string;
+  capSecretKey: string;
   enableLoginCaptcha: boolean;
   enableRegisterCaptcha: boolean;
   enableRegisterVerifyCaptcha: boolean;
@@ -778,6 +781,8 @@ export type CaptchaSettings = {
   cloudflareLastVerifiedAt?: string;
   geetestVerified: boolean;
   geetestLastVerifiedAt?: string;
+  capVerified: boolean;
+  capLastVerifiedAt?: string;
 };
 
 export async function fetchCaptchaSettings() {
@@ -787,7 +792,7 @@ export async function fetchCaptchaSettings() {
   return res.data.data;
 }
 
-export async function updateCaptchaSettings(input: Omit<CaptchaSettings, "cloudflareVerified" | "cloudflareLastVerifiedAt" | "geetestVerified" | "geetestLastVerifiedAt">) {
+export async function updateCaptchaSettings(input: Omit<CaptchaSettings, "cloudflareVerified" | "cloudflareLastVerifiedAt" | "geetestVerified" | "geetestLastVerifiedAt" | "capVerified" | "capLastVerifiedAt">) {
   await apiClient.put("/admin/system/captcha", input);
 }
 
@@ -826,11 +831,12 @@ export type TestTurnstilePayload = {
 };
 
 export type TestCaptchaPayload = {
-  provider: "cloudflare" | "geetest";
+  provider: "cloudflare" | "geetest" | "cap";
   siteKey?: string;
   secretKey?: string;
   captchaId?: string;
   captchaKey?: string;
+  instanceUrl?: string;
   token: string;
   extraData?: Record<string, string>;
 };
@@ -960,8 +966,9 @@ export async function deleteApiTokens() {
 // Captcha configuration API
 export type CaptchaConfig = {
   enabled: boolean;
-  provider: "cloudflare" | "geetest" | "";
+  provider: "cloudflare" | "geetest" | "cap" | "";
   siteKey?: string;
+  apiEndpoint?: string;
 };
 
 export async function fetchCaptchaConfig(context: string): Promise<CaptchaConfig> {

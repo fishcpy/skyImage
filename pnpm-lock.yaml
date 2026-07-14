@@ -83,6 +83,9 @@ importers:
       axios:
         specifier: ^1.16.0
         version: 1.18.0
+      cap-widget:
+        specifier: ^0.1.56
+        version: 0.1.56
       class-variance-authority:
         specifier: ^0.7.0
         version: 0.7.1
@@ -1459,6 +1462,9 @@ packages:
 
   caniuse-lite@1.0.30001799:
     resolution: {integrity: sha512-hG1bReV+OUU+MOqK4t/ZWI0tZOyz3rqS9XuhOUz1cIcbwBKjOyJEJuw9ER5JuNyqxNk8u/JUVbGibBOL1yrjFw==}
+
+  cap-widget@0.1.56:
+    resolution: {integrity: sha512-mAoFWzouxCjvi0B0Y0s7cRGGaLvJxifMVeNIHiFCkZme/9BOASWliN0aqz9wTUdlrt3Awm0UEA8h8DV1IDUuug==}
 
   chalk@4.1.2:
     resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==}
@@ -3404,6 +3410,8 @@ snapshots:
   camelcase-css@2.0.1: {}
 
   caniuse-lite@1.0.30001799: {}
+
+  cap-widget@0.1.56: {}
 
   chalk@4.1.2:
     dependencies:

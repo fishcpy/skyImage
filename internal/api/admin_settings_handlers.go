@@ -333,6 +333,9 @@ type captchaSettingsPayload struct {
 	CloudflareSecretKey                string `json:"cloudflareSecretKey"`
 	GeetestCaptchaID                   string `json:"geetestCaptchaId"`
 	GeetestCaptchaKey                  string `json:"geetestCaptchaKey"`
+	CapInstanceURL                     string `json:"capInstanceUrl"`
+	CapSiteKey                         string `json:"capSiteKey"`
+	CapSecretKey                       string `json:"capSecretKey"`
 	EnableLoginCaptcha                 bool   `json:"enableLoginCaptcha"`
 	EnableRegisterCaptcha              bool   `json:"enableRegisterCaptcha"`
 	EnableRegisterVerifyCaptcha        bool   `json:"enableRegisterVerifyCaptcha"`
@@ -342,10 +345,12 @@ type captchaSettingsPayload struct {
 
 type captchaSettingsResponse struct {
 	captchaSettingsPayload
-	CloudflareVerified     bool   `json:"cloudflareVerified"`
+	CloudflareVerified       bool   `json:"cloudflareVerified"`
 	CloudflareLastVerifiedAt string `json:"cloudflareLastVerifiedAt,omitempty"`
-	GeetestVerified        bool   `json:"geetestVerified"`
-	GeetestLastVerifiedAt  string `json:"geetestLastVerifiedAt,omitempty"`
+	GeetestVerified          bool   `json:"geetestVerified"`
+	GeetestLastVerifiedAt    string `json:"geetestLastVerifiedAt,omitempty"`
+	CapVerified              bool   `json:"capVerified"`
+	CapLastVerifiedAt        string `json:"capLastVerifiedAt,omitempty"`
 }
 
 func (s *Server) handleAdminCaptchaSettings(c *gin.Context) {
@@ -366,6 +371,9 @@ func (s *Server) handleAdminCaptchaSettings(c *gin.Context) {
 			CloudflareSecretKey:                redactSecret(settings["captcha.cloudflare.secret_key"]),
 			GeetestCaptchaID:                   settings["captcha.geetest.captcha_id"],
 			GeetestCaptchaKey:                  redactSecret(settings["captcha.geetest.captcha_key"]),
+			CapInstanceURL:                     settings["captcha.cap.instance_url"],
+			CapSiteKey:                         settings["captcha.cap.site_key"],
+			CapSecretKey:                       redactSecret(settings["captcha.cap.secret_key"]),
 			EnableLoginCaptcha:                 settings["captcha.login"] == "true",
 			EnableRegisterCaptcha:              settings["captcha.register"] == "true",
 			EnableRegisterVerifyCaptcha:        settings["captcha.register_verify"] == "true",
@@ -374,6 +382,7 @@ func (s *Server) handleAdminCaptchaSettings(c *gin.Context) {
 		},
 		CloudflareLastVerifiedAt: settings["captcha.cloudflare.last_verified_at"],
 		GeetestLastVerifiedAt:    settings["captcha.geetest.last_verified_at"],
+		CapLastVerifiedAt:        settings["captcha.cap.last_verified_at"],
 	}
 
 	// 检查 Cloudflare 验证状态
@@ -387,6 +396,12 @@ func (s *Server) handleAdminCaptchaSettings(c *gin.Context) {
 	geetestStoredSig := settings["captcha.geetest.last_verified_signature"]
 	if geetestExpectedSig != "" && geetestStoredSig == geetestExpectedSig {
 		resp.GeetestVerified = true
+	}
+	// 检查 Cap 验证状态
+	capExpectedSig := captcha.GenerateCapSignature(resp.CapInstanceURL, resp.CapSiteKey, settings["captcha.cap.secret_key"])
+	capStoredSig := settings["captcha.cap.last_verified_signature"]
+	if capExpectedSig != "" && capStoredSig == capExpectedSig {
+		resp.CapVerified = true
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": resp})
@@ -417,15 +432,30 @@ func (s *Server) handleAdminUpdateCaptchaSettings(c *gin.Context) {
 	if geetestCaptchaKey == "" || geetestCaptchaKey == "***" {
 		geetestCaptchaKey = settings["captcha.geetest.captcha_key"]
 	}
+	capSecretKey := strings.TrimSpace(payload.CapSecretKey)
+	if capSecretKey == "" || capSecretKey == "***" {
+		capSecretKey = settings["captcha.cap.secret_key"]
+	}
+	capInstanceURL := strings.TrimSpace(payload.CapInstanceURL)
+	if capInstanceURL != "" {
+		if normalized, err := captcha.NormalizeCapInstanceURL(capInstanceURL); err == nil {
+			capInstanceURL = normalized
+		}
+	}
+	capSiteKey := strings.TrimSpace(payload.CapSiteKey)
 
 	// 检测配置变更
 	currentCloudflareSiteKey := settings["captcha.cloudflare.site_key"]
 	currentCloudflareSecretKey := settings["captcha.cloudflare.secret_key"]
 	currentGeetestCaptchaID := settings["captcha.geetest.captcha_id"]
 	currentGeetestCaptchaKey := settings["captcha.geetest.captcha_key"]
+	currentCapInstanceURL := settings["captcha.cap.instance_url"]
+	currentCapSiteKey := settings["captcha.cap.site_key"]
+	currentCapSecretKey := settings["captcha.cap.secret_key"]
 
 	cloudflareConfigChanged := payload.CloudflareSiteKey != currentCloudflareSiteKey || cloudflareSecretKey != currentCloudflareSecretKey
 	geetestConfigChanged := payload.GeetestCaptchaID != currentGeetestCaptchaID || geetestCaptchaKey != currentGeetestCaptchaKey
+	capConfigChanged := capInstanceURL != currentCapInstanceURL || capSiteKey != currentCapSiteKey || capSecretKey != currentCapSecretKey
 
 	// 当验证码启用时，检查所选提供商是否已验证
 	if payload.EnableCaptcha {
@@ -449,6 +479,20 @@ func (s *Server) handleAdminUpdateCaptchaSettings(c *gin.Context) {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "极验配置已变更或未验证，请先点击测试并验证成功后再保存"})
 				return
 			}
+		} else if payload.CaptchaProvider == "cap" {
+			if capInstanceURL == "" || capSiteKey == "" || capSecretKey == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "使用 Cap 验证时必须填写 Instance URL、Site Key 和 Secret Key"})
+				return
+			}
+			if _, err := captcha.NormalizeCapInstanceURL(capInstanceURL); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			newCapSig := captcha.GenerateCapSignature(capInstanceURL, capSiteKey, capSecretKey)
+			if newCapSig == "" || settings["captcha.cap.last_verified_signature"] != newCapSig {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Cap 配置已变更或未验证，请先点击测试并验证成功后再保存"})
+				return
+			}
 		}
 	}
 
@@ -459,6 +503,9 @@ func (s *Server) handleAdminUpdateCaptchaSettings(c *gin.Context) {
 		"captcha.cloudflare.secret_key":   cloudflareSecretKey,
 		"captcha.geetest.captcha_id":      payload.GeetestCaptchaID,
 		"captcha.geetest.captcha_key":     geetestCaptchaKey,
+		"captcha.cap.instance_url":        capInstanceURL,
+		"captcha.cap.site_key":            capSiteKey,
+		"captcha.cap.secret_key":          capSecretKey,
 		"captcha.login":                   strconv.FormatBool(payload.EnableLoginCaptcha),
 		"captcha.register":                strconv.FormatBool(payload.EnableRegisterCaptcha),
 		"captcha.register_verify":         strconv.FormatBool(payload.EnableRegisterVerifyCaptcha),
@@ -475,6 +522,11 @@ func (s *Server) handleAdminUpdateCaptchaSettings(c *gin.Context) {
 	if geetestConfigChanged {
 		values["captcha.geetest.last_verified_signature"] = ""
 		values["captcha.geetest.last_verified_at"] = ""
+	}
+	// Cap 配置变更时清除验证状态
+	if capConfigChanged {
+		values["captcha.cap.last_verified_signature"] = ""
+		values["captcha.cap.last_verified_at"] = ""
 	}
 
 	if err := s.admin.UpdateSettings(c.Request.Context(), values); err != nil {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"skyimage/internal/captcha"
 	"skyimage/internal/files"
 )
 
@@ -133,6 +134,11 @@ func (s *Server) handleTurnstileConfig(c *gin.Context) {
 			siteKey = settings["captcha.cloudflare.site_key"]
 		} else if provider == "geetest" {
 			siteKey = settings["captcha.geetest.captcha_id"]
+		} else if provider == "cap" {
+			siteKey = settings["captcha.cap.site_key"]
+			if endpoint, err := captcha.BuildCapAPIEndpoint(settings["captcha.cap.instance_url"], siteKey); err == nil {
+				response["apiEndpoint"] = endpoint
+			}
 		}
 		if siteKey != "" {
 			response["siteKey"] = siteKey

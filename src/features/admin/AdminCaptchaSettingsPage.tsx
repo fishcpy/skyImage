@@ -24,16 +24,25 @@ import {
 import { SplashScreen } from "@/components/SplashScreen";
 import { Turnstile, type TurnstileRef } from "@/components/Turnstile";
 import { Geetest, type GeetestRef } from "@/components/Geetest";
+import { CapWidget, type CapWidgetRef } from "@/components/CapWidget";
 import { loadTurnstileScript } from "@/lib/turnstile";
 import { loadGeetestScript } from "@/lib/geetest";
+import { buildCapApiEndpoint, loadCapWidget } from "@/lib/cap";
 import { useI18n } from "@/i18n";
 
-type CaptchaProvider = "cloudflare" | "geetest" | "";
+type CaptchaProvider = "cloudflare" | "geetest" | "cap" | "";
 
 interface ProviderStatus {
   verified: boolean;
   lastVerifiedAt: string | null;
   canUse: boolean;
+}
+
+function providerLabel(provider: CaptchaProvider): string {
+  if (provider === "cloudflare") return "Cloudflare Turnstile";
+  if (provider === "geetest") return "Geetest";
+  if (provider === "cap") return "Cap";
+  return "";
 }
 
 export function AdminCaptchaSettingsPage() {
@@ -54,6 +63,10 @@ export function AdminCaptchaSettingsPage() {
     geetestCaptchaId: "",
     geetestCaptchaKey: "",
 
+    capInstanceUrl: "",
+    capSiteKey: "",
+    capSecretKey: "",
+
     enableLoginCaptcha: false,
     enableRegisterCaptcha: false,
     enableRegisterVerifyCaptcha: false,
@@ -64,24 +77,30 @@ export function AdminCaptchaSettingsPage() {
   const [providerStatus, setProviderStatus] = useState<{
     cloudflare: ProviderStatus;
     geetest: ProviderStatus;
+    cap: ProviderStatus;
   }>({
     cloudflare: { verified: false, lastVerifiedAt: null, canUse: false },
     geetest: { verified: false, lastVerifiedAt: null, canUse: false },
+    cap: { verified: false, lastVerifiedAt: null, canUse: false },
   });
 
   const [showTester, setShowTester] = useState<{
     cloudflare: boolean;
     geetest: boolean;
+    cap: boolean;
   }>({
     cloudflare: false,
     geetest: false,
+    cap: false,
   });
 
   const [turnstileReady, setTurnstileReady] = useState(false);
   const [geetestReady, setGeetestReady] = useState(false);
+  const [capReady, setCapReady] = useState(false);
   const [initialForm, setInitialForm] = useState<typeof form | null>(null);
   const turnstileRef = useRef<TurnstileRef>(null);
   const geetestRef = useRef<GeetestRef>(null);
+  const capRef = useRef<CapWidgetRef>(null);
 
   useEffect(() => {
     if (data) {
@@ -94,6 +113,10 @@ export function AdminCaptchaSettingsPage() {
 
         geetestCaptchaId: data.geetestCaptchaId || "",
         geetestCaptchaKey: data.geetestCaptchaKey || "",
+
+        capInstanceUrl: data.capInstanceUrl || "",
+        capSiteKey: data.capSiteKey || "",
+        capSecretKey: data.capSecretKey || "",
 
         enableLoginCaptcha: data.enableLoginCaptcha ?? false,
         enableRegisterCaptcha: data.enableRegisterCaptcha ?? false,
@@ -114,6 +137,11 @@ export function AdminCaptchaSettingsPage() {
           verified: data.geetestVerified || false,
           lastVerifiedAt: data.geetestLastVerifiedAt || null,
           canUse: !!(data.geetestCaptchaId && data.geetestCaptchaKey && data.geetestVerified),
+        },
+        cap: {
+          verified: data.capVerified || false,
+          lastVerifiedAt: data.capLastVerifiedAt || null,
+          canUse: !!(data.capInstanceUrl && data.capSiteKey && data.capSecretKey && data.capVerified),
         },
       });
     }
@@ -195,6 +223,37 @@ export function AdminCaptchaSettingsPage() {
     }
   });
 
+  const testCapMutation = useMutation({
+    mutationFn: testCaptchaConfig,
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success(t("admin.captchaSettings.cap.verifiedSuccess"));
+        setProviderStatus(prev => ({
+          ...prev,
+          cap: {
+            verified: true,
+            lastVerifiedAt: result.verifiedAt || new Date().toISOString(),
+            canUse: true,
+          }
+        }));
+        setShowTester(prev => ({ ...prev, cap: false }));
+      } else {
+        setProviderStatus(prev => ({
+          ...prev,
+          cap: { ...prev.cap, verified: false, canUse: false }
+        }));
+        toast.error(result.message || t("admin.captchaSettings.cap.verifyFailed"));
+      }
+    },
+    onError: (error) => {
+      setProviderStatus(prev => ({
+        ...prev,
+        cap: { ...prev.cap, verified: false, canUse: false }
+      }));
+      toast.error(error.message);
+    }
+  });
+
   if (isLoading) {
     return <SplashScreen message={t("admin.captchaSettings.loading")} />;
   }
@@ -229,6 +288,12 @@ export function AdminCaptchaSettingsPage() {
         geetest: { verified: false, lastVerifiedAt: null, canUse: false }
       }));
     }
+    if (field === "capInstanceUrl" || field === "capSiteKey" || field === "capSecretKey") {
+      setProviderStatus(prev => ({
+        ...prev,
+        cap: { verified: false, lastVerifiedAt: null, canUse: false }
+      }));
+    }
 
     if (field === "enableCaptcha" && actualValue === true) {
       const provider = form.captchaProvider;
@@ -236,7 +301,7 @@ export function AdminCaptchaSettingsPage() {
         toast.error(t("admin.captchaSettings.selectProviderFirst"));
         return;
       }
-      const status = providerStatus[provider as "cloudflare" | "geetest"];
+      const status = providerStatus[provider as "cloudflare" | "geetest" | "cap"];
       if (!status?.canUse) {
         toast.error(t("admin.captchaSettings.testProviderFirst"));
         return;
@@ -244,8 +309,8 @@ export function AdminCaptchaSettingsPage() {
     }
 
     if (field === "captchaProvider" && actualValue && form.enableCaptcha) {
-      if (actualValue === "cloudflare" || actualValue === "geetest") {
-        const status = providerStatus[actualValue as "cloudflare" | "geetest"];
+      if (actualValue === "cloudflare" || actualValue === "geetest" || actualValue === "cap") {
+        const status = providerStatus[actualValue as "cloudflare" | "geetest" | "cap"];
         if (!status?.canUse) {
           toast.error(t("admin.captchaSettings.providerNotTested"));
           return;
@@ -325,6 +390,30 @@ export function AdminCaptchaSettingsPage() {
     });
   };
 
+  const startCapTest = () => {
+    if (!form.capInstanceUrl || !form.capSiteKey || !form.capSecretKey) {
+      toast.error(t("admin.captchaSettings.cap.keysRequired"));
+      return;
+    }
+    setShowTester(prev => ({ ...prev, cap: true }));
+    setCapReady(false);
+    loadCapWidget()
+      .then(() => setCapReady(true))
+      .catch(() => {
+        toast.error(t("admin.captchaSettings.cap.loadScriptFailed"));
+      });
+  };
+
+  const handleCapVerify = (token: string) => {
+    testCapMutation.mutate({
+      provider: "cap",
+      instanceUrl: form.capInstanceUrl,
+      siteKey: form.capSiteKey,
+      secretKey: form.capSecretKey,
+      token
+    });
+  };
+
   const isFormDirty = initialForm
     ? Object.keys(form).some((key) => initialForm[key as keyof typeof form] !== form[key as keyof typeof form])
     : false;
@@ -344,8 +433,15 @@ export function AdminCaptchaSettingsPage() {
       value: "geetest",
       label: providerStatus.geetest.canUse ? "Geetest" : t("admin.captchaSettings.geetest.unverified"),
       disabled: !providerStatus.geetest.canUse
+    },
+    {
+      value: "cap",
+      label: providerStatus.cap.canUse ? "Cap" : t("admin.captchaSettings.cap.unverified"),
+      disabled: !providerStatus.cap.canUse
     }
   ];
+
+  const capApiEndpoint = buildCapApiEndpoint(form.capInstanceUrl, form.capSiteKey);
 
   return (
     <div className="space-y-6">
@@ -409,7 +505,7 @@ export function AdminCaptchaSettingsPage() {
             <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
               <Info className="h-4 w-4 flex-shrink-0" />
               <div>
-                {t("admin.captchaSettings.currentProvider")}: <strong>{form.captchaProvider === "cloudflare" ? "Cloudflare Turnstile" : "Geetest"}</strong>
+                {t("admin.captchaSettings.currentProvider")}: <strong>{providerLabel(form.captchaProvider)}</strong>
               </div>
             </div>
           )}
@@ -586,6 +682,113 @@ export function AdminCaptchaSettingsPage() {
                 Cloudflare Turnstile
               </a>{" "}
               {t("admin.captchaSettings.cloudflare.guide")}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Cap Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("admin.captchaSettings.cap.title")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>{t("admin.captchaSettings.cap.instanceUrl")}</Label>
+            <Input
+              value={form.capInstanceUrl}
+              onChange={(e) => handleChange("capInstanceUrl", e.target.value.trim())}
+              placeholder="https://cap.example.com"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>{t("admin.captchaSettings.cap.siteKey")}</Label>
+            <Input
+              value={form.capSiteKey}
+              onChange={(e) => handleChange("capSiteKey", e.target.value.trim())}
+              placeholder="d9256640cb53"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>{t("admin.captchaSettings.cap.secretKey")}</Label>
+            <Input
+              type="password"
+              value={form.capSecretKey}
+              onChange={(e) => handleChange("capSecretKey", e.target.value)}
+              placeholder={t("admin.captchaSettings.cap.secretKeyPlaceholder")}
+            />
+          </div>
+
+          <div className="space-y-3 rounded-md border border-dashed p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">{t("admin.captchaSettings.testStatus")}</p>
+                <p className="text-xs text-muted-foreground">
+                  {providerStatus.cap.verified
+                    ? `${t("admin.captchaSettings.verified")} (${new Date(providerStatus.cap.lastVerifiedAt!).toLocaleString()})`
+                    : t("admin.captchaSettings.testRequired")
+                  }
+                </p>
+              </div>
+              {providerStatus.cap.verified ? (
+                <CheckCircle2 className="h-5 w-5 text-green-500" />
+              ) : (
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={startCapTest}
+              disabled={!form.capInstanceUrl || !form.capSiteKey || !form.capSecretKey || testCapMutation.isPending}
+              className="w-full"
+            >
+              {testCapMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t("admin.captchaSettings.verifying")}
+                </>
+              ) : showTester.cap || providerStatus.cap.verified ? (
+                t("admin.captchaSettings.retest")
+              ) : (
+                t("admin.captchaSettings.startTest")
+              )}
+            </Button>
+            {showTester.cap && (
+              <div className="rounded-md border p-4 text-center space-y-3">
+                {!capReady && (
+                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {t("admin.captchaSettings.loadingWidget")}
+                  </div>
+                )}
+                {capReady && capApiEndpoint && (
+                  <div className="flex justify-center">
+                    <CapWidget
+                      ref={capRef}
+                      apiEndpoint={capApiEndpoint}
+                      onVerify={handleCapVerify}
+                      onError={() => toast.error(t("admin.captchaSettings.widgetError"))}
+                      onExpire={() => {}}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-md bg-muted p-3 text-sm">
+            <p className="font-medium mb-1">{t("admin.captchaSettings.getKeys")}</p>
+            <p className="text-muted-foreground">
+              <a
+                href="https://trycap.dev/guide/standalone/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                Cap Standalone
+              </a>{" "}
+              {t("admin.captchaSettings.cap.guide")}
             </p>
           </div>
         </CardContent>

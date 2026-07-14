@@ -146,8 +146,9 @@ export function LoginForm({
                   <div className="flex justify-center">
                     <UnifiedCaptcha
                       ref={captchaRef}
-                      provider={captchaConfig.provider as "cloudflare" | "geetest"}
+                      provider={captchaConfig.provider as "cloudflare" | "geetest" | "cap"}
                       siteKey={captchaConfig.siteKey}
+                      apiEndpoint={captchaConfig.apiEndpoint}
                       onVerify={handleCaptchaVerify}
                       onError={() => {
                         setCaptchaToken("");
@@ -157,7 +158,10 @@ export function LoginForm({
                       onExpire={() => {
                         setCaptchaToken("");
                         setCaptchaData(undefined);
-                        toast.warning(t("login.turnstileExpired"));
+                        // 登录成功跳转卸载组件时可能触发 cap reset，勿在成功/提交中提示过期
+                        if (!mutation.isPending && !mutation.isSuccess) {
+                          toast.warning(t("login.turnstileExpired"));
+                        }
                       }}
                     />
                   </div>

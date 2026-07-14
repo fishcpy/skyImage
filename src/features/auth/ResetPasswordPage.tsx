@@ -144,8 +144,9 @@ export function ResetPasswordPage() {
               <div className="flex justify-center">
                 <UnifiedCaptcha
                   ref={captchaRef}
-                  provider={captchaConfig.provider as "cloudflare" | "geetest"}
+                  provider={captchaConfig.provider as "cloudflare" | "geetest" | "cap"}
                   siteKey={captchaConfig.siteKey}
+                  apiEndpoint={captchaConfig.apiEndpoint}
                   onVerify={(token, extraData) => {
                     setCaptchaToken(token);
                     setCaptchaData(extraData);

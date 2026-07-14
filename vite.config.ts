@@ -22,6 +22,7 @@ export default defineConfig(({ mode }) => {
       extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json"]
     },
     server: {
+      host: true,
       port: 5173,
       proxy: apiBase
         ? undefined
