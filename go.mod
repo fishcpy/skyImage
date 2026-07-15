@@ -15,7 +15,7 @@ require (
 	github.com/pkg/sftp v1.13.10
 	github.com/spf13/viper v1.18.2
 	golang.org/x/crypto v0.52.0
-	golang.org/x/image v0.38.0
+	golang.org/x/image v0.41.0
 	gorm.io/datatypes v1.2.0
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/postgres v1.6.0
