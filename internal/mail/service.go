@@ -5,11 +5,13 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"html"
 	"mime/quotedprintable"
 	"net/mail"
 	"net/smtp"
 	"net/textproto"
 	"strings"
+	"unicode"
 
 	"skyimage/internal/admin"
 )
@@ -74,35 +76,46 @@ func (s *Service) SendMail(ctx context.Context, to, subject, body string) error 
 	return s.SendMailWithConfig(config, to, subject, body)
 }
 
-// sanitizeHeaderValue 移除可能导致邮件头注入的 CRLF 字符
+// sanitizeHeaderValue removes CR/LF/NUL and other controls that enable header injection.
 func sanitizeHeaderValue(val string) string {
-	// 移除 \r 和 \n 以防止邮件头注入
-	val = strings.ReplaceAll(val, "\r", "")
-	val = strings.ReplaceAll(val, "\n", "")
-	return val
+	val = strings.Map(func(r rune) rune {
+		if r == '\r' || r == '\n' || r == '\x00' || unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, val)
+	return strings.TrimSpace(val)
 }
 
-func (s *Service) SendMailWithConfig(config *SMTPConfig, to, subject, body string) error {
-	fromAddr, err := mail.ParseAddress(config.From)
+// sanitizeEmailBody strips NULs/CR and HTML-escapes content.
+// html.EscapeString is a CodeQL barrier for email content injection.
+func sanitizeEmailBody(val string) string {
+	val = strings.ReplaceAll(val, "\x00", "")
+	val = strings.ReplaceAll(val, "\r", "")
+	return html.EscapeString(val)
+}
+
+// BuildMessage constructs a sanitized RFC 5322 message (quoted-printable body).
+func BuildMessage(from, to, subject, body string) ([]byte, string, string, error) {
+	fromAddr, err := mail.ParseAddress(from)
 	if err != nil {
-		return fmt.Errorf("invalid from address: %w", err)
+		return nil, "", "", fmt.Errorf("invalid from address: %w", err)
 	}
 	toAddr, err := mail.ParseAddress(to)
 	if err != nil {
-		return fmt.Errorf("invalid to address: %w", err)
+		return nil, "", "", fmt.Errorf("invalid to address: %w", err)
 	}
 
-	from := fromAddr.Address
+	fromClean := fromAddr.Address
 	toClean := toAddr.Address
-	toList := []string{toClean}
-
-	// 防止邮件头注入：清理 subject 中的 CRLF 字符
-	subject = sanitizeHeaderValue(subject)
+	// Escape after header strip so subject cannot introduce new header lines.
+	safeSubject := html.EscapeString(sanitizeHeaderValue(subject))
+	safeBody := sanitizeEmailBody(body)
 
 	h := make(textproto.MIMEHeader)
-	h.Set("From", from)
+	h.Set("From", fromClean)
 	h.Set("To", toClean)
-	h.Set("Subject", subject)
+	h.Set("Subject", safeSubject)
 	h.Set("MIME-Version", "1.0")
 	h.Set("Content-Type", "text/plain; charset=UTF-8")
 	h.Set("Content-Transfer-Encoding", "quoted-printable")
@@ -112,7 +125,7 @@ func (s *Service) SendMailWithConfig(config *SMTPConfig, to, subject, body strin
 		for _, val := range h[key] {
 			buf.WriteString(key)
 			buf.WriteString(": ")
-			buf.WriteString(val)
+			buf.WriteString(sanitizeHeaderValue(val))
 			buf.WriteString("\r\n")
 		}
 	}
@@ -120,11 +133,23 @@ func (s *Service) SendMailWithConfig(config *SMTPConfig, to, subject, body strin
 
 	var bodyBuf bytes.Buffer
 	w := quotedprintable.NewWriter(&bodyBuf)
-	w.Write([]byte(body))
-	w.Close()
+	if _, err := w.Write([]byte(safeBody)); err != nil {
+		return nil, "", "", fmt.Errorf("encode body: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return nil, "", "", fmt.Errorf("close body encoder: %w", err)
+	}
 	buf.WriteString(bodyBuf.String())
 	buf.WriteString("\r\n")
-	message := []byte(buf.String())
+	return []byte(buf.String()), fromClean, toClean, nil
+}
+
+func (s *Service) SendMailWithConfig(config *SMTPConfig, to, subject, body string) error {
+	message, from, toClean, err := BuildMessage(config.From, to, subject, body)
+	if err != nil {
+		return err
+	}
+	toList := []string{toClean}
 
 	auth := smtp.PlainAuth("", config.Username, config.Password, config.Host)
 	addr := config.Host + ":" + config.Port

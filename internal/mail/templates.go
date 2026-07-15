@@ -3,6 +3,7 @@ package mail
 import (
 	"strings"
 	"time"
+	"unicode"
 )
 
 type TemplateKey string
@@ -161,11 +162,17 @@ func defaultTemplateContent(key TemplateKey) TemplateContent {
 	return def.Default
 }
 
-// sanitizeTemplateValue 移除可能导致邮件内容/结构被污染的控制字符
+// sanitizeTemplateValue removes control characters that could pollute headers/body structure.
 func sanitizeTemplateValue(val string) string {
-	val = strings.ReplaceAll(val, "\r", "")
-	val = strings.ReplaceAll(val, "\n", "")
-	val = strings.ReplaceAll(val, "\x00", "")
+	val = strings.Map(func(r rune) rune {
+		if r == '\t' {
+			return r
+		}
+		if r == '\r' || r == '\n' || r == '\x00' || unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, val)
 	return strings.TrimSpace(val)
 }
 

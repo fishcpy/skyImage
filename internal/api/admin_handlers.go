@@ -1,15 +1,9 @@
 package api
 
 import (
-	"bytes"
-	"crypto/tls"
 	"errors"
 	"io"
-	"mime/quotedprintable"
 	"net/http"
-	"net/mail"
-	"net/smtp"
-	"net/textproto"
 	"strconv"
 	"strings"
 	"time"
@@ -844,166 +838,28 @@ func (s *Server) handleAdminTestSMTP(c *gin.Context) {
 		},
 	)
 
-	fromRaw := payload.SMTPFrom
+	fromRaw := strings.TrimSpace(payload.SMTPFrom)
 	if fromRaw == "" {
 		fromRaw = payload.SMTPUsername
 	}
-	fromAddr, err := mail.ParseAddress(fromRaw)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid from address"})
+
+	cfg := &mailservice.SMTPConfig{
+		Host:     strings.TrimSpace(payload.SMTPHost),
+		Port:     strings.TrimSpace(payload.SMTPPort),
+		Username: payload.SMTPUsername,
+		Password: payload.SMTPPassword,
+		From:     fromRaw,
+		Secure:   payload.SMTPSecure,
+	}
+
+	if err := s.mail.SendMailWithConfig(cfg, payload.TestEmail, template.Subject, template.Body); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"data": gin.H{
+				"success": false,
+				"message": "发送邮件失败: " + err.Error(),
+			},
+		})
 		return
-	}
-	toAddr, err := mail.ParseAddress(payload.TestEmail)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test email address"})
-		return
-	}
-
-	from := fromAddr.Address
-	to := []string{toAddr.Address}
-
-	h := make(textproto.MIMEHeader)
-	h.Set("From", from)
-	h.Set("To", toAddr.Address)
-	// 防止邮件头注入：清理 subject 中的 CRLF 字符
-	sanitizedSubject := strings.ReplaceAll(template.Subject, "\r", "")
-	sanitizedSubject = strings.ReplaceAll(sanitizedSubject, "\n", "")
-	h.Set("Subject", sanitizedSubject)
-	h.Set("MIME-Version", "1.0")
-	h.Set("Content-Type", "text/plain; charset=UTF-8")
-	h.Set("Content-Transfer-Encoding", "quoted-printable")
-
-	var msgBuf strings.Builder
-	for _, key := range []string{"From", "To", "Subject", "Mime-Version", "Content-Type", "Content-Transfer-Encoding"} {
-		for _, val := range h[key] {
-			msgBuf.WriteString(key)
-			msgBuf.WriteString(": ")
-			msgBuf.WriteString(val)
-			msgBuf.WriteString("\r\n")
-		}
-	}
-	msgBuf.WriteString("\r\n")
-
-	var bodyBuf bytes.Buffer
-	qw := quotedprintable.NewWriter(&bodyBuf)
-	qw.Write([]byte(template.Body))
-	qw.Close()
-	msgBuf.WriteString(bodyBuf.String())
-	msgBuf.WriteString("\r\n")
-	message := []byte(msgBuf.String())
-
-	// 构建认证
-	auth := smtp.PlainAuth("", payload.SMTPUsername, payload.SMTPPassword, payload.SMTPHost)
-
-	// 发送邮件
-	addr := payload.SMTPHost + ":" + payload.SMTPPort
-
-	if payload.SMTPSecure {
-		// 使用 TLS
-		tlsConfig := &tls.Config{
-			ServerName: payload.SMTPHost,
-		}
-
-		conn, err := tls.Dial("tcp", addr, tlsConfig)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"data": gin.H{
-					"success": false,
-					"message": "连接 SMTP 服务器失败: " + err.Error(),
-				},
-			})
-			return
-		}
-		defer conn.Close()
-
-		client, err := smtp.NewClient(conn, payload.SMTPHost)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"data": gin.H{
-					"success": false,
-					"message": "创建 SMTP 客户端失败: " + err.Error(),
-				},
-			})
-			return
-		}
-		defer client.Close()
-
-		if err = client.Auth(auth); err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"data": gin.H{
-					"success": false,
-					"message": "SMTP 认证失败: " + err.Error(),
-				},
-			})
-			return
-		}
-
-		if err = client.Mail(from); err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"data": gin.H{
-					"success": false,
-					"message": "设置发件人失败: " + err.Error(),
-				},
-			})
-			return
-		}
-
-		for _, rcpt := range to {
-			if err = client.Rcpt(rcpt); err != nil {
-				c.JSON(http.StatusOK, gin.H{
-					"data": gin.H{
-						"success": false,
-						"message": "设置收件人失败: " + err.Error(),
-					},
-				})
-				return
-			}
-		}
-
-		w, err := client.Data()
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"data": gin.H{
-					"success": false,
-					"message": "准备邮件数据失败: " + err.Error(),
-				},
-			})
-			return
-		}
-
-		if _, err = w.Write(message); err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"data": gin.H{
-					"success": false,
-					"message": "写入邮件数据失败: " + err.Error(),
-				},
-			})
-			return
-		}
-
-		if err = w.Close(); err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"data": gin.H{
-					"success": false,
-					"message": "关闭邮件数据流失败: " + err.Error(),
-				},
-			})
-			return
-		}
-
-		client.Quit()
-	} else {
-		// 不使用 TLS
-		err := smtp.SendMail(addr, auth, from, to, message)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"data": gin.H{
-					"success": false,
-					"message": "发送邮件失败: " + err.Error(),
-				},
-			})
-			return
-		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
