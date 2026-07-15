@@ -1,10 +1,12 @@
-import { Loader2 } from "lucide-react";
+import { GaugeCircle, Home, Loader2 } from "lucide-react";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { PaletteToggle } from "@/components/PaletteToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/state/auth";
 import { useI18n } from "@/i18n";
+import { cn } from "@/lib/utils";
 
 type PublicTopNavProps = {
   title?: string;
@@ -40,25 +42,37 @@ export function PublicTopNav({ title, description, compact = false, floating = f
             <p className="text-sm text-muted-foreground">{description || ""}</p>
           </div>
         </Link>
-        <div className="flex items-center gap-3">
-          <nav className="hidden items-center gap-3 text-sm sm:flex">
-            <Link
-              to="/"
-              className={`transition-colors hover:text-foreground ${
-                isHome ? "font-medium text-foreground" : "text-muted-foreground"
-              }`}
+        <div className="flex items-center gap-2">
+          <nav className="flex items-center gap-1">
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-8 gap-1.5 px-2 text-muted-foreground",
+                isHome && "bg-accent font-medium text-foreground"
+              )}
             >
-              {t("nav.home")}
-            </Link>
-            {token && (
-              <Link
-                to="/dashboard"
-                className={`transition-colors hover:text-foreground ${
-                  isDashboard ? "font-medium text-foreground" : "text-muted-foreground"
-                }`}
-              >
-                {t("nav.dashboard")}
+              <Link to="/">
+                <Home className="h-4 w-4" />
+                <span className="hidden sm:inline">{t("nav.home")}</span>
               </Link>
+            </Button>
+            {token && (
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "h-8 gap-1.5 px-2 text-muted-foreground",
+                  isDashboard && "bg-accent font-medium text-foreground"
+                )}
+              >
+                <Link to="/dashboard">
+                  <GaugeCircle className="h-4 w-4" />
+                  <span className="hidden sm:inline">{t("nav.dashboard")}</span>
+                </Link>
+              </Button>
             )}
           </nav>
           <LanguageToggle iconOnly />

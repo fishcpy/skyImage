@@ -221,8 +221,8 @@ export function ConfigDrawer({
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button size="icon" variant="ghost" aria-label={text.openSettingsAria} className="rounded-full">
-          <Settings aria-hidden="true" />
+        <Button size="icon" variant="ghost" aria-label={text.openSettingsAria} className="h-9 w-9">
+          <Settings aria-hidden="true" className="h-4 w-4" />
         </Button>
       </SheetTrigger>
       <SheetContent className="flex flex-col">

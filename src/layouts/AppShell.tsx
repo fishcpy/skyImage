@@ -1,11 +1,13 @@
-import { Outlet } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { GaugeCircle, Home } from "lucide-react";
 
 import { CapacityMeter } from "@/components/CapacityMeter";
 import { ConfigDrawer, type SidebarCollapsibleMode, type SidebarVariantMode } from "@/components/ConfigDrawer";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -23,12 +25,15 @@ import { Search } from "@/components/Search";
 import { buildNavSections } from "@/lib/navigation";
 import { NavGroup } from "@/components/layout/NavGroup";
 import { NavUser } from "@/components/layout/NavUser";
+import { cn } from "@/lib/utils";
 
 export function AppShell() {
   const { t } = useI18n();
+  const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const clear = useAuthStore((state) => state.clear);
   const isAdmin = user?.isAdmin;
+  const isDashboardHome = location.pathname === "/dashboard" || location.pathname === "/dashboard/";
   
   const [sidebarVariant, setSidebarVariant] = useState<SidebarVariantMode>(() => {
     if (typeof window === "undefined") {
@@ -156,6 +161,28 @@ export function AppShell() {
             <Search placeholder={t("search.placeholder")} />
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <nav className="flex items-center gap-1">
+              <Button asChild variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-muted-foreground">
+                <Link to="/">
+                  <Home className="h-4 w-4" />
+                  <span className="hidden sm:inline">{t("nav.home")}</span>
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "h-8 gap-1.5 px-2 text-muted-foreground",
+                  isDashboardHome && "bg-accent font-medium text-foreground"
+                )}
+              >
+                <Link to="/dashboard">
+                  <GaugeCircle className="h-4 w-4" />
+                  <span className="hidden sm:inline">{t("nav.dashboard")}</span>
+                </Link>
+              </Button>
+            </nav>
             <LanguageToggle iconOnly />
             <ThemeToggle iconOnly />
             <ConfigDrawer
