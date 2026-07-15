@@ -374,6 +374,9 @@ func (s *Service) DeleteUser(ctx context.Context, actor data.User, userID uint) 
 		}
 		for _, asset := range assets {
 			_ = os.Remove(asset.Path)
+			if asset.ThumbnailPath != "" {
+				_ = os.Remove(asset.ThumbnailPath)
+			}
 		}
 		return nil
 	})
@@ -403,6 +406,9 @@ func (s *Service) DeleteOwnAccount(ctx context.Context, userID uint) error {
 		}
 		for _, asset := range assets {
 			_ = os.Remove(asset.Path)
+			if asset.ThumbnailPath != "" {
+				_ = os.Remove(asset.ThumbnailPath)
+			}
 		}
 		return nil
 	})

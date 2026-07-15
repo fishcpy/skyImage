@@ -353,6 +353,11 @@ func (h *LskyV1Handler) UploadImage(c *gin.Context) {
 		return
 	}
 	thumbnailURL := imageURL
+	if viewer, ok := middleware.CurrentUser(c); ok && files.CanAccessThumbnail(asset, &viewer) {
+		if raw := strings.TrimSpace(asset.ThumbnailPublicURL); raw != "" {
+			thumbnailURL = raw
+		}
+	}
 	embeds := files.BuildImageEmbedCodes(asset.Name, imageURL)
 
 	c.Header("X-RateLimit-Limit", "60")
@@ -442,9 +447,16 @@ func (h *LskyV1Handler) GetImages(c *gin.Context) {
 		return
 	}
 
+	viewer, _ := middleware.CurrentUser(c)
 	var result []gin.H
 	for _, img := range images {
 		imageURL := h.resolveAssetPublicURL(c, img)
+		thumbnailURL := imageURL
+		if files.CanAccessThumbnail(img, &viewer) {
+			if raw := strings.TrimSpace(img.ThumbnailPublicURL); raw != "" {
+				thumbnailURL = raw
+			}
+		}
 		embeds := files.BuildImageEmbedCodes(img.Name, imageURL)
 		result = append(result, gin.H{
 			"key":         img.Key,
@@ -464,7 +476,7 @@ func (h *LskyV1Handler) GetImages(c *gin.Context) {
 				"bbcode":             fmt.Sprintf(`[img]%s[/img]`, imageURL),
 				"markdown":           embeds.Markdown,
 				"markdown_with_link": embeds.MarkdownWithLink,
-				"thumbnail_url":      imageURL,
+				"thumbnail_url":      thumbnailURL,
 			},
 		})
 	}

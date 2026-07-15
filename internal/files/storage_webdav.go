@@ -141,53 +141,70 @@ func (s *Service) storeWebDAVObject(ctx context.Context, cfg strategyConfig, rel
 }
 
 func (s *Service) deleteStoredObject(ctx context.Context, db *gorm.DB, file data.FileAsset) error {
+	// Always best-effort remove thumbnail first (may live on a different storage strategy).
+	thumbErr := s.deleteThumbnailObject(ctx, db, file)
+
 	driver := strings.ToLower(strings.TrimSpace(file.StorageProvider))
 	if driver == "" {
 		driver = "local"
 	}
-	if isS3CompatibleDriver(driver) {
-		var strategy data.Strategy
-		if err := db.WithContext(ctx).First(&strategy, file.StrategyID).Error; err != nil {
-			return err
-		}
-		cfg := s.parseStrategyConfig(strategy)
-		return s.deleteS3Object(ctx, cfg, file)
-	}
-	if driver == "ftp" {
-		var strategy data.Strategy
-		if err := db.WithContext(ctx).First(&strategy, file.StrategyID).Error; err != nil {
-			return err
-		}
-		cfg := s.parseStrategyConfig(strategy)
-		return s.deleteFTPObject(ctx, cfg, file)
-	}
-	if driver == "sftp" {
-		var strategy data.Strategy
-		if err := db.WithContext(ctx).First(&strategy, file.StrategyID).Error; err != nil {
-			return err
-		}
-		cfg := s.parseStrategyConfig(strategy)
-		return s.deleteSFTPObject(ctx, cfg, file)
-	}
-	if driver != "webdav" {
-		return removeFile(file.Path)
-	}
-
 	var strategy data.Strategy
-	if err := db.WithContext(ctx).First(&strategy, file.StrategyID).Error; err != nil {
-		return err
+	if file.StrategyID != 0 {
+		if err := db.WithContext(ctx).First(&strategy, file.StrategyID).Error; err != nil {
+			if driver == "local" || driver == "" {
+				origErr := removeFile(file.Path)
+				if origErr != nil {
+					return origErr
+				}
+				return thumbErr
+			}
+			if thumbErr != nil {
+				return thumbErr
+			}
+			return err
+		}
 	}
 	cfg := s.parseStrategyConfig(strategy)
-	client := newWebDAVHTTPClient(cfg)
-	objectURL := strings.TrimSpace(file.Path)
-	if objectURL == "" {
-		var err error
-		objectURL, err = buildWebDAVObjectURL(cfg, file.RelativePath)
-		if err != nil {
-			return err
-		}
+	if strings.TrimSpace(cfg.Driver) == "" {
+		cfg.Driver = driver
 	}
-	return webDAVDelete(ctx, client, cfg, objectURL)
+	origErr := s.deleteStoredObjectDirect(ctx, db, cfg, file)
+	if origErr != nil {
+		return origErr
+	}
+	return thumbErr
+}
+
+func (s *Service) deleteStoredObjectDirect(ctx context.Context, db *gorm.DB, cfg strategyConfig, file data.FileAsset) error {
+	driver := strings.ToLower(strings.TrimSpace(file.StorageProvider))
+	if driver == "" {
+		driver = strings.ToLower(strings.TrimSpace(cfg.Driver))
+	}
+	if driver == "" {
+		driver = "local"
+	}
+
+	switch {
+	case isS3CompatibleDriver(driver):
+		return s.deleteS3Object(ctx, cfg, file)
+	case driver == "ftp":
+		return s.deleteFTPObject(ctx, cfg, file)
+	case driver == "sftp":
+		return s.deleteSFTPObject(ctx, cfg, file)
+	case driver == "webdav":
+		client := newWebDAVHTTPClient(cfg)
+		objectURL := strings.TrimSpace(file.Path)
+		if objectURL == "" {
+			var err error
+			objectURL, err = buildWebDAVObjectURL(cfg, file.RelativePath)
+			if err != nil {
+				return err
+			}
+		}
+		return webDAVDelete(ctx, client, cfg, objectURL)
+	default:
+		return removeFile(file.Path)
+	}
 }
 
 func newWebDAVHTTPClient(cfg strategyConfig) *http.Client {

@@ -12,6 +12,7 @@ import (
 
 	webp "github.com/HugoSmits86/nativewebp"
 	"golang.org/x/image/bmp"
+	"golang.org/x/image/draw"
 	"golang.org/x/image/tiff"
 	webpdecode "golang.org/x/image/webp"
 )
@@ -189,4 +190,111 @@ func GetExtensionForMimeType(mimeType string) string {
 	default:
 		return ""
 	}
+}
+
+type ThumbnailConfig struct {
+	MaxSize  int
+	Quality  int
+	Format   string
+}
+
+// GenerateThumbnail creates a small cover image while preserving aspect ratio.
+// MaxSize limits the longer edge. Returns jpeg by default for small size.
+func GenerateThumbnail(data []byte, mimeType string, config ThumbnailConfig) ([]byte, string, int, int, error) {
+	if !isSupportedImageFormat(mimeType, nil) {
+		return nil, "", 0, 0, fmt.Errorf("unsupported image format for thumbnail: %s", mimeType)
+	}
+
+	img, _, err := decodeImage(bytes.NewReader(data), mimeType)
+	if err != nil {
+		return nil, "", 0, 0, fmt.Errorf("failed to decode image: %w", err)
+	}
+
+	bounds := img.Bounds()
+	origW := bounds.Dx()
+	origH := bounds.Dy()
+	if origW <= 0 || origH <= 0 {
+		return nil, "", 0, 0, fmt.Errorf("invalid image dimensions")
+	}
+
+	maxSize := config.MaxSize
+	if maxSize <= 0 {
+		maxSize = 400
+	}
+
+	newW, newH := origW, origH
+	if origW > maxSize || origH > maxSize {
+		if origW >= origH {
+			newW = maxSize
+			newH = int(float64(origH) * float64(maxSize) / float64(origW))
+		} else {
+			newH = maxSize
+			newW = int(float64(origW) * float64(maxSize) / float64(origH))
+		}
+		if newW < 1 {
+			newW = 1
+		}
+		if newH < 1 {
+			newH = 1
+		}
+	}
+
+	var out image.Image = img
+	if newW != origW || newH != origH {
+		dst := image.NewRGBA(image.Rect(0, 0, newW, newH))
+		draw.CatmullRom.Scale(dst, dst.Bounds(), img, bounds, draw.Over, nil)
+		out = dst
+	}
+
+	format := normalizeImageFormat(config.Format)
+	if format == "" {
+		format = "jpeg"
+	}
+	switch format {
+	case "jpeg", "png", "webp":
+	default:
+		format = "jpeg"
+	}
+
+	quality := config.Quality
+	if quality <= 0 || quality > 100 {
+		quality = 25
+	}
+
+	var buf bytes.Buffer
+	mimeOut, err := encodeImage(&buf, out, format, quality)
+	if err != nil {
+		return nil, "", origW, origH, err
+	}
+	return buf.Bytes(), mimeOut, origW, origH, nil
+}
+
+// ReadImageDimensions returns width/height without resizing.
+func ReadImageDimensions(data []byte, mimeType string) (int, int, error) {
+	if !isSupportedImageFormat(mimeType, nil) {
+		return 0, 0, fmt.Errorf("unsupported image format")
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err == nil && cfg.Width > 0 && cfg.Height > 0 {
+		return cfg.Width, cfg.Height, nil
+	}
+	img, _, err := decodeImage(bytes.NewReader(data), mimeType)
+	if err != nil {
+		return 0, 0, err
+	}
+	b := img.Bounds()
+	return b.Dx(), b.Dy(), nil
+}
+
+func buildThumbnailRelativePath(relativePath, thumbExt string) string {
+	relativePath = strings.TrimSpace(relativePath)
+	if relativePath == "" {
+		return "thumb." + thumbExt
+	}
+	dot := strings.LastIndex(relativePath, ".")
+	slash := strings.LastIndex(relativePath, "/")
+	if dot > slash && dot >= 0 {
+		return relativePath[:dot] + "_thumb." + thumbExt
+	}
+	return relativePath + "_thumb." + thumbExt
 }

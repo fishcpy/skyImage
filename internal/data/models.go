@@ -63,19 +63,24 @@ type FileAsset struct {
 	Extension       string         `gorm:"size:32" json:"extension"`
 	ChecksumMD5     string         `gorm:"size:32" json:"checksumMd5"`
 	ChecksumSHA1    string         `gorm:"size:40" json:"checksumSha1"`
-	Width           int            `gorm:"default:0" json:"width"`
-	Height          int            `gorm:"default:0" json:"height"`
-	Visibility      string         `gorm:"size:16;default:'private'" json:"visibility"`
-	StorageProvider string         `gorm:"size:32;default:'local'" json:"storageProvider"`
-	AuditStatus     string         `gorm:"size:16;default:'none'" json:"auditStatus"`
-	AuditResult     datatypes.JSON `gorm:"type:json" json:"auditResult"`
-	AuditCheckedAt  *time.Time     `json:"auditCheckedAt"`
-	AuditReviewedAt *time.Time     `json:"auditReviewedAt"`
-	UploadedIP      string         `gorm:"size:64" json:"uploadedIp"`
-	CreatedAt       time.Time      `json:"createdAt"`
-	UpdatedAt       time.Time      `json:"updatedAt"`
-	User            User           `gorm:"foreignKey:UserID" json:"-"`
-	Strategy        Strategy       `gorm:"foreignKey:StrategyID" json:"strategy"`
+	Width                     int            `gorm:"default:0" json:"width"`
+	Height                    int            `gorm:"default:0" json:"height"`
+	Visibility                string         `gorm:"size:16;default:'private'" json:"visibility"`
+	StorageProvider           string         `gorm:"size:32;default:'local'" json:"storageProvider"`
+	ThumbnailPath             string         `gorm:"size:512;default:''" json:"thumbnailPath"`
+	ThumbnailRelativePath     string         `gorm:"size:512;default:''" json:"thumbnailRelativePath"`
+	ThumbnailPublicURL        string         `gorm:"size:2048;default:''" json:"thumbnailPublicUrl"`
+	ThumbnailStorageProvider  string         `gorm:"size:32;default:''" json:"thumbnailStorageProvider"`
+	ThumbnailStrategyID       *uint          `gorm:"index" json:"thumbnailStrategyId"`
+	AuditStatus               string         `gorm:"size:16;default:'none'" json:"auditStatus"`
+	AuditResult               datatypes.JSON `gorm:"type:json" json:"auditResult"`
+	AuditCheckedAt            *time.Time     `json:"auditCheckedAt"`
+	AuditReviewedAt           *time.Time     `json:"auditReviewedAt"`
+	UploadedIP                string         `gorm:"size:64" json:"uploadedIp"`
+	CreatedAt                 time.Time      `json:"createdAt"`
+	UpdatedAt                 time.Time      `json:"updatedAt"`
+	User                      User           `gorm:"foreignKey:UserID" json:"-"`
+	Strategy                  Strategy       `gorm:"foreignKey:StrategyID" json:"strategy"`
 }
 
 func (FileAsset) TableName() string {

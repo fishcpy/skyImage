@@ -758,7 +758,20 @@ func (s *Service) deleteAfterAudit(ctx context.Context, file data.FileAsset, rea
 	if shouldSkipAuditUpdate(current) {
 		return nil
 	}
+	// Merge thumbnail metadata from the just-uploaded asset if DB row is incomplete.
+	if strings.TrimSpace(current.ThumbnailPath) == "" && strings.TrimSpace(file.ThumbnailPath) != "" {
+		current.ThumbnailPath = file.ThumbnailPath
+		current.ThumbnailRelativePath = file.ThumbnailRelativePath
+		current.ThumbnailPublicURL = file.ThumbnailPublicURL
+		current.ThumbnailStorageProvider = file.ThumbnailStorageProvider
+		current.ThumbnailStrategyID = file.ThumbnailStrategyID
+	}
+	// Explicitly delete thumbnail + original storage, then remove DB row/capacity.
+	_ = s.deleteThumbnailObject(ctx, s.db, current)
 	if err := s.Delete(ctx, current.UserID, current.ID); err != nil {
+		// Delete already tries storage cleanup; if it failed after DB delete, retry both objects.
+		_ = s.deleteThumbnailObject(ctx, s.db, current)
+		_ = s.deleteStoredObject(ctx, s.db, current)
 		return err
 	}
 	return s.notifyAuditDeleted(ctx, current, reasonType, auditMessage)

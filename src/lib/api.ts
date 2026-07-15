@@ -393,6 +393,7 @@ export type FileRecord = {
   size: number;
   viewUrl: string;
   directUrl: string;
+  thumbnailUrl?: string;
   visibility: string;
   markdown: string;
   html: string;
@@ -403,6 +404,8 @@ export type FileRecord = {
   strategyName?: string;
   relativePath?: string;
   storageDriver?: string;
+  width?: number;
+  height?: number;
   audit?: FileAuditRecord;
 };
 

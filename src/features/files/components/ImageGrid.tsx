@@ -195,7 +195,12 @@ export function ImageGrid({
               newDimensions.set(item.id, { width: 1, height: 1 });
               resolve();
             };
-            img.src = normalizeFileUrl(item.viewUrl || item.directUrl);
+            if (item.width && item.height) {
+              newDimensions.set(item.id, { width: item.width, height: item.height });
+              resolve();
+              return;
+            }
+            img.src = normalizeFileUrl(item.thumbnailUrl || item.viewUrl || item.directUrl);
           });
         })
       );
@@ -683,7 +688,8 @@ export function ImageGrid({
           visibleRows.map((row, rowIndex) => (
             <div key={rowIndex} className="flex w-full" style={{ gap: `${GAP}px`, height: `${ROW_HEIGHT}px` }}>
               {row.map(({ item, width }) => {
-                const imageUrl = normalizeFileUrl(item.viewUrl || item.directUrl);
+                const originalUrl = normalizeFileUrl(item.viewUrl || item.directUrl);
+                const thumbUrl = normalizeFileUrl(item.thumbnailUrl || item.viewUrl || item.directUrl);
                 const visibilityLabel = item.visibility === "public" ? t("grid.public") : t("grid.private");
                 const isSelected = selectedIds.has(item.id);
                 return (
@@ -718,7 +724,7 @@ export function ImageGrid({
               }}
             >
               <img
-                src={imageUrl}
+                src={thumbUrl}
                 alt={item.originalName}
                 className="h-full w-full object-cover"
                 loading="lazy"
@@ -747,7 +753,7 @@ export function ImageGrid({
                 </div>
               </div>
               <a
-                href={imageUrl}
+                href={originalUrl}
                 data-fancybox="gallery"
                 data-caption={item.originalName}
                 className="absolute inset-0"

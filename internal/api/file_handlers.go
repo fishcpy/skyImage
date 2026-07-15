@@ -39,7 +39,7 @@ func (s *Server) handleListFiles(c *gin.Context) {
 	}
 	dtos := make([]files.FileDTO, 0, len(items))
 	for _, file := range items {
-		dto, err := s.files.ToDTO(c.Request.Context(), file)
+		dto, err := s.files.ToDTOForViewer(c.Request.Context(), file, &user)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -109,7 +109,7 @@ func (s *Server) handleUploadFile(c *gin.Context) {
 		c.JSON(statusCodeFromError(err, http.StatusInternalServerError), gin.H{"error": err.Error()})
 		return
 	}
-	dto, err := s.files.ToDTO(c.Request.Context(), record)
+	dto, err := s.files.ToDTOForViewer(c.Request.Context(), record, &user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -137,7 +137,7 @@ func (s *Server) handleGetFile(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
 	}
-	dto, err := s.files.ToDTO(c.Request.Context(), file)
+	dto, err := s.files.ToDTOForViewer(c.Request.Context(), file, &user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -186,7 +186,7 @@ func (s *Server) handleUpdateFileVisibility(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	dto, err := s.files.ToDTO(c.Request.Context(), file)
+	dto, err := s.files.ToDTOForViewer(c.Request.Context(), file, &user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

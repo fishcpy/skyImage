@@ -50,6 +50,7 @@ export function GalleryPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {files.map((file: FileRecord) => {
             const imageUrl = normalizeFileUrl(file.viewUrl || file.directUrl);
+            const thumbUrl = normalizeFileUrl(file.thumbnailUrl || file.viewUrl || file.directUrl);
             return (
               <a
                 key={file.id}
@@ -59,9 +60,10 @@ export function GalleryPage() {
                 className="group rounded-lg border bg-card transition hover:shadow-md"
               >
                 <img
-                  src={imageUrl}
+                  src={thumbUrl}
                   alt={file.originalName}
                   className="h-48 w-full rounded-t-lg object-cover"
+                  loading="lazy"
                 />
                 <div className="p-3">
                   <p className="truncate text-sm font-medium group-hover:text-primary">

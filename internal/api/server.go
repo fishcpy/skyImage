@@ -504,10 +504,31 @@ func (s *Server) serveLocalFileByRelative(c *gin.Context, rel string) bool {
 	header.Set("Access-Control-Expose-Headers", "Content-Length, Content-Type, Content-Disposition, ETag, Last-Modified, Cache-Control")
 	header.Set("Cross-Origin-Resource-Policy", "cross-origin")
 
-	file, err := s.files.FindByRelativePath(c.Request.Context(), rel)
+	file, isThumbnail, err := s.files.FindServeTargetByRelativePath(c.Request.Context(), rel)
 	if err != nil {
 		return false
 	}
+
+	// Thumbnails: login required; only owner or admin may view.
+	if isThumbnail {
+		user, ok := middleware.CurrentUser(c)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error":   "需要登录才能查看缩略图",
+				"message": "缩略图仅对登录用户开放",
+			})
+			return true
+		}
+		if !files.CanAccessThumbnail(file, &user) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":   "无权访问此缩略图",
+				"message": "缩略图仅对上传者和管理员可见",
+			})
+			return true
+		}
+	}
+
+	file = files.ServeTarget(file, isThumbnail)
 
 	// 演示站模式：私有图片需要登录才能查看
 	s.mu.RLock()

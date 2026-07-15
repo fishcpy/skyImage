@@ -68,6 +68,7 @@ type FileDTO struct {
 	CreatedAt     time.Time     `json:"createdAt"`
 	ViewURL       string        `json:"viewUrl"`
 	DirectURL     string        `json:"directUrl"`
+	ThumbnailURL  string        `json:"thumbnailUrl"`
 	Markdown      string        `json:"markdown"`
 	HTML          string        `json:"html"`
 	OwnerID       uint          `json:"ownerId,omitempty"`
@@ -75,6 +76,8 @@ type FileDTO struct {
 	OwnerEmail    string        `json:"ownerEmail,omitempty"`
 	RelativePath  string        `json:"relativePath"`
 	StorageDriver string        `json:"storageDriver"`
+	Width         int           `json:"width,omitempty"`
+	Height        int           `json:"height,omitempty"`
 	Audit         *FileAuditDTO `json:"audit,omitempty"`
 }
 
@@ -131,6 +134,11 @@ type strategyConfig struct {
 	CompressionQuality    int
 	TargetFormat          string
 	ProcessFormats        []string
+	EnableThumbnail       bool
+	ThumbnailMaxSize      int
+	ThumbnailQuality      int
+	ThumbnailFormat       string
+	ThumbnailStrategyID   uint
 	ImageAuditProfileID   uint
 	ImageAuditBlockAction string
 	ImageAuditErrorAction string
@@ -372,6 +380,39 @@ func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.Fi
 	}
 	fileAsset.PublicURL = publicURL
 
+	// Capture original dimensions when possible (best-effort).
+	if isSupportedImageFormat(contentType, nil) {
+		dimData := fullData
+		if len(dimData) == 0 {
+			if handleDim, err := file.Open(); err == nil {
+				dimData, _ = io.ReadAll(handleDim)
+				_ = handleDim.Close()
+			}
+		}
+		if len(dimData) > 0 {
+			if w, h, err := ReadImageDimensions(dimData, contentType); err == nil {
+				fileAsset.Width = w
+				fileAsset.Height = h
+			}
+		}
+	}
+
+	if cfg.EnableThumbnail && isSupportedImageFormat(contentType, nil) {
+		thumbData := fullData
+		if len(thumbData) == 0 {
+			if handleThumb, err := file.Open(); err == nil {
+				thumbData, _ = io.ReadAll(handleThumb)
+				_ = handleThumb.Close()
+			}
+		}
+		if len(thumbData) > 0 {
+			if err := s.attachThumbnail(ctx, &fileAsset, cfg, user, thumbData, contentType); err != nil {
+				// Thumbnail is optional; keep original upload on failure.
+				_ = err
+			}
+		}
+	}
+
 	if err := s.db.WithContext(ctx).Create(&fileAsset).Error; err != nil {
 		return data.FileAsset{}, err
 	}
@@ -401,6 +442,11 @@ func (s *Service) ToDTO(ctx context.Context, file data.FileAsset) (FileDTO, erro
 		return FileDTO{}, err
 	}
 	embeds := BuildImageEmbedCodes(file.OriginalName, publicURL)
+	// Thumbnail URLs require authenticated owner/admin access; omit when no viewer context.
+	thumbnailURL := publicURL
+	if rawThumb := s.thumbnailPublicURL(ctx, file); rawThumb != "" {
+		thumbnailURL = rawThumb
+	}
 
 	return FileDTO{
 		ID:            file.ID,
@@ -415,6 +461,7 @@ func (s *Service) ToDTO(ctx context.Context, file data.FileAsset) (FileDTO, erro
 		CreatedAt:     file.CreatedAt,
 		ViewURL:       publicURL,
 		DirectURL:     publicURL,
+		ThumbnailURL:  thumbnailURL,
 		Markdown:      embeds.Markdown,
 		HTML:          embeds.HTML,
 		OwnerID:       file.UserID,
@@ -424,8 +471,35 @@ func (s *Service) ToDTO(ctx context.Context, file data.FileAsset) (FileDTO, erro
 		StrategyName:  file.Strategy.Name,
 		RelativePath:  file.RelativePath,
 		StorageDriver: file.StorageProvider,
+		Width:         file.Width,
+		Height:        file.Height,
 		Audit:         buildFileAuditDTO(file),
 	}, nil
+}
+
+// ToDTOForViewer builds a FileDTO and only exposes thumbnailUrl when the viewer may access it.
+// Rules: must be logged in; owners see own thumbnails; admins see any; otherwise fall back to original.
+func (s *Service) ToDTOForViewer(ctx context.Context, file data.FileAsset, viewer *data.User) (FileDTO, error) {
+	dto, err := s.ToDTO(ctx, file)
+	if err != nil {
+		return dto, err
+	}
+	if !CanAccessThumbnail(file, viewer) {
+		dto.ThumbnailURL = dto.ViewURL
+	}
+	return dto, nil
+}
+
+// CanAccessThumbnail reports whether viewer may load the thumbnail object.
+// Thumbnails are login-only: owner of the file, or any admin.
+func CanAccessThumbnail(file data.FileAsset, viewer *data.User) bool {
+	if viewer == nil || viewer.ID == 0 {
+		return false
+	}
+	if viewer.IsAdmin || viewer.IsSuperAdmin {
+		return true
+	}
+	return file.UserID == viewer.ID
 }
 
 // PublicURL returns the preferred public URL for a file asset based on its storage strategy.
@@ -522,6 +596,161 @@ func (s *Service) buildPublicURLFromConfig(cfg strategyConfig, file data.FileAss
 		publicURL = appendQuery(publicURL, cfg.Query)
 	}
 	return publicURL
+}
+
+func (s *Service) buildPublicURLFromRelative(cfg strategyConfig, relativePath string) string {
+	base := strings.TrimSpace(cfg.Base)
+	if base == "" {
+		return ""
+	}
+	rel := filepath.ToSlash(strings.TrimSpace(relativePath))
+	if rel == "" {
+		return ""
+	}
+	publicURL := joinPublicURL(base, rel)
+	if cfg.Query != "" {
+		publicURL = appendQuery(publicURL, cfg.Query)
+	}
+	return publicURL
+}
+
+func (s *Service) resolveStrategyByID(ctx context.Context, strategyID uint) (data.Strategy, strategyConfig, error) {
+	var strategy data.Strategy
+	if strategyID == 0 {
+		return strategy, strategyConfig{}, fmt.Errorf("invalid strategy id")
+	}
+	if err := s.db.WithContext(ctx).First(&strategy, strategyID).Error; err != nil {
+		return strategy, strategyConfig{}, err
+	}
+	return strategy, s.parseStrategyConfig(strategy), nil
+}
+
+func (s *Service) attachThumbnail(ctx context.Context, file *data.FileAsset, sourceCfg strategyConfig, user data.User, imageData []byte, mimeType string) error {
+	thumbBytes, thumbMime, origW, origH, err := GenerateThumbnail(imageData, mimeType, ThumbnailConfig{
+		MaxSize: sourceCfg.ThumbnailMaxSize,
+		Quality: sourceCfg.ThumbnailQuality,
+		Format:  sourceCfg.ThumbnailFormat,
+	})
+	if err != nil {
+		return err
+	}
+	if file.Width == 0 && origW > 0 {
+		file.Width = origW
+	}
+	if file.Height == 0 && origH > 0 {
+		file.Height = origH
+	}
+
+	thumbCfg := sourceCfg
+	thumbStrategyID := file.StrategyID
+	if sourceCfg.ThumbnailStrategyID > 0 && sourceCfg.ThumbnailStrategyID != file.StrategyID {
+		strategy, cfg, err := s.resolveStrategyByID(ctx, sourceCfg.ThumbnailStrategyID)
+		if err != nil {
+			return err
+		}
+		thumbCfg = cfg
+		thumbStrategyID = strategy.ID
+	}
+
+	thumbExt := GetExtensionForMimeType(thumbMime)
+	if thumbExt == "" {
+		thumbExt = "jpg"
+	}
+	thumbRel := buildThumbnailRelativePath(file.RelativePath, thumbExt)
+	storeResult, err := s.storeObjectWithData(ctx, thumbCfg, thumbRel, thumbBytes)
+	if err != nil {
+		return err
+	}
+
+	thumbURL := s.buildPublicURLFromRelative(thumbCfg, thumbRel)
+	if thumbURL == "" {
+		_ = s.deleteStoredPath(ctx, thumbCfg, storeResult.Path, thumbRel)
+		return fmt.Errorf("thumbnail storage strategy %d has no external access domain", thumbStrategyID)
+	}
+
+	file.ThumbnailPath = storeResult.Path
+	file.ThumbnailRelativePath = filepath.ToSlash(thumbRel)
+	file.ThumbnailPublicURL = thumbURL
+	file.ThumbnailStorageProvider = thumbCfg.Driver
+	if thumbStrategyID != file.StrategyID {
+		id := thumbStrategyID
+		file.ThumbnailStrategyID = &id
+	} else {
+		file.ThumbnailStrategyID = nil
+	}
+	return nil
+}
+
+func (s *Service) thumbnailPublicURL(ctx context.Context, file data.FileAsset) string {
+	if strings.TrimSpace(file.ThumbnailPublicURL) != "" {
+		return sanitizeURL(file.ThumbnailPublicURL)
+	}
+	if strings.TrimSpace(file.ThumbnailRelativePath) == "" {
+		return ""
+	}
+
+	thumbCfg := strategyConfig{}
+	if file.ThumbnailStrategyID != nil && *file.ThumbnailStrategyID > 0 {
+		if _, cfg, err := s.resolveStrategyByID(ctx, *file.ThumbnailStrategyID); err == nil {
+			thumbCfg = cfg
+		}
+	}
+	if strings.TrimSpace(thumbCfg.Base) == "" {
+		if file.Strategy.ID == 0 && file.StrategyID != 0 {
+			_ = s.db.WithContext(ctx).First(&file.Strategy, file.StrategyID)
+		}
+		if file.Strategy.ID != 0 {
+			thumbCfg = s.parseStrategyConfig(file.Strategy)
+		}
+	}
+	return sanitizeURL(s.buildPublicURLFromRelative(thumbCfg, file.ThumbnailRelativePath))
+}
+
+func (s *Service) deleteThumbnailObject(ctx context.Context, db *gorm.DB, file data.FileAsset) error {
+	if strings.TrimSpace(file.ThumbnailPath) == "" && strings.TrimSpace(file.ThumbnailRelativePath) == "" {
+		return nil
+	}
+
+	driver := strings.ToLower(strings.TrimSpace(file.ThumbnailStorageProvider))
+	var cfg strategyConfig
+	strategyID := file.StrategyID
+	if file.ThumbnailStrategyID != nil && *file.ThumbnailStrategyID > 0 {
+		strategyID = *file.ThumbnailStrategyID
+	}
+	if strategyID > 0 {
+		var strategy data.Strategy
+		if err := db.WithContext(ctx).First(&strategy, strategyID).Error; err == nil {
+			cfg = s.parseStrategyConfig(strategy)
+			if driver == "" {
+				driver = strings.ToLower(strings.TrimSpace(cfg.Driver))
+			}
+		}
+	}
+	if driver == "" {
+		driver = "local"
+	}
+	if strings.TrimSpace(cfg.Driver) == "" {
+		cfg.Driver = driver
+		cfg.Root = s.cfg.StoragePath
+	}
+
+	thumbFile := data.FileAsset{
+		Path:            file.ThumbnailPath,
+		RelativePath:    file.ThumbnailRelativePath,
+		StorageProvider: driver,
+		StrategyID:      strategyID,
+	}
+	return s.deleteStoredObjectDirect(ctx, db, cfg, thumbFile)
+}
+
+// deleteStoredPath best-effort cleanup when thumbnail store fails after write.
+func (s *Service) deleteStoredPath(ctx context.Context, cfg strategyConfig, pathValue, relativePath string) error {
+	file := data.FileAsset{
+		Path:            pathValue,
+		RelativePath:    relativePath,
+		StorageProvider: cfg.Driver,
+	}
+	return s.deleteStoredObjectDirect(ctx, s.db, cfg, file)
 }
 
 func (s *Service) List(ctx context.Context, userID uint, limit int, offset int) ([]data.FileAsset, error) {
@@ -623,6 +852,13 @@ func (s *Service) FindByKey(ctx context.Context, key string) (data.FileAsset, er
 }
 
 func (s *Service) FindByRelativePath(ctx context.Context, rel string) (data.FileAsset, error) {
+	file, _, err := s.FindServeTargetByRelativePath(ctx, rel)
+	return file, err
+}
+
+// FindServeTargetByRelativePath resolves either the original object or its thumbnail by public relative path.
+// isThumbnail indicates the request should serve thumbnail storage fields.
+func (s *Service) FindServeTargetByRelativePath(ctx context.Context, rel string) (data.FileAsset, bool, error) {
 	decoded, err := url.PathUnescape(rel)
 	if err == nil {
 		rel = decoded
@@ -630,18 +866,30 @@ func (s *Service) FindByRelativePath(ctx context.Context, rel string) (data.File
 
 	rel = sanitizeRelativePath(rel)
 	if rel == "" {
-		return data.FileAsset{}, gorm.ErrRecordNotFound
+		return data.FileAsset{}, false, gorm.ErrRecordNotFound
 	}
 	var file data.FileAsset
 	err = s.db.WithContext(ctx).
 		Where("relative_path = ?", rel).
 		First(&file).Error
 	if err == nil {
-		return file, nil
+		return file, false, nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return file, err
+		return file, false, err
 	}
+
+	// Thumbnail public paths use thumbnail_relative_path (e.g. xxx_thumb.jpg).
+	err = s.db.WithContext(ctx).
+		Where("thumbnail_relative_path = ?", rel).
+		First(&file).Error
+	if err == nil {
+		return file, true, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return file, false, err
+	}
+
 	likeUnix := "%" + "/" + rel
 	likeWin := "%" + "\\" + strings.ReplaceAll(rel, "/", "\\")
 	err = s.db.WithContext(ctx).
@@ -649,13 +897,59 @@ func (s *Service) FindByRelativePath(ctx context.Context, rel string) (data.File
 		Where("path LIKE ? OR path LIKE ?", likeUnix, likeWin).
 		First(&file).Error
 	if err != nil {
-		return file, err
+		// Also match legacy/local thumbnail physical paths.
+		errThumb := s.db.WithContext(ctx).
+			Where("thumbnail_path LIKE ? OR thumbnail_path LIKE ?", likeUnix, likeWin).
+			First(&file).Error
+		if errThumb != nil {
+			return file, false, err
+		}
+		return file, true, nil
 	}
 	_ = s.db.WithContext(ctx).
 		Model(&data.FileAsset{}).
 		Where("id = ? AND (relative_path = '' OR relative_path IS NULL)", file.ID).
 		UpdateColumn("relative_path", rel).Error
-	return file, nil
+	return file, false, nil
+}
+
+// ServeTarget rewrites a file asset to point at the object that should be streamed for this request.
+func ServeTarget(file data.FileAsset, isThumbnail bool) data.FileAsset {
+	if !isThumbnail {
+		return file
+	}
+	if strings.TrimSpace(file.ThumbnailPath) != "" {
+		file.Path = file.ThumbnailPath
+	}
+	if strings.TrimSpace(file.ThumbnailRelativePath) != "" {
+		file.RelativePath = file.ThumbnailRelativePath
+	}
+	if strings.TrimSpace(file.ThumbnailStorageProvider) != "" {
+		file.StorageProvider = file.ThumbnailStorageProvider
+	}
+	if file.ThumbnailStrategyID != nil && *file.ThumbnailStrategyID > 0 {
+		file.StrategyID = *file.ThumbnailStrategyID
+		file.Strategy = data.Strategy{}
+	}
+	// Thumbnails are small image covers; force image content type by extension when needed.
+	if ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(file.RelativePath), ".")); ext != "" {
+		switch normalizeImageFormat(ext) {
+		case "jpeg":
+			file.MimeType = "image/jpeg"
+			file.Extension = "jpg"
+		case "png":
+			file.MimeType = "image/png"
+			file.Extension = "png"
+		case "webp":
+			file.MimeType = "image/webp"
+			file.Extension = "webp"
+		case "gif":
+			file.MimeType = "image/gif"
+			file.Extension = "gif"
+		}
+		file.Name = filepath.Base(file.RelativePath)
+	}
+	return file
 }
 
 func (s *Service) ListPublic(ctx context.Context, limit int, offset int) ([]data.FileAsset, error) {
@@ -707,6 +1001,10 @@ func (s *Service) Delete(ctx context.Context, userID uint, id uint) error {
 		if err := tx.First(&file, "id = ? AND user_id = ?", id, userID).Error; err != nil {
 			return err
 		}
+		// Remove original + thumbnail from storage before dropping the DB row.
+		if err := s.deleteStoredObject(ctx, tx, file); err != nil {
+			return err
+		}
 		if err := tx.Delete(&data.FileAsset{}, id).Error; err != nil {
 			return err
 		}
@@ -715,7 +1013,7 @@ func (s *Service) Delete(ctx context.Context, userID uint, id uint) error {
 			UpdateColumn("use_capacity", gorm.Expr("use_capacity - ?", file.Size)).Error; err != nil {
 			return err
 		}
-		return s.deleteStoredObject(ctx, tx, file)
+		return nil
 	})
 }
 
@@ -753,10 +1051,10 @@ func (s *Service) DeleteByAdmin(ctx context.Context, id uint, reason string) err
 		if err := tx.First(&deleted, "id = ?", id).Error; err != nil {
 			return err
 		}
-		if err := tx.Delete(&data.FileAsset{}, id).Error; err != nil {
+		if err := s.deleteStoredObject(ctx, tx, deleted); err != nil {
 			return err
 		}
-		return s.deleteStoredObject(ctx, tx, deleted)
+		return tx.Delete(&data.FileAsset{}, id).Error
 	}); err != nil {
 		return err
 	}
@@ -1114,6 +1412,17 @@ func (s *Service) parseStrategyConfig(strategy data.Strategy) strategyConfig {
 			}
 			cfg.TargetFormat = strings.ToLower(strings.TrimSpace(stringFromAny(raw["target_format"])))
 			cfg.ProcessFormats = parseExtensionsFromAny(raw["process_formats"])
+			cfg.EnableThumbnail = boolFromAny(raw["enable_thumbnail"])
+			cfg.ThumbnailMaxSize = intFromAny(raw["thumbnail_max_size"])
+			if cfg.ThumbnailMaxSize <= 0 {
+				cfg.ThumbnailMaxSize = 400
+			}
+			cfg.ThumbnailQuality = intFromAny(raw["thumbnail_quality"])
+			if cfg.ThumbnailQuality <= 0 {
+				cfg.ThumbnailQuality = 25
+			}
+			cfg.ThumbnailFormat = strings.ToLower(strings.TrimSpace(stringFromAny(raw["thumbnail_format"])))
+			cfg.ThumbnailStrategyID = uint(intFromAny(raw["thumbnail_strategy_id"]))
 			cfg.ImageAuditProfileID = uint(intFromAny(raw["image_audit_profile_id"]))
 			cfg.ImageAuditBlockAction = stringFromAny(raw["image_audit_block_action"])
 			cfg.ImageAuditErrorAction = stringFromAny(raw["image_audit_error_action"])

@@ -71,9 +71,10 @@ export function FileTable({
               <TableRow key={item.id}>
                 <TableCell>
                   <img
-                    src={normalizeFileUrl(item.viewUrl || item.directUrl)}
+                    src={normalizeFileUrl(item.thumbnailUrl || item.viewUrl || item.directUrl)}
                     alt={item.originalName}
                     className="h-12 w-12 rounded-md object-cover"
+                    loading="lazy"
                   />
                 </TableCell>
                 <TableCell className="max-w-[220px]">
@@ -150,9 +151,10 @@ export function FileTable({
           >
             <div className="flex gap-3">
               <img
-                src={normalizeFileUrl(item.viewUrl || item.directUrl)}
+                src={normalizeFileUrl(item.thumbnailUrl || item.viewUrl || item.directUrl)}
                 alt={item.originalName}
                 className="h-16 w-16 rounded-md object-cover flex-shrink-0"
+                loading="lazy"
               />
               <div className="flex-1 min-w-0">
                 <p className="truncate font-medium text-sm">{item.originalName}</p>

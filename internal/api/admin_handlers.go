@@ -582,9 +582,10 @@ func (s *Server) handleAdminImages(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	viewer, _ := middleware.CurrentUser(c)
 	dtos := make([]files.FileDTO, 0, len(filesList))
 	for _, file := range filesList {
-		dto, err := s.files.ToDTO(c.Request.Context(), file)
+		dto, err := s.files.ToDTOForViewer(c.Request.Context(), file, &viewer)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -632,7 +633,8 @@ func (s *Server) handleAdminUpdateImageVisibility(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	dto, err := s.files.ToDTO(c.Request.Context(), file)
+	viewer, _ := middleware.CurrentUser(c)
+	dto, err := s.files.ToDTOForViewer(c.Request.Context(), file, &viewer)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -658,7 +660,8 @@ func (s *Server) handleAdminUpdateImageAuditStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	dto, err := s.files.ToDTO(c.Request.Context(), file)
+	viewer, _ := middleware.CurrentUser(c)
+	dto, err := s.files.ToDTOForViewer(c.Request.Context(), file, &viewer)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

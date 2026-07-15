@@ -9,6 +9,49 @@ import (
 	"testing"
 )
 
+func TestGenerateThumbnailResizesLongEdge(t *testing.T) {
+	large := image.NewRGBA(image.Rect(0, 0, 200, 100))
+	large.Set(0, 0, color.RGBA{R: 255, A: 255})
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, large, &jpeg.Options{Quality: 90}); err != nil {
+		t.Fatalf("encode large jpeg: %v", err)
+	}
+	data := buf.Bytes()
+
+	thumb, mimeType, w, h, err := GenerateThumbnail(data, "image/jpeg", ThumbnailConfig{
+		MaxSize: 40,
+		Quality: 25,
+		Format:  "jpeg",
+	})
+	if err != nil {
+		t.Fatalf("GenerateThumbnail returned error: %v", err)
+	}
+	if mimeType != "image/jpeg" {
+		t.Fatalf("mime type = %q, want image/jpeg", mimeType)
+	}
+	if len(thumb) == 0 {
+		t.Fatal("thumbnail data is empty")
+	}
+	if w != 200 || h != 100 {
+		t.Fatalf("original dimensions = %dx%d, want 200x100", w, h)
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(thumb))
+	if err != nil {
+		t.Fatalf("decode thumbnail: %v", err)
+	}
+	if cfg.Width != 40 || cfg.Height != 20 {
+		t.Fatalf("thumbnail size = %dx%d, want 40x20", cfg.Width, cfg.Height)
+	}
+}
+
+func TestBuildThumbnailRelativePath(t *testing.T) {
+	got := buildThumbnailRelativePath("2024/01/02/abc.jpg", "webp")
+	want := "2024/01/02/abc_thumb.webp"
+	if got != want {
+		t.Fatalf("path = %q, want %q", got, want)
+	}
+}
+
 func TestProcessImageConvertsToWebP(t *testing.T) {
 	data := encodeTestJPEG(t)
 

@@ -497,6 +497,10 @@ func validateStrategyConfigs(configs map[string]interface{}) error {
 	if template != "" && !strings.Contains(template, "{uuid}") {
 		return fmt.Errorf("路径模板必须包含 {uuid} 以确保唯一性")
 	}
+	// Thumbnails use a fixed "*_thumb.*" suffix on relative paths; forbid that token in the template.
+	if template != "" && strings.Contains(strings.ToLower(template), "_thumb.") {
+		return fmt.Errorf("路径模板不能包含 _thumb.，该后缀保留给系统缩略图")
+	}
 	if raw, ok := configs["image_audit_block_action"]; ok {
 		action := strings.ToLower(strings.TrimSpace(firstConfigString(map[string]interface{}{"value": raw}, "value")))
 		if action != "" && action != "delete" && action != "keep" {

@@ -7,13 +7,15 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"skyimage/internal/captcha"
+	"skyimage/internal/data"
 	"skyimage/internal/files"
+	"skyimage/internal/middleware"
 )
 
 func (s *Server) registerSiteRoutes(r *gin.RouterGroup) {
 	r.GET("/site/config", s.handleSiteConfig)
 	r.GET("/site/turnstile/:scenario", s.handleTurnstileConfig)
-	r.GET("/gallery/public", s.handleGalleryPublic)
+	r.GET("/gallery/public", middleware.OptionalAuth(s.users, s.session), s.handleGalleryPublic)
 	s.engine.GET("/favicon.ico", s.handleFavicon)
 }
 
@@ -84,9 +86,13 @@ func (s *Server) handleGalleryPublic(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	var viewer *data.User
+	if user, ok := middleware.CurrentUser(c); ok {
+		viewer = &user
+	}
 	dtos := make([]files.FileDTO, 0, len(items))
 	for _, file := range items {
-		dto, err := s.files.ToDTO(c.Request.Context(), file)
+		dto, err := s.files.ToDTOForViewer(c.Request.Context(), file, viewer)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return

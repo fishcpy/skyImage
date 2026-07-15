@@ -88,7 +88,12 @@ export function AdminStrategyEditorPage() {
       path_template: "{year}/{month}/{day}/{uuid}",
       image_audit_profile_id: "",
       image_audit_block_action: "delete",
-      image_audit_error_action: "keep"
+      image_audit_error_action: "keep",
+      enable_thumbnail: false,
+      thumbnail_max_size: 400,
+      thumbnail_quality: 25,
+      thumbnail_format: "jpeg",
+      thumbnail_strategy_id: ""
     }
   });
   const [selectedGroups, setSelectedGroups] = useState<number[]>([]);
@@ -204,7 +209,14 @@ export function AdminStrategyEditorPage() {
                 ? String(target.configs?.image_audit_profile_id)
                 : "",
             image_audit_block_action: target.configs?.image_audit_block_action || "delete",
-            image_audit_error_action: target.configs?.image_audit_error_action || "keep"
+            image_audit_error_action: target.configs?.image_audit_error_action || "keep",
+            enable_thumbnail: Boolean(target.configs?.enable_thumbnail),
+            thumbnail_max_size: target.configs?.thumbnail_max_size || 400,
+            thumbnail_quality: target.configs?.thumbnail_quality || 25,
+            thumbnail_format: target.configs?.thumbnail_format || "jpeg",
+            thumbnail_strategy_id: target.configs?.thumbnail_strategy_id
+              ? String(target.configs?.thumbnail_strategy_id)
+              : ""
           }
         });
         setSelectedGroups(target.groups?.map((group) => group.id) || []);
@@ -250,7 +262,12 @@ export function AdminStrategyEditorPage() {
           path_template: "{year}/{month}/{day}/{uuid}",
           image_audit_profile_id: "",
           image_audit_block_action: "delete",
-          image_audit_error_action: "keep"
+          image_audit_error_action: "keep",
+          enable_thumbnail: false,
+          thumbnail_max_size: 400,
+          thumbnail_quality: 25,
+          thumbnail_format: "jpeg",
+          thumbnail_strategy_id: ""
         }
       });
       setSelectedGroups([]);
@@ -272,6 +289,10 @@ export function AdminStrategyEditorPage() {
     const template = (form.configs as any)?.path_template || "{year}/{month}/{day}/{uuid}";
     if (template && !String(template).includes("{uuid}")) {
       toast.error(t("admin.strategyEditor.pathTemplateMustContainUuid"));
+      return;
+    }
+    if (template && String(template).toLowerCase().includes("_thumb.")) {
+      toast.error(t("admin.strategyEditor.pathTemplateCannotContainThumb"));
       return;
     }
     saveMutation.mutate({
@@ -343,6 +364,13 @@ export function AdminStrategyEditorPage() {
         compression_quality: (form.configs as any)?.compression_quality || 85,
         target_format: (form.configs as any)?.target_format || "",
         process_formats: (form.configs as any)?.process_formats || "",
+        enable_thumbnail: Boolean((form.configs as any)?.enable_thumbnail),
+        thumbnail_max_size: Number((form.configs as any)?.thumbnail_max_size) || 400,
+        thumbnail_quality: Number((form.configs as any)?.thumbnail_quality) || 25,
+        thumbnail_format: (form.configs as any)?.thumbnail_format || "jpeg",
+        thumbnail_strategy_id: (form.configs as any)?.thumbnail_strategy_id
+          ? Number((form.configs as any)?.thumbnail_strategy_id)
+          : null,
         image_audit_profile_id: (form.configs as any)?.image_audit_profile_id
           ? Number((form.configs as any)?.image_audit_profile_id)
           : null,
@@ -963,6 +991,143 @@ export function AdminStrategyEditorPage() {
                 {t("admin.strategyEditor.processFormatsHint")}
               </p>
             </div>
+          </div>
+          <div className="space-y-4 rounded-lg border p-4">
+            <h3 className="text-sm font-medium">{t("admin.strategyEditor.thumbnail")}</h3>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="enable-thumbnail"
+                checked={Boolean((form.configs as any)?.enable_thumbnail)}
+                onCheckedChange={(checked) => {
+                  const actualValue = checked === "indeterminate" ? false : checked;
+                  setForm((prev) => ({
+                    ...prev,
+                    configs: { ...prev.configs, enable_thumbnail: actualValue }
+                  }));
+                }}
+              />
+              <Label htmlFor="enable-thumbnail" className="cursor-pointer">
+                {t("admin.strategyEditor.enableThumbnail")}
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t("admin.strategyEditor.enableThumbnailHint")}
+            </p>
+            {(form.configs as any)?.enable_thumbnail && (
+              <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>{t("admin.strategyEditor.thumbnailMaxSize")}</Label>
+                    <Input
+                      type="number"
+                      min="64"
+                      max="1200"
+                      value={(form.configs as any)?.thumbnail_max_size || 400}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          configs: {
+                            ...prev.configs,
+                            thumbnail_max_size: parseInt(e.target.value) || 400
+                          }
+                        }))
+                      }
+                      placeholder="400"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t("admin.strategyEditor.thumbnailMaxSizeHint")}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("admin.strategyEditor.thumbnailQuality")}</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={(form.configs as any)?.thumbnail_quality || 25}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          configs: {
+                            ...prev.configs,
+                            thumbnail_quality: parseInt(e.target.value) || 25
+                          }
+                        }))
+                      }
+                      placeholder="25"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t("admin.strategyEditor.thumbnailQualityHint")}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>{t("admin.strategyEditor.thumbnailFormat")}</Label>
+                    <Select
+                      value={(form.configs as any)?.thumbnail_format || "jpeg"}
+                      onValueChange={(value) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          configs: { ...prev.configs, thumbnail_format: value }
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="jpeg">JPEG</SelectItem>
+                        <SelectItem value="webp">WebP</SelectItem>
+                        <SelectItem value="png">PNG</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {t("admin.strategyEditor.thumbnailFormatHint")}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("admin.strategyEditor.thumbnailStrategy")}</Label>
+                    <Select
+                      value={String((form.configs as any)?.thumbnail_strategy_id || "same")}
+                      onValueChange={(value) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          configs: {
+                            ...prev.configs,
+                            thumbnail_strategy_id: value === "same" ? "" : value
+                          }
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={t("admin.strategyEditor.thumbnailStrategySame")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="same">
+                          {t("admin.strategyEditor.thumbnailStrategySame")}
+                        </SelectItem>
+                        {(strategies || [])
+                          .filter((item) => !isEditing || item.id !== Number(id))
+                          .map((item) => (
+                            <SelectItem key={item.id} value={String(item.id)}>
+                              {item.name}
+                            </SelectItem>
+                          ))}
+                        {isEditing && form.id ? (
+                          <SelectItem value={String(form.id)}>
+                            {form.name || t("admin.strategyEditor.thumbnailStrategySame")}
+                          </SelectItem>
+                        ) : null}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {t("admin.strategyEditor.thumbnailStrategyHint")}
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           <div className="space-y-4 rounded-lg border p-4">
             <h3 className="text-sm font-medium">{t("admin.strategyEditor.imageAudit")}</h3>
