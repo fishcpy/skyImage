@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ListPlus, Plus, Trash2 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 import {
   fetchAuditProfiles,
   fetchGroups,
@@ -20,6 +29,21 @@ import {
 } from "@/lib/api";
 import { useI18n } from "@/i18n";
 
+const splitPublicUrls = (raw?: string) =>
+  String(raw || "")
+    .replace(/；/g, ";")
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item, index, arr) => arr.findIndex((v) => v.toLowerCase() === item.toLowerCase()) === index);
+
+const joinPublicUrls = (items: string[]) =>
+  items
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item, index, arr) => arr.findIndex((v) => v.toLowerCase() === item.toLowerCase()) === index)
+    .join(";");
+
 export function AdminStrategyEditorPage() {
   const { t } = useI18n();
   const { id } = useParams();
@@ -27,6 +51,7 @@ export function AdminStrategyEditorPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isS3CompatibleDriver = (driver?: string) => driver === "s3" || driver === "minio";
+  const normalizePublicUrls = (raw?: string) => joinPublicUrls(splitPublicUrls(raw));
   const driverOptions = [
     { key: "local", label: t("admin.strategyEditor.driver.local") },
     { key: "webdav", label: t("admin.strategyEditor.driver.webdav") },
@@ -97,6 +122,23 @@ export function AdminStrategyEditorPage() {
     }
   });
   const [selectedGroups, setSelectedGroups] = useState<number[]>([]);
+  const [domainDialogOpen, setDomainDialogOpen] = useState(false);
+  const [domainDrafts, setDomainDrafts] = useState<string[]>([""]);
+
+  const openDomainDialog = () => {
+    const items = splitPublicUrls(form.configs?.url);
+    setDomainDrafts(items.length ? items : [""]);
+    setDomainDialogOpen(true);
+  };
+
+  const applyDomainDialog = () => {
+    const next = joinPublicUrls(domainDrafts);
+    setForm((prev) => ({
+      ...prev,
+      configs: { ...prev.configs, url: next }
+    }));
+    setDomainDialogOpen(false);
+  };
 
   useEffect(() => {
     if (isEditing && strategies) {
@@ -117,11 +159,12 @@ export function AdminStrategyEditorPage() {
           configs: {
             driver: target.configs?.driver || "local",
             root: target.configs?.root || "storage/uploads",
-            url:
+            url: normalizePublicUrls(
               target.configs?.url ||
-              target.configs?.base_url ||
-          target.configs?.baseUrl ||
-              "",
+                target.configs?.base_url ||
+                target.configs?.baseUrl ||
+                ""
+            ),
             webdav_endpoint:
               target.configs?.webdav_endpoint ||
               target.configs?.webdav_url ||
@@ -295,21 +338,16 @@ export function AdminStrategyEditorPage() {
       toast.error(t("admin.strategyEditor.pathTemplateCannotContainThumb"));
       return;
     }
+    const publicUrls = normalizePublicUrls(
+      form.configs?.url || form.configs?.base_url || form.configs?.baseUrl || ""
+    );
     saveMutation.mutate({
       ...form,
       groupIds: selectedGroups,
       configs: {
         ...form.configs,
-        url:
-          form.configs?.url ||
-          form.configs?.base_url ||
-          form.configs?.baseUrl ||
-          "",
-        base_url:
-          form.configs?.url ||
-          form.configs?.base_url ||
-          form.configs?.baseUrl ||
-          "",
+        url: publicUrls,
+        base_url: publicUrls,
         webdav_endpoint:
           form.configs?.webdav_endpoint ||
           form.configs?.webdav_url ||
@@ -507,16 +545,30 @@ export function AdminStrategyEditorPage() {
             )}
             <div className="space-y-2">
               <Label>{t("admin.strategyEditor.publicUrl")}</Label>
-              <Input
-                value={form.configs?.url || ""}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    configs: { ...prev.configs, url: e.target.value }
-                  }))
-                }
-                placeholder="https://cdn.example.com"
-              />
+              <div className="flex gap-2">
+                <Input
+                  value={form.configs?.url || ""}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      configs: { ...prev.configs, url: e.target.value }
+                    }))
+                  }
+                  placeholder="https://cdn.example.com;https://img.example.com"
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={openDomainDialog}
+                  aria-label={t("admin.strategyEditor.publicUrlManage")}
+                  title={t("admin.strategyEditor.publicUrlManage")}
+                >
+                  <ListPlus className="h-4 w-4" />
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
                 {t("admin.strategyEditor.publicUrlHint")}
               </p>
@@ -1266,6 +1318,67 @@ export function AdminStrategyEditorPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={domainDialogOpen} onOpenChange={setDomainDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("admin.strategyEditor.publicUrlManage")}</DialogTitle>
+            <DialogDescription>{t("admin.strategyEditor.publicUrlManageHint")}</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[50vh] space-y-2 overflow-y-auto py-1">
+            {domainDrafts.map((domain, index) => (
+              <div key={index} className="flex gap-2">
+                <Input
+                  value={domain}
+                  onChange={(e) =>
+                    setDomainDrafts((prev) => prev.map((item, i) => (i === index ? e.target.value : item)))
+                  }
+                  placeholder="https://cdn.example.com"
+                  className="flex-1 border-0 bg-muted/50 shadow-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                  disabled={domainDrafts.length <= 1}
+                  onClick={() => setDomainDrafts((prev) => prev.filter((_, i) => i !== index))}
+                  aria-label={t("admin.delete")}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full gap-1.5"
+            onClick={() => setDomainDrafts((prev) => [...prev, ""])}
+          >
+            <Plus className="h-4 w-4" />
+            {t("admin.strategyEditor.publicUrlAdd")}
+          </Button>
+          <div className="space-y-2">
+            <Label>{t("admin.strategyEditor.publicUrlPrimary")}</Label>
+            <Input
+              readOnly
+              value={domainDrafts.map((item) => item.trim()).find(Boolean) || ""}
+              placeholder={t("admin.strategyEditor.publicUrlPrimaryEmpty")}
+              className="border-0 bg-muted/50 shadow-none focus-visible:ring-0"
+            />
+            <p className="text-xs text-muted-foreground">{t("admin.strategyEditor.publicUrlPrimaryHint")}</p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setDomainDialogOpen(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="button" onClick={applyDomainDialog}>
+              {t("common.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

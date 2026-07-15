@@ -64,10 +64,21 @@ export function AdminStrategiesPage() {
                 <p className="text-sm font-medium">{strategy.name}</p>
                 <p className="text-xs text-muted-foreground">
                   {strategy.configs?.driver || "local"} ·{" "}
-                  {strategy.configs?.url ||
-                    strategy.configs?.base_url ||
-                    strategy.configs?.baseUrl ||
-                    t("admin.strategies.noPublicUrl")}
+                  {(() => {
+                    const raw =
+                      strategy.configs?.url ||
+                      strategy.configs?.base_url ||
+                      strategy.configs?.baseUrl ||
+                      "";
+                    const domains = String(raw)
+                      .replace(/；/g, ";")
+                      .split(";")
+                      .map((item) => item.trim())
+                      .filter(Boolean);
+                    if (!domains.length) return t("admin.strategies.noPublicUrl");
+                    if (domains.length === 1) return domains[0];
+                    return `${domains[0]} (+${domains.length - 1})`;
+                  })()}
                 </p>
                 {strategy.groups?.length ? (
                   <p className="text-xs text-muted-foreground">

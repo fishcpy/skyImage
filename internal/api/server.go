@@ -8,6 +8,7 @@ import (
 	stdhtml "html"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -435,6 +436,162 @@ func pathPrefix(raw string) string {
 	return strings.Trim(strings.Trim(raw, "/"), "/")
 }
 
+// rejectIfStrategyDomainMismatch returns true when the request was rejected (404).
+// Only enforces when the strategy explicitly configures an external access domain.
+func (s *Server) rejectIfStrategyDomainMismatch(c *gin.Context, strategyID uint) bool {
+	if strategyID == 0 {
+		return false
+	}
+	strategy, err := s.admin.FindStrategyByID(c.Request.Context(), strategyID)
+	if err != nil {
+		return false
+	}
+	var cfg map[string]interface{}
+	if len(strategy.Configs) > 0 {
+		if err := json.Unmarshal(strategy.Configs, &cfg); err != nil {
+			return false
+		}
+	}
+	domain := strings.TrimSpace(stringValue(cfg, "url"))
+	if domain == "" {
+		domain = strings.TrimSpace(stringValue(cfg, "base_url"))
+	}
+	if domain == "" {
+		domain = strings.TrimSpace(stringValue(cfg, "baseUrl"))
+	}
+	expectedHosts := extractConfigHosts(domain)
+	if len(expectedHosts) == 0 {
+		return false
+	}
+	actual := requestHostname(c)
+	for _, expectedHost := range expectedHosts {
+		if hostsMatch(expectedHost, actual) {
+			return false
+		}
+	}
+	c.Status(http.StatusNotFound)
+	return true
+}
+
+func extractConfigHosts(raw string) []string {
+	items := splitDomainList(raw)
+	out := make([]string, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		host := extractConfigHost(item)
+		if host == "" {
+			continue
+		}
+		if _, ok := seen[host]; ok {
+			continue
+		}
+		seen[host] = struct{}{}
+		out = append(out, host)
+	}
+	return out
+}
+
+func splitDomainList(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	raw = strings.ReplaceAll(raw, "；", ";")
+	parts := strings.Split(raw, ";")
+	out := make([]string, 0, len(parts))
+	for _, item := range parts {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func extractConfigHost(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	// Relative path is not a custom domain.
+	if strings.HasPrefix(raw, "/") && !strings.HasPrefix(raw, "//") {
+		return ""
+	}
+	normalized := raw
+	if strings.HasPrefix(normalized, "//") {
+		normalized = "http:" + normalized
+	}
+	if !strings.Contains(normalized, "://") {
+		if !looksLikeHost(normalized) {
+			return ""
+		}
+		normalized = "http://" + normalized
+	}
+	parsed, err := url.Parse(normalized)
+	if err != nil || parsed.Host == "" {
+		return ""
+	}
+	return normalizeHost(parsed.Host)
+}
+
+func requestHostname(c *gin.Context) string {
+	host := strings.TrimSpace(c.Request.Host)
+	if forwarded := strings.TrimSpace(c.GetHeader("X-Forwarded-Host")); forwarded != "" {
+		// Take the first host if multiple are present.
+		if idx := strings.IndexByte(forwarded, ','); idx >= 0 {
+			forwarded = strings.TrimSpace(forwarded[:idx])
+		}
+		if forwarded != "" {
+			host = forwarded
+		}
+	}
+	return normalizeHost(host)
+}
+
+func normalizeHost(host string) string {
+	host = strings.TrimSpace(strings.ToLower(host))
+	if host == "" {
+		return ""
+	}
+	if h, p, err := net.SplitHostPort(host); err == nil {
+		if p == "80" || p == "443" {
+			return strings.ToLower(h)
+		}
+		return strings.ToLower(h) + ":" + p
+	}
+	return host
+}
+
+func hostsMatch(expected, actual string) bool {
+	if expected == "" || actual == "" {
+		return false
+	}
+	if expected == actual {
+		return true
+	}
+	expHost, expPort, expErr := net.SplitHostPort(expected)
+	actHost, actPort, actErr := net.SplitHostPort(actual)
+	if expErr != nil {
+		expHost = expected
+		expPort = ""
+	} else {
+		expHost = strings.ToLower(expHost)
+	}
+	if actErr != nil {
+		actHost = actual
+		actPort = ""
+	} else {
+		actHost = strings.ToLower(actHost)
+	}
+	if expHost != actHost {
+		return false
+	}
+	if expPort == "" || actPort == "" {
+		return true
+	}
+	return expPort == actPort
+}
+
 func looksLikeHost(raw string) bool {
 	lower := strings.ToLower(raw)
 	return strings.Contains(raw, ".") || strings.Contains(raw, ":") || strings.HasPrefix(lower, "localhost")
@@ -529,6 +686,11 @@ func (s *Server) serveLocalFileByRelative(c *gin.Context, rel string) bool {
 	}
 
 	file = files.ServeTarget(file, isThumbnail)
+
+	// 策略配置了外部访问域名时，仅允许通过该域名访问，否则 404。
+	if s.rejectIfStrategyDomainMismatch(c, file.StrategyID) {
+		return true
+	}
 
 	// 演示站模式：私有图片需要登录才能查看
 	s.mu.RLock()

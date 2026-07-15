@@ -1245,13 +1245,13 @@ func (s *Service) parseStrategyConfig(strategy data.Strategy) strategyConfig {
 				cfg.Root = v
 			}
 			if v := stringFromAny(raw["url"]); v != "" {
-				cfg.Base = v
+				cfg.Base = firstPublicBaseURL(v)
 			}
 			if v := stringFromAny(raw["base_url"]); v != "" {
-				cfg.Base = v
+				cfg.Base = firstPublicBaseURL(v)
 			}
 			if v := stringFromAny(raw["baseUrl"]); v != "" {
-				cfg.Base = v
+				cfg.Base = firstPublicBaseURL(v)
 			}
 			if v := stringFromAny(raw["pattern"]); v != "" {
 				cfg.Pattern = v
@@ -1522,6 +1522,23 @@ func sanitizeURL(raw string) string {
 		return parsed.String()
 	}
 	return trimmed
+}
+
+// firstPublicBaseURL returns the first domain when multiple are configured
+// (semicolon separated). Used for public link generation.
+func firstPublicBaseURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	raw = strings.ReplaceAll(raw, "；", ";")
+	for _, item := range strings.Split(raw, ";") {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			return item
+		}
+	}
+	return raw
 }
 
 var randPattern = regexp.MustCompile(`\{rand(\d{1,3})\}`)

@@ -455,12 +455,14 @@ func validateStrategyConfigs(configs map[string]interface{}) error {
 		driver = "local"
 	}
 	for _, rawURL := range configStrings(configs, "url", "base_url", "baseUrl") {
-		if err := validateExternalDomain(rawURL); err != nil {
-			return err
-		}
-		if segment := extractPathPrefix(rawURL); segment != "" {
-			if _, blocked := reservedStrategyPathSegments()[strings.ToLower(segment)]; blocked {
-				return fmt.Errorf("路径前缀 %q 为系统保留路径，不能用于存储策略", segment)
+		for _, item := range splitExternalDomains(rawURL) {
+			if err := validateExternalDomain(item); err != nil {
+				return err
+			}
+			if segment := extractPathPrefix(item); segment != "" {
+				if _, blocked := reservedStrategyPathSegments()[strings.ToLower(segment)]; blocked {
+					return fmt.Errorf("路径前缀 %q 为系统保留路径，不能用于存储策略", segment)
+				}
 			}
 		}
 	}
@@ -551,32 +553,62 @@ func extractPathPrefix(raw string) string {
 	return strings.Trim(strings.Trim(raw, "/"), "/")
 }
 
+func splitExternalDomains(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	// Multiple domains are separated by semicolon (ASCII or fullwidth).
+	raw = strings.ReplaceAll(raw, "；", ";")
+	parts := strings.Split(raw, ";")
+	out := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, item := range parts {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		key := strings.ToLower(item)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, item)
+	}
+	return out
+}
+
 func validateExternalDomain(raw string) error {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return nil
 	}
+	// Pure relative path (e.g. /uploads) is not allowed as a domain entry.
 	if strings.HasPrefix(trimmed, "/") && !strings.HasPrefix(trimmed, "//") {
-		return fmt.Errorf("外部访问域名仅支持域名，不允许包含路径")
+		return fmt.Errorf("外部访问域名仅支持域名，不允许包含路径: %s", trimmed)
 	}
 	normalized := trimmed
 	if strings.HasPrefix(normalized, "//") {
 		normalized = "http:" + normalized
 	}
 	if !strings.Contains(normalized, "://") {
+		// bare host[:port]
 		if looksLikeHost(normalized) {
 			normalized = "http://" + normalized
+		} else {
+			return fmt.Errorf("外部访问域名格式不正确: %s", trimmed)
 		}
 	}
 	parsed, err := url.Parse(normalized)
 	if err != nil || parsed.Host == "" {
-		return fmt.Errorf("外部访问域名格式不正确")
+		return fmt.Errorf("外部访问域名格式不正确: %s", trimmed)
 	}
-	if parsed.Path != "" && parsed.Path != "/" {
-		return fmt.Errorf("外部访问域名仅支持域名，不允许包含路径")
+	// Reject path/query/fragment. Empty path or "/" is fine.
+	if path := strings.TrimSpace(parsed.EscapedPath()); path != "" && path != "/" {
+		return fmt.Errorf("外部访问域名仅支持域名，不允许包含路径: %s", trimmed)
 	}
 	if parsed.RawQuery != "" || parsed.Fragment != "" {
-		return fmt.Errorf("外部访问域名不允许包含参数或片段")
+		return fmt.Errorf("外部访问域名不允许包含参数或片段: %s", trimmed)
 	}
 	return nil
 }
