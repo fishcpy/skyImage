@@ -436,6 +436,34 @@ func pathPrefix(raw string) string {
 	return strings.Trim(strings.Trim(raw, "/"), "/")
 }
 
+// rejectIfConsoleDomainMismatch returns true when the request host is not the site console host.
+// Thumbnails must only be served from the console domain.
+func (s *Server) rejectIfConsoleDomainMismatch(c *gin.Context) bool {
+	settings, err := s.admin.GetSettings(c.Request.Context())
+	if err != nil {
+		return false
+	}
+	consoleURL := strings.TrimSpace(settings["site.console_url"])
+	if consoleURL == "" {
+		consoleURL = strings.TrimSpace(s.cfg.PublicBaseURL)
+	}
+	if consoleURL == "" {
+		consoleURL = defaultConsoleURL
+	}
+	expectedHosts := extractConfigHosts(consoleURL)
+	if len(expectedHosts) == 0 {
+		return false
+	}
+	actual := requestHostname(c)
+	for _, expectedHost := range expectedHosts {
+		if hostsMatch(expectedHost, actual) {
+			return false
+		}
+	}
+	c.Status(http.StatusNotFound)
+	return true
+}
+
 // rejectIfStrategyDomainMismatch returns true when the request was rejected (404).
 // Only enforces when the strategy explicitly configures an external access domain.
 func (s *Server) rejectIfStrategyDomainMismatch(c *gin.Context, strategyID uint) bool {
@@ -666,30 +694,27 @@ func (s *Server) serveLocalFileByRelative(c *gin.Context, rel string) bool {
 		return false
 	}
 
-	// Thumbnails: login required; only owner or admin may view.
+	// Thumbnails: login required; only owner or admin may view; console domain only.
+	// Fail closed with 404 (no auth/permission hints).
 	if isThumbnail {
 		user, ok := middleware.CurrentUser(c)
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error":   "需要登录才能查看缩略图",
-				"message": "缩略图仅对登录用户开放",
-			})
+		if !ok || !files.CanAccessThumbnail(file, &user) {
+			c.Status(http.StatusNotFound)
 			return true
 		}
-		if !files.CanAccessThumbnail(file, &user) {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error":   "无权访问此缩略图",
-				"message": "缩略图仅对上传者和管理员可见",
-			})
+		if s.rejectIfConsoleDomainMismatch(c) {
 			return true
 		}
 	}
 
 	file = files.ServeTarget(file, isThumbnail)
 
-	// 策略配置了外部访问域名时，仅允许通过该域名访问，否则 404。
-	if s.rejectIfStrategyDomainMismatch(c, file.StrategyID) {
-		return true
+	// 原图：策略配置了外部访问域名时，仅允许通过该域名访问，否则 404。
+	// 缩略图固定走控制台域名，不跟随策略自定义域名。
+	if !isThumbnail {
+		if s.rejectIfStrategyDomainMismatch(c, file.StrategyID) {
+			return true
+		}
 	}
 
 	// 演示站模式：私有图片需要登录才能查看

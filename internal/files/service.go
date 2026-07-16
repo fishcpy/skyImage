@@ -662,10 +662,11 @@ func (s *Service) attachThumbnail(ctx context.Context, file *data.FileAsset, sou
 		return err
 	}
 
-	thumbURL := s.buildPublicURLFromRelative(thumbCfg, thumbRel)
+	// Thumbnail public links always use the site console domain (not strategy external domains).
+	thumbURL := s.buildConsolePublicURL(ctx, thumbRel)
 	if thumbURL == "" {
 		_ = s.deleteStoredPath(ctx, thumbCfg, storeResult.Path, thumbRel)
-		return fmt.Errorf("thumbnail storage strategy %d has no external access domain", thumbStrategyID)
+		return fmt.Errorf("console URL is not configured; cannot build thumbnail public URL")
 	}
 
 	file.ThumbnailPath = storeResult.Path
@@ -682,28 +683,104 @@ func (s *Service) attachThumbnail(ctx context.Context, file *data.FileAsset, sou
 }
 
 func (s *Service) thumbnailPublicURL(ctx context.Context, file data.FileAsset) string {
-	if strings.TrimSpace(file.ThumbnailPublicURL) != "" {
-		return sanitizeURL(file.ThumbnailPublicURL)
-	}
-	if strings.TrimSpace(file.ThumbnailRelativePath) == "" {
+	rel := strings.TrimSpace(file.ThumbnailRelativePath)
+	if rel == "" {
+		// Legacy rows may only have a stored absolute URL.
+		if stored := strings.TrimSpace(file.ThumbnailPublicURL); stored != "" {
+			return sanitizeURL(rewriteURLBase(stored, s.consoleBaseURL(ctx)))
+		}
 		return ""
 	}
+	return sanitizeURL(s.buildConsolePublicURL(ctx, rel))
+}
 
-	thumbCfg := strategyConfig{}
-	if file.ThumbnailStrategyID != nil && *file.ThumbnailStrategyID > 0 {
-		if _, cfg, err := s.resolveStrategyByID(ctx, *file.ThumbnailStrategyID); err == nil {
-			thumbCfg = cfg
+// consoleBaseURL returns site.console_url from settings, with env/public fallbacks.
+func (s *Service) consoleBaseURL(ctx context.Context) string {
+	var entry data.ConfigEntry
+	if err := s.db.WithContext(ctx).Where("key = ?", "site.console_url").First(&entry).Error; err == nil {
+		if base := normalizeConsoleBase(entry.Value); base != "" {
+			return base
 		}
 	}
-	if strings.TrimSpace(thumbCfg.Base) == "" {
-		if file.Strategy.ID == 0 && file.StrategyID != 0 {
-			_ = s.db.WithContext(ctx).First(&file.Strategy, file.StrategyID)
-		}
-		if file.Strategy.ID != 0 {
-			thumbCfg = s.parseStrategyConfig(file.Strategy)
-		}
+	if base := normalizeConsoleBase(s.cfg.PublicBaseURL); base != "" {
+		return base
 	}
-	return sanitizeURL(s.buildPublicURLFromRelative(thumbCfg, file.ThumbnailRelativePath))
+	return normalizeConsoleBase(s.defaultBaseURL())
+}
+
+func (s *Service) buildConsolePublicURL(ctx context.Context, relativePath string) string {
+	base := s.consoleBaseURL(ctx)
+	rel := filepath.ToSlash(strings.TrimSpace(relativePath))
+	if base == "" || rel == "" {
+		return ""
+	}
+	return joinPublicURL(base, rel)
+}
+
+// RewriteThumbnailPublicURLsToConsole updates stored thumbnail_public_url for all files
+// that have a thumbnail, so links track the current console domain.
+func (s *Service) RewriteThumbnailPublicURLsToConsole(ctx context.Context) (int64, error) {
+	base := s.consoleBaseURL(ctx)
+	if base == "" {
+		return 0, fmt.Errorf("console URL is empty")
+	}
+	var files []data.FileAsset
+	if err := s.db.WithContext(ctx).
+		Select("id", "thumbnail_relative_path", "thumbnail_public_url").
+		Where("thumbnail_relative_path <> '' OR thumbnail_public_url <> ''").
+		Find(&files).Error; err != nil {
+		return 0, err
+	}
+	var updated int64
+	for _, file := range files {
+		rel := strings.TrimSpace(file.ThumbnailRelativePath)
+		var next string
+		if rel != "" {
+			next = joinPublicURL(base, filepath.ToSlash(rel))
+		} else {
+			next = rewriteURLBase(file.ThumbnailPublicURL, base)
+		}
+		next = sanitizeURL(next)
+		if next == "" || next == strings.TrimSpace(file.ThumbnailPublicURL) {
+			continue
+		}
+		if err := s.db.WithContext(ctx).
+			Model(&data.FileAsset{}).
+			Where("id = ?", file.ID).
+			UpdateColumn("thumbnail_public_url", next).Error; err != nil {
+			return updated, err
+		}
+		updated++
+	}
+	return updated, nil
+}
+
+func normalizeConsoleBase(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if strings.HasPrefix(raw, "//") {
+		raw = "http:" + raw
+	}
+	if !strings.HasPrefix(strings.ToLower(raw), "http://") && !strings.HasPrefix(strings.ToLower(raw), "https://") {
+		raw = "http://" + strings.TrimLeft(raw, "/")
+	}
+	return strings.TrimRight(raw, "/")
+}
+
+// rewriteURLBase keeps the path/query of rawURL but replaces scheme/host with newBase.
+func rewriteURLBase(rawURL, newBase string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	newBase = normalizeConsoleBase(newBase)
+	if rawURL == "" || newBase == "" {
+		return rawURL
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Path == "" {
+		return joinPublicURL(newBase, strings.TrimPrefix(rawURL, "/"))
+	}
+	return joinPublicURL(newBase, strings.TrimPrefix(parsed.EscapedPath(), "/"))
 }
 
 func (s *Service) deleteThumbnailObject(ctx context.Context, db *gorm.DB, file data.FileAsset) error {

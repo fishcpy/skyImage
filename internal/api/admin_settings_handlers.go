@@ -136,10 +136,23 @@ func (s *Server) handleAdminUpdateSiteSettings(c *gin.Context) {
 		"account.disabled_notice":     notice,
 	}
 
+	oldSettings, _ := s.admin.GetSettings(c.Request.Context())
+	oldConsole := strings.TrimSpace(oldSettings["site.console_url"])
+	newConsole := strings.TrimSpace(payload.ConsoleURL)
+
 	if err := s.admin.UpdateSettings(c.Request.Context(), values); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// When console URL changes, rewrite stored thumbnail public URLs to the new domain.
+	if newConsole != "" && !strings.EqualFold(strings.TrimRight(oldConsole, "/"), strings.TrimRight(newConsole, "/")) {
+		if _, err := s.files.RewriteThumbnailPublicURLsToConsole(c.Request.Context()); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "站点已保存，但缩略图链接更新失败: " + err.Error()})
+			return
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"data": "updated"})
 }
 
