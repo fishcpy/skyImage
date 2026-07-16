@@ -13,8 +13,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"skyimage/internal/captcha"
 	"skyimage/internal/data"
 	"skyimage/internal/middleware"
+	"skyimage/internal/redeem"
 	"skyimage/internal/users"
 )
 
@@ -41,6 +43,7 @@ func (s *Server) registerAccountRoutes(r *gin.RouterGroup) {
 	accountWithCSRF.PATCH("/notifications/:id/read", s.handleAccountNotificationRead)
 	accountWithCSRF.POST("/notifications/read-all", s.handleAccountNotificationsReadAll)
 	accountWithCSRF.DELETE("/notifications", s.handleAccountNotificationsClear)
+	accountWithCSRF.POST("/redeem", s.handleAccountRedeem)
 }
 
 type accountNotificationDTO struct {
@@ -440,4 +443,117 @@ func parseApiTokenExpiry(value string) (time.Time, error) {
 		return ts, nil
 	}
 	return time.Time{}, fmt.Errorf("Invalid expiresAt format")
+}
+
+func (s *Server) handleAccountRedeem(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var payload struct {
+		Code            string            `json:"code"`
+		CaptchaToken    string            `json:"captchaToken"`
+		CaptchaData     map[string]string `json:"captchaData"`
+		CaptchaProvider string            `json:"captchaProvider"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 兑换码场景人机验证
+	captchaConfig, err := s.captcha.GetConfig(c.Request.Context(), "redeem")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "系统错误"})
+		return
+	}
+	if captchaConfig.Enabled {
+		provider := captcha.Provider(payload.CaptchaProvider)
+		if provider == "" {
+			provider = captchaConfig.Provider
+		}
+		clientIP := getClientIP(c, s.isCDNEnabled(c.Request.Context()))
+		if err := s.verifyCaptcha(c.Request.Context(), provider, payload.CaptchaToken, clientIP, payload.CaptchaData); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "人机验证失败，请重试"})
+			return
+		}
+	}
+
+	result, err := s.redeem.Redeem(c.Request.Context(), user, payload.Code)
+	if err != nil {
+		status := http.StatusBadRequest
+		switch {
+		case errors.Is(err, redeem.ErrCodeNotFound),
+			errors.Is(err, redeem.ErrInvalidCode):
+			status = http.StatusNotFound
+		case errors.Is(err, redeem.ErrCodeDisabled),
+			errors.Is(err, redeem.ErrCodeExhausted),
+			errors.Is(err, redeem.ErrAlreadyRedeemed):
+			status = http.StatusForbidden
+		}
+		c.JSON(status, gin.H{"error": localizeRedeemError(err)})
+		return
+	}
+
+	// 刷新容量等衍生字段
+	if hydrated, err := s.users.FindByID(c.Request.Context(), result.User.ID); err == nil {
+		result.User = hydrated
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"user":  result.User,
+			"group": result.Group,
+			"code":  result.Code,
+		},
+		"message": redeemSuccessMessage(result),
+	})
+}
+
+func redeemSuccessMessage(result redeem.RedeemResult) string {
+	rt := strings.ToLower(strings.TrimSpace(result.Code.RewardType))
+	if rt == redeem.RewardTypeCapacity {
+		delta := result.Code.CapacityDelta
+		if delta >= 0 {
+			return fmt.Sprintf("兑换成功，容量增加 %s", formatBytesCN(delta))
+		}
+		return fmt.Sprintf("兑换成功，容量减少 %s", formatBytesCN(-delta))
+	}
+	if result.Group != nil {
+		return fmt.Sprintf("兑换成功，已加入角色组 %s", result.Group.Name)
+	}
+	return "兑换成功"
+}
+
+func formatBytesCN(bytes float64) string {
+	if bytes < 0 {
+		bytes = -bytes
+	}
+	units := []string{"B", "KB", "MB", "GB", "TB"}
+	value := bytes
+	idx := 0
+	for value >= 1024 && idx < len(units)-1 {
+		value /= 1024
+		idx++
+	}
+	return fmt.Sprintf("%.2f %s", value, units[idx])
+}
+
+func localizeRedeemError(err error) string {
+	switch {
+	case errors.Is(err, redeem.ErrCodeNotFound), errors.Is(err, redeem.ErrInvalidCode):
+		return "兑换码无效"
+	case errors.Is(err, redeem.ErrCodeDisabled):
+		return "兑换码已停用"
+	case errors.Is(err, redeem.ErrCodeExhausted):
+		return "兑换码已达使用上限"
+	case errors.Is(err, redeem.ErrAlreadyRedeemed):
+		return "您已兑换过该兑换码"
+	case errors.Is(err, redeem.ErrGroupNotFound):
+		return "兑换码关联的角色组不存在"
+	default:
+		return err.Error()
+	}
 }

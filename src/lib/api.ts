@@ -610,6 +610,17 @@ export async function assignUserGroup(userId: number, groupId: number | null) {
   return res.data.data;
 }
 
+export async function adjustUserCapacityBonus(
+  userId: number,
+  input: { deltaBytes?: number; bonusBytes?: number }
+) {
+  const res = await apiClient.patch<{ data: any }>(
+    `/admin/users/${userId}/capacity-bonus`,
+    input
+  );
+  return res.data.data;
+}
+
 export async function fetchAdminImages(params?: {
   limit?: number;
   offset?: number;
@@ -780,6 +791,7 @@ export type CaptchaSettings = {
   enableRegisterVerifyCaptcha: boolean;
   enableForgotPasswordRequestCaptcha: boolean;
   enableForgotPasswordResetCaptcha: boolean;
+  enableRedeemCaptcha: boolean;
   cloudflareVerified: boolean;
   cloudflareLastVerifiedAt?: string;
   geetestVerified: boolean;
@@ -979,4 +991,95 @@ export async function fetchCaptchaConfig(context: string): Promise<CaptchaConfig
     params: { context }
   });
   return res.data.data;
+}
+
+export type RedeemCodeRecord = {
+  id: number;
+  code: string;
+  rewardType: "group" | "capacity" | string;
+  groupId?: number | null;
+  capacityDelta?: number;
+  maxUses: number;
+  usedCount: number;
+  allowMultiRedeem: boolean;
+  enabled: boolean;
+  note?: string;
+  createdBy: number;
+  createdAt: string;
+  updatedAt: string;
+  group?: GroupRecord | null;
+};
+
+export type RedeemCodeUsageRecord = {
+  id: number;
+  redeemCodeId: number;
+  userId: number;
+  createdAt: string;
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+};
+
+export async function fetchRedeemCodes() {
+  const res = await apiClient.get<{ data: RedeemCodeRecord[] }>("/admin/redeem-codes");
+  return res.data.data;
+}
+
+export async function createRedeemCode(input: {
+  code?: string;
+  rewardType: "group" | "capacity";
+  groupId?: number | null;
+  capacityDelta?: number;
+  maxUses: number;
+  allowMultiRedeem: boolean;
+  enabled?: boolean;
+  note?: string;
+  autoGenerate?: boolean;
+}) {
+  const res = await apiClient.post<{ data: RedeemCodeRecord }>("/admin/redeem-codes", input);
+  return res.data.data;
+}
+
+export async function updateRedeemCode(
+  id: number,
+  input: {
+    groupId?: number;
+    maxUses?: number;
+    allowMultiRedeem?: boolean;
+    enabled?: boolean;
+    note?: string;
+  }
+) {
+  const res = await apiClient.put<{ data: RedeemCodeRecord }>(`/admin/redeem-codes/${id}`, input);
+  return res.data.data;
+}
+
+export async function deleteRedeemCode(id: number) {
+  await apiClient.delete(`/admin/redeem-codes/${id}`);
+}
+
+export async function fetchRedeemCodeUsages(id: number) {
+  const res = await apiClient.get<{ data: RedeemCodeUsageRecord[] }>(
+    `/admin/redeem-codes/${id}/usages`
+  );
+  return res.data.data;
+}
+
+export async function redeemCode(input: {
+  code: string;
+  captchaToken?: string;
+  captchaData?: Record<string, string>;
+  captchaProvider?: string;
+}) {
+  const res = await apiClient.post<{
+    data: {
+      user: any;
+      group?: GroupRecord | null;
+      code: RedeemCodeRecord;
+    };
+    message?: string;
+  }>("/account/redeem", input);
+  return { ...res.data.data, message: res.data.message };
 }

@@ -12,6 +12,7 @@ import {
   ServerCog,
   Settings2,
   ShieldAlert,
+  Ticket,
   Users,
   Users2,
   type LucideIcon
@@ -82,6 +83,7 @@ export const buildNavSections = ({
         { url: "/dashboard/admin/images", title: t("nav.adminImages"), icon: ImageIcon },
         { url: "/dashboard/admin/audits", title: t("nav.audits"), icon: ShieldAlert },
         { url: "/dashboard/admin/groups", title: t("nav.groups"), icon: Users },
+        { url: "/dashboard/admin/redeem-codes", title: t("nav.redeemCodes"), icon: Ticket },
         { url: "/dashboard/admin/users", title: t("nav.users"), icon: Users2 },
         { url: "/dashboard/admin/strategies", title: t("nav.strategies"), icon: Layers3 },
         {

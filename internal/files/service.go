@@ -163,71 +163,75 @@ func (s *Service) Upload(ctx context.Context, user data.User, file *multipart.Fi
 		return data.FileAsset{}, err
 	}
 
-	// Check file size limit and capacity limit from group config
+	// Check file size limit and capacity limit from group config + user capacity bonus
+	var groupCfg map[string]interface{}
 	if user.GroupID != nil {
 		var group data.Group
-		if err := s.db.WithContext(ctx).First(&group, *user.GroupID).Error; err == nil {
-			var groupCfg map[string]interface{}
-			if len(group.Configs) > 0 {
-				if err := json.Unmarshal(group.Configs, &groupCfg); err == nil {
-					maxMinute := intFromAny(groupCfg["upload_rate_minute"])
-					maxHour := intFromAny(groupCfg["upload_rate_hour"])
-					if (maxMinute > 0 || maxHour > 0) && s.limiter != nil {
-						allowed, retryAfter := s.limiter.Allow(user.ID, maxMinute, maxHour)
-						if !allowed {
-							waitSeconds := int(math.Ceil(retryAfter.Seconds()))
-							if waitSeconds < 1 {
-								waitSeconds = 1
-							}
-							return data.FileAsset{}, fmt.Errorf("上传过于频繁，请在 %d 秒后重试", waitSeconds)
-						}
-					}
-
-					// Check single file size limit
-					if maxSize, ok := groupCfg["max_file_size"]; ok {
-						var maxBytes int64
-						switch v := maxSize.(type) {
-						case float64:
-							maxBytes = int64(v)
-						case int:
-							maxBytes = int64(v)
-						case int64:
-							maxBytes = v
-						}
-						if maxBytes > 0 && file.Size > maxBytes {
-							// Format bytes to MB for user-friendly error message
-							fileSizeMB := float64(file.Size) / (1024 * 1024)
-							maxSizeMB := float64(maxBytes) / (1024 * 1024)
-							return data.FileAsset{}, fmt.Errorf("文件大小 %.2f MB 超过限制 %.2f MB", fileSizeMB, maxSizeMB)
-						}
-					}
-
-					// Check total capacity limit
-					if maxCapacity, ok := groupCfg["max_capacity"]; ok {
-						var maxCapBytes float64
-						switch v := maxCapacity.(type) {
-						case float64:
-							maxCapBytes = v
-						case int:
-							maxCapBytes = float64(v)
-						case int64:
-							maxCapBytes = float64(v)
-						}
-						if maxCapBytes > 0 {
-							// Get current used capacity
-							var currentUser data.User
-							if err := s.db.WithContext(ctx).First(&currentUser, user.ID).Error; err == nil {
-								futureUsed := currentUser.UsedCapacity + float64(file.Size)
-								if futureUsed > maxCapBytes {
-									usedMB := currentUser.UsedCapacity / (1024 * 1024)
-									fileSizeMB := float64(file.Size) / (1024 * 1024)
-									maxCapMB := maxCapBytes / (1024 * 1024)
-									return data.FileAsset{}, fmt.Errorf("容量不足：已使用 %.2f MB，上传此文件需要 %.2f MB，容量上限 %.2f MB", usedMB, fileSizeMB, maxCapMB)
-								}
-							}
-						}
-					}
+		if err := s.db.WithContext(ctx).First(&group, *user.GroupID).Error; err == nil && len(group.Configs) > 0 {
+			_ = json.Unmarshal(group.Configs, &groupCfg)
+		}
+	}
+	if groupCfg != nil {
+		maxMinute := intFromAny(groupCfg["upload_rate_minute"])
+		maxHour := intFromAny(groupCfg["upload_rate_hour"])
+		if (maxMinute > 0 || maxHour > 0) && s.limiter != nil {
+			allowed, retryAfter := s.limiter.Allow(user.ID, maxMinute, maxHour)
+			if !allowed {
+				waitSeconds := int(math.Ceil(retryAfter.Seconds()))
+				if waitSeconds < 1 {
+					waitSeconds = 1
 				}
+				return data.FileAsset{}, fmt.Errorf("上传过于频繁，请在 %d 秒后重试", waitSeconds)
+			}
+		}
+
+		// Check single file size limit
+		if maxSize, ok := groupCfg["max_file_size"]; ok {
+			var maxBytes int64
+			switch v := maxSize.(type) {
+			case float64:
+				maxBytes = int64(v)
+			case int:
+				maxBytes = int64(v)
+			case int64:
+				maxBytes = v
+			}
+			if maxBytes > 0 && file.Size > maxBytes {
+				fileSizeMB := float64(file.Size) / (1024 * 1024)
+				maxSizeMB := float64(maxBytes) / (1024 * 1024)
+				return data.FileAsset{}, fmt.Errorf("文件大小 %.2f MB 超过限制 %.2f MB", fileSizeMB, maxSizeMB)
+			}
+		}
+	}
+
+	// Check total capacity limit（角色组容量 + 用户自定义增减）
+	var baseCapBytes float64
+	if groupCfg != nil {
+		if maxCapacity, ok := groupCfg["max_capacity"]; ok {
+			switch v := maxCapacity.(type) {
+			case float64:
+				baseCapBytes = v
+			case int:
+				baseCapBytes = float64(v)
+			case int64:
+				baseCapBytes = float64(v)
+			}
+		}
+	}
+	var currentUser data.User
+	if err := s.db.WithContext(ctx).First(&currentUser, user.ID).Error; err == nil {
+		maxCapBytes := baseCapBytes + currentUser.CapacityBonus
+		if maxCapBytes < 0 {
+			maxCapBytes = 0
+		}
+		// 有角色组容量或自定义增减时做校验
+		if baseCapBytes > 0 || currentUser.CapacityBonus != 0 {
+			futureUsed := currentUser.UsedCapacity + float64(file.Size)
+			if maxCapBytes <= 0 || futureUsed > maxCapBytes {
+				usedMB := currentUser.UsedCapacity / (1024 * 1024)
+				fileSizeMB := float64(file.Size) / (1024 * 1024)
+				maxCapMB := maxCapBytes / (1024 * 1024)
+				return data.FileAsset{}, fmt.Errorf("容量不足：已使用 %.2f MB，上传此文件需要 %.2f MB，容量上限 %.2f MB", usedMB, fileSizeMB, maxCapMB)
 			}
 		}
 	}

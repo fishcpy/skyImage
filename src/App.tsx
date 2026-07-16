@@ -31,6 +31,8 @@ import { AdminSiteSettingsPage } from "@/features/admin/AdminSiteSettingsPage";
 import { AdminEmailSettingsPage } from "@/features/admin/AdminEmailSettingsPage";
 import { AdminCaptchaSettingsPage } from "@/features/admin/AdminCaptchaSettingsPage";
 import { AdminGroupEditorPage } from "@/features/admin/AdminGroupEditorPage";
+import { AdminRedeemCodesPage } from "@/features/admin/AdminRedeemCodesPage";
+import { AdminRedeemCodeEditorPage } from "@/features/admin/AdminRedeemCodeEditorPage";
 import { AdminStrategyEditorPage } from "@/features/admin/AdminStrategyEditorPage";
 import { AdminAuditEditorPage } from "@/features/admin/AdminAuditEditorPage";
 import { AdminUserCreatePage } from "@/features/users/AdminUserCreatePage";
@@ -170,6 +172,8 @@ export default function App() {
                 <Route path="admin/groups" element={<AdminGroupsPage />} />
                 <Route path="admin/groups/new" element={<AdminGroupEditorPage />} />
                 <Route path="admin/groups/:id" element={<AdminGroupEditorPage />} />
+                <Route path="admin/redeem-codes" element={<AdminRedeemCodesPage />} />
+                <Route path="admin/redeem-codes/new" element={<AdminRedeemCodeEditorPage />} />
                 <Route path="admin/users" element={<UserManagementPage />} />
                 <Route path="admin/users/new" element={<AdminUserCreatePage />} />
                 <Route path="admin/users/:id" element={<AdminUserDetailPage />} />

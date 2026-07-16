@@ -72,6 +72,7 @@ export function AdminCaptchaSettingsPage() {
     enableRegisterVerifyCaptcha: false,
     enableForgotPasswordRequestCaptcha: false,
     enableForgotPasswordResetCaptcha: false,
+    enableRedeemCaptcha: false,
   });
 
   const [providerStatus, setProviderStatus] = useState<{
@@ -123,6 +124,7 @@ export function AdminCaptchaSettingsPage() {
         enableRegisterVerifyCaptcha: data.enableRegisterVerifyCaptcha ?? false,
         enableForgotPasswordRequestCaptcha: data.enableForgotPasswordRequestCaptcha ?? false,
         enableForgotPasswordResetCaptcha: data.enableForgotPasswordResetCaptcha ?? false,
+        enableRedeemCaptcha: data.enableRedeemCaptcha ?? false,
       };
       setForm(normalized);
       setInitialForm(normalized);
@@ -580,6 +582,18 @@ export function AdminCaptchaSettingsPage() {
               />
               <Label htmlFor="enableForgotPasswordResetCaptcha" className={!form.enableCaptcha ? "text-muted-foreground" : ""}>
                 {t("admin.captchaSettings.scene.forgotPasswordReset")}
+              </Label>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="enableRedeemCaptcha"
+                checked={form.enableRedeemCaptcha}
+                disabled={!form.enableCaptcha}
+                onCheckedChange={(checked) => handleChange("enableRedeemCaptcha", checked)}
+              />
+              <Label htmlFor="enableRedeemCaptcha" className={!form.enableCaptcha ? "text-muted-foreground" : ""}>
+                {t("admin.captchaSettings.scene.redeem")}
               </Label>
             </div>
           </div>

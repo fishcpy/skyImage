@@ -12,10 +12,12 @@ import (
 
 	"skyimage/internal/admin"
 	"skyimage/internal/captcha"
+	"skyimage/internal/data"
 	"skyimage/internal/files"
 	mailservice "skyimage/internal/mail"
 	"skyimage/internal/middleware"
 	"skyimage/internal/notifications"
+	"skyimage/internal/redeem"
 	"skyimage/internal/users"
 )
 
@@ -35,11 +37,18 @@ func (s *Server) registerAdminRoutes(r *gin.RouterGroup) {
 	adminGroup.PATCH("/users/:id/status", s.handleAdminUpdateStatus)
 	adminGroup.POST("/users/:id/admin", s.handleAdminToggleAdmin)
 	adminGroup.PATCH("/users/:id/group", s.handleAdminAssignUserGroup)
+	adminGroup.PATCH("/users/:id/capacity-bonus", s.handleAdminAdjustCapacityBonus)
 
 	adminGroup.GET("/groups", s.handleAdminListGroups)
 	adminGroup.POST("/groups", s.handleAdminCreateGroup)
 	adminGroup.PUT("/groups/:id", s.handleAdminUpdateGroup)
 	adminGroup.DELETE("/groups/:id", s.handleAdminDeleteGroup)
+
+	adminGroup.GET("/redeem-codes", s.handleAdminListRedeemCodes)
+	adminGroup.POST("/redeem-codes", s.handleAdminCreateRedeemCode)
+	adminGroup.PUT("/redeem-codes/:id", s.handleAdminUpdateRedeemCode)
+	adminGroup.DELETE("/redeem-codes/:id", s.handleAdminDeleteRedeemCode)
+	adminGroup.GET("/redeem-codes/:id/usages", s.handleAdminListRedeemCodeUsages)
 
 	adminGroup.GET("/strategies", s.handleAdminListStrategies)
 	adminGroup.POST("/strategies", s.handleAdminCreateStrategy)
@@ -283,6 +292,53 @@ func (s *Server) handleAdminAssignUserGroup(c *gin.Context) {
 	}
 
 	user, err := s.users.AssignGroup(c.Request.Context(), actor, uint(id), payload.GroupID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": user})
+}
+
+func (s *Server) handleAdminAdjustCapacityBonus(c *gin.Context) {
+	actor, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user"})
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var payload struct {
+		// deltaBytes: 相对当前 bonus 增减（字节，可负）
+		DeltaBytes *float64 `json:"deltaBytes"`
+		// bonusBytes: 直接设置 bonus（字节）；与 delta 二选一，优先 delta
+		BonusBytes *float64 `json:"bonusBytes"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if payload.DeltaBytes == nil && payload.BonusBytes == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "deltaBytes or bonusBytes required"})
+		return
+	}
+
+	s.mu.RLock()
+	demoMode := s.cfg.DemoMode
+	s.mu.RUnlock()
+	if demoMode {
+		c.JSON(http.StatusForbidden, gin.H{"error": "演示站禁止修改用户容量"})
+		return
+	}
+
+	var user data.User
+	if payload.DeltaBytes != nil {
+		user, err = s.users.AdjustCapacityBonus(c.Request.Context(), actor, uint(id), *payload.DeltaBytes)
+	} else {
+		user, err = s.users.SetCapacityBonus(c.Request.Context(), actor, uint(id), *payload.BonusBytes)
+	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -993,4 +1049,139 @@ func (s *Server) handleAdminTestCaptcha(c *gin.Context) {
 		"message":    "验证成功",
 		"verifiedAt": now,
 	}})
+}
+
+func (s *Server) handleAdminListRedeemCodes(c *gin.Context) {
+	items, err := s.redeem.List(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": items})
+}
+
+func (s *Server) handleAdminCreateRedeemCode(c *gin.Context) {
+	actor, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user"})
+		return
+	}
+
+	s.mu.RLock()
+	demoMode := s.cfg.DemoMode
+	s.mu.RUnlock()
+	if demoMode {
+		c.JSON(http.StatusForbidden, gin.H{"error": "演示站禁止创建兑换码"})
+		return
+	}
+
+	var payload redeem.CreateInput
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	item, err := s.redeem.Create(c.Request.Context(), actor, payload)
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, redeem.ErrAdminRequired) {
+			status = http.StatusForbidden
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": item})
+}
+
+func (s *Server) handleAdminUpdateRedeemCode(c *gin.Context) {
+	actor, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user"})
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	s.mu.RLock()
+	demoMode := s.cfg.DemoMode
+	s.mu.RUnlock()
+	if demoMode {
+		c.JSON(http.StatusForbidden, gin.H{"error": "演示站禁止修改兑换码"})
+		return
+	}
+
+	var payload redeem.UpdateInput
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	item, err := s.redeem.Update(c.Request.Context(), actor, uint(id), payload)
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, redeem.ErrCodeNotFound) {
+			status = http.StatusNotFound
+		} else if errors.Is(err, redeem.ErrAdminRequired) {
+			status = http.StatusForbidden
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": item})
+}
+
+func (s *Server) handleAdminDeleteRedeemCode(c *gin.Context) {
+	actor, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user"})
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	s.mu.RLock()
+	demoMode := s.cfg.DemoMode
+	s.mu.RUnlock()
+	if demoMode {
+		c.JSON(http.StatusForbidden, gin.H{"error": "演示站禁止删除兑换码"})
+		return
+	}
+
+	if err := s.redeem.Delete(c.Request.Context(), actor, uint(id)); err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, redeem.ErrCodeNotFound) {
+			status = http.StatusNotFound
+		} else if errors.Is(err, redeem.ErrAdminRequired) {
+			status = http.StatusForbidden
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": "deleted"})
+}
+
+func (s *Server) handleAdminListRedeemCodeUsages(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if _, err := s.redeem.Get(c.Request.Context(), uint(id)); err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, redeem.ErrCodeNotFound) {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	items, err := s.redeem.ListUsages(c.Request.Context(), uint(id))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": items})
 }

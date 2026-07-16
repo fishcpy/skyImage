@@ -354,6 +354,7 @@ type captchaSettingsPayload struct {
 	EnableRegisterVerifyCaptcha        bool   `json:"enableRegisterVerifyCaptcha"`
 	EnableForgotPasswordRequestCaptcha bool   `json:"enableForgotPasswordRequestCaptcha"`
 	EnableForgotPasswordResetCaptcha   bool   `json:"enableForgotPasswordResetCaptcha"`
+	EnableRedeemCaptcha                bool   `json:"enableRedeemCaptcha"`
 }
 
 type captchaSettingsResponse struct {
@@ -392,6 +393,7 @@ func (s *Server) handleAdminCaptchaSettings(c *gin.Context) {
 			EnableRegisterVerifyCaptcha:        settings["captcha.register_verify"] == "true",
 			EnableForgotPasswordRequestCaptcha: settings["captcha.forgot_password_request"] == "true",
 			EnableForgotPasswordResetCaptcha:   settings["captcha.forgot_password_reset"] == "true",
+			EnableRedeemCaptcha:                settings["captcha.redeem"] == "true",
 		},
 		CloudflareLastVerifiedAt: settings["captcha.cloudflare.last_verified_at"],
 		GeetestLastVerifiedAt:    settings["captcha.geetest.last_verified_at"],
@@ -524,6 +526,7 @@ func (s *Server) handleAdminUpdateCaptchaSettings(c *gin.Context) {
 		"captcha.register_verify":         strconv.FormatBool(payload.EnableRegisterVerifyCaptcha),
 		"captcha.forgot_password_request": strconv.FormatBool(payload.EnableForgotPasswordRequestCaptcha),
 		"captcha.forgot_password_reset":   strconv.FormatBool(payload.EnableForgotPasswordResetCaptcha),
+		"captcha.redeem":                  strconv.FormatBool(payload.EnableRedeemCaptcha),
 	}
 
 	// Cloudflare 配置变更时清除验证状态

@@ -96,6 +96,8 @@ func NewDatabase(cfg config.Config) (*gorm.DB, error) {
 		&SessionEntry{},
 		&ApiToken{},
 		&Album{},
+		&RedeemCode{},
+		&RedeemCodeUsage{},
 	); err != nil {
 		return nil, fmt.Errorf("auto migrate: %w", err)
 	}

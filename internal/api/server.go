@@ -32,6 +32,7 @@ import (
 	"skyimage/internal/mail"
 	"skyimage/internal/middleware"
 	"skyimage/internal/notifications"
+	"skyimage/internal/redeem"
 	"skyimage/internal/session"
 	"skyimage/internal/users"
 	"skyimage/internal/verification"
@@ -47,6 +48,7 @@ type Server struct {
 	files         *files.Service
 	users         *users.Service
 	notifications *notifications.Service
+	redeem        *redeem.Service
 	mail          *mail.Service
 	captcha       *captcha.Service
 	verification  *verification.Service
@@ -105,6 +107,7 @@ func (s *Server) applyRuntimeConfig(cfg config.Config, db *gorm.DB) {
 	s.files = files.New(db, cfg)
 	s.users = users.New(db)
 	s.notifications = notifications.New(db)
+	s.redeem = redeem.New(db)
 	s.mail = mail.New(adminService)
 	s.captcha = captcha.New(adminService)
 	s.verification = verification.New()

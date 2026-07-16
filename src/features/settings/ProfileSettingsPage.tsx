@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -29,9 +29,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   fetchAccountProfile,
+  fetchCaptchaConfig,
   updateAccountProfile,
-  deleteAccount
+  deleteAccount,
+  redeemCode
 } from "@/lib/api";
+import { UnifiedCaptcha, type UnifiedCaptchaRef } from "@/components/UnifiedCaptcha";
 import { SplashScreen } from "@/components/SplashScreen";
 import { useI18n } from "@/i18n";
 
@@ -40,9 +43,14 @@ export function ProfileSettingsPage() {
   const navigate = useNavigate();
   const setUser = useAuthStore((state) => state.setUser);
   const clearAuth = useAuthStore((state) => state.clear);
+  const captchaRef = useRef<UnifiedCaptchaRef>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["account", "profile"],
     queryFn: fetchAccountProfile
+  });
+  const { data: captchaConfig } = useQuery({
+    queryKey: ["captcha-config", "redeem"],
+    queryFn: () => fetchCaptchaConfig("redeem")
   });
 
   const profile = data?.user;
@@ -50,6 +58,9 @@ export function ProfileSettingsPage() {
   const isSuperAdmin = profile?.isSuperAdmin || false;
   const [countdown, setCountdown] = useState(5);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [redeemInput, setRedeemInput] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaData, setCaptchaData] = useState<Record<string, string> | undefined>();
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -109,9 +120,54 @@ export function ProfileSettingsPage() {
     onError: (error) => toast.error(error.message)
   });
 
+  const redeemMutation = useMutation({
+    mutationFn: redeemCode,
+    onSuccess: (result) => {
+      setUser(result.user);
+      setRedeemInput("");
+      setCaptchaToken("");
+      setCaptchaData(undefined);
+      captchaRef.current?.reset();
+      if (result.message) {
+        toast.success(result.message);
+        return;
+      }
+      if (result.code?.rewardType === "capacity") {
+        toast.success(t("profile.redeem.successCapacity"));
+        return;
+      }
+      toast.success(
+        t("profile.redeem.success", {
+          group: result.group?.name ?? ""
+        })
+      );
+    },
+    onError: (error) => {
+      toast.error(error.message);
+      setCaptchaToken("");
+      setCaptchaData(undefined);
+      captchaRef.current?.reset();
+    }
+  });
+
   if (isLoading) {
     return <SplashScreen message={t("common.loading")} />;
   }
+
+  const handleRedeem = () => {
+    const code = redeemInput.trim();
+    if (!code) return;
+    if (captchaConfig?.enabled && !captchaToken) {
+      toast.error(t("profile.redeem.captchaRequired"));
+      return;
+    }
+    redeemMutation.mutate({
+      code,
+      captchaToken: captchaToken || undefined,
+      captchaData,
+      captchaProvider: captchaConfig?.provider || undefined
+    });
+  };
 
   const handleSubmit = () => {
     mutation.mutate({
@@ -228,6 +284,56 @@ export function ProfileSettingsPage() {
           <Button onClick={handleSubmit} disabled={mutation.isPending}>
             {mutation.isPending ? t("profile.saving") : t("profile.save")}
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("profile.redeem.title")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">{t("profile.redeem.description")}</p>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Input
+              value={redeemInput}
+              onChange={(e) => setRedeemInput(e.target.value)}
+              placeholder={t("profile.redeem.placeholder")}
+              className="sm:flex-1"
+            />
+            <Button
+              onClick={handleRedeem}
+              disabled={
+                redeemMutation.isPending ||
+                !redeemInput.trim() ||
+                Boolean(captchaConfig?.enabled && !captchaToken)
+              }
+            >
+              {redeemMutation.isPending ? t("profile.redeem.submitting") : t("profile.redeem.submit")}
+            </Button>
+          </div>
+          {captchaConfig?.enabled && captchaConfig.siteKey && captchaConfig.provider && (
+            <div className="flex justify-center sm:justify-start">
+              <UnifiedCaptcha
+                ref={captchaRef}
+                provider={captchaConfig.provider as "cloudflare" | "geetest" | "cap"}
+                siteKey={captchaConfig.siteKey}
+                apiEndpoint={captchaConfig.apiEndpoint}
+                onVerify={(token, extraData) => {
+                  setCaptchaToken(token);
+                  setCaptchaData(extraData);
+                }}
+                onError={() => {
+                  setCaptchaToken("");
+                  setCaptchaData(undefined);
+                  toast.error(t("profile.redeem.captchaError"));
+                }}
+                onExpire={() => {
+                  setCaptchaToken("");
+                  setCaptchaData(undefined);
+                }}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 

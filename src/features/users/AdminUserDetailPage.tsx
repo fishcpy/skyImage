@@ -18,6 +18,7 @@ import {
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 import {
+  adjustUserCapacityBonus,
   assignUserGroup,
   deleteUserAccount,
   fetchGroups,
@@ -26,8 +27,20 @@ import {
   updateUserStatus
 } from "@/lib/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/state/auth";
 import { useI18n } from "@/i18n";
+
+type SizeUnit = "B" | "KB" | "MB" | "GB" | "TB";
+
+const UNITS: { value: SizeUnit; label: string; bytes: number }[] = [
+  { value: "B", label: "B", bytes: 1 },
+  { value: "KB", label: "KB", bytes: 1024 },
+  { value: "MB", label: "MB", bytes: 1024 * 1024 },
+  { value: "GB", label: "GB", bytes: 1024 * 1024 * 1024 },
+  { value: "TB", label: "TB", bytes: 1024 * 1024 * 1024 * 1024 }
+];
 
 const formatBytes = (bytes: number) => {
   if (bytes <= 0) return "0 B";
@@ -39,6 +52,18 @@ const formatBytes = (bytes: number) => {
     idx++;
   }
   return `${value.toFixed(2)} ${units[idx]}`;
+};
+
+const formatSignedBytes = (bytes: number) => {
+  if (bytes === 0) return "0 B";
+  const sign = bytes < 0 ? "-" : "+";
+  return `${sign}${formatBytes(Math.abs(bytes))}`;
+};
+
+const unitToBytes = (value: number, unit: SizeUnit) => {
+  const unitInfo = UNITS.find((u) => u.value === unit);
+  if (!unitInfo) return value;
+  return value * unitInfo.bytes;
 };
 
 export function AdminUserDetailPage() {
@@ -61,6 +86,11 @@ export function AdminUserDetailPage() {
     queryFn: fetchGroups
   });
   const [groupId, setGroupId] = useState<number | "none">("none");
+  const [capacityForm, setCapacityForm] = useState({
+    sign: "plus" as "plus" | "minus",
+    value: "1",
+    unit: "GB" as SizeUnit
+  });
 
   useEffect(() => {
     if (user) {
@@ -115,6 +145,19 @@ export function AdminUserDetailPage() {
     }
   });
 
+  const capacityMutation = useMutation({
+    mutationFn: (deltaBytes: number) => adjustUserCapacityBonus(userId, { deltaBytes }),
+    onSuccess: () => {
+      toast.success(t("users.updated.capacity"));
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      refetch();
+      if (currentUser && userId === currentUser.id) {
+        useAuthStore.getState().refreshUser().catch(() => undefined);
+      }
+    },
+    onError: (error) => toast.error(error.message)
+  });
+
   const deleteMutation = useMutation({
     mutationFn: () => deleteUserAccount(userId),
     onSuccess: () => {
@@ -129,6 +172,17 @@ export function AdminUserDetailPage() {
     const next = value === "none" ? null : Number(value);
     setGroupId(value === "none" ? "none" : Number(value));
     groupMutation.mutate(next);
+  };
+
+  const handleCapacityAdjust = () => {
+    const raw = Number(capacityForm.value);
+    if (!Number.isFinite(raw) || raw <= 0) {
+      toast.error(t("users.capacity.invalid"));
+      return;
+    }
+    const absBytes = unitToBytes(raw, capacityForm.unit);
+    const deltaBytes = capacityForm.sign === "minus" ? -absBytes : absBytes;
+    capacityMutation.mutate(deltaBytes);
   };
 
   if (!user) {
@@ -206,6 +260,82 @@ export function AdminUserDetailPage() {
                 {user.capacity && user.capacity > 0 ? formatBytes(user.capacity) : t("common.notConfigured")}
               </p>
             </div>
+            <div>
+              <p className="text-sm text-muted-foreground">{t("users.capacity.bonus")}</p>
+              <p className="font-medium">{formatSignedBytes(user.capacityBonus ?? 0)}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("users.capacity.adjustTitle")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">{t("users.capacity.adjustHint")}</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="space-y-2 sm:w-[120px]">
+              <Label>{t("users.capacity.sign")}</Label>
+              <Select
+                value={capacityForm.sign}
+                onValueChange={(value) =>
+                  setCapacityForm((prev) => ({
+                    ...prev,
+                    sign: value as "plus" | "minus"
+                  }))
+                }
+                disabled={!isAdmin}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="plus">{t("users.capacity.plus")}</SelectItem>
+                  <SelectItem value="minus">{t("users.capacity.minus")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 sm:flex-1">
+              <Label>{t("users.capacity.amount")}</Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={capacityForm.value}
+                onChange={(e) =>
+                  setCapacityForm((prev) => ({ ...prev, value: e.target.value }))
+                }
+                disabled={!isAdmin}
+              />
+            </div>
+            <div className="space-y-2 sm:w-[100px]">
+              <Label>{t("users.capacity.unit")}</Label>
+              <Select
+                value={capacityForm.unit}
+                onValueChange={(value) =>
+                  setCapacityForm((prev) => ({ ...prev, unit: value as SizeUnit }))
+                }
+                disabled={!isAdmin}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {UNITS.map((unit) => (
+                    <SelectItem key={unit.value} value={unit.value}>
+                      {unit.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={handleCapacityAdjust}
+              disabled={!isAdmin || capacityMutation.isPending}
+            >
+              {capacityMutation.isPending ? t("common.submitting") : t("users.capacity.apply")}
+            </Button>
           </div>
         </CardContent>
       </Card>

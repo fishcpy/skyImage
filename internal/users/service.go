@@ -545,12 +545,53 @@ func (s *Service) hydrateUser(ctx context.Context, user *data.User) error {
 			}
 		}
 	}
-	if user.GroupID == nil {
-		user.Capacity = 0
-		return nil
+	base := float64(0)
+	if user.GroupID != nil {
+		base = groupCapacity(user.Group)
 	}
-	user.Capacity = groupCapacity(user.Group)
+	// 有效容量 = 角色组容量 + 用户自定义增减（可为负，但不低于 0）
+	total := base + user.CapacityBonus
+	if total < 0 {
+		total = 0
+	}
+	user.Capacity = total
 	return nil
+}
+
+// AdjustCapacityBonus 在现有 capacity_bonus 基础上增减（字节）
+func (s *Service) AdjustCapacityBonus(ctx context.Context, actor data.User, userID uint, deltaBytes float64) (data.User, error) {
+	if !actor.IsAdmin {
+		return data.User{}, errors.New("admin required")
+	}
+	if deltaBytes == 0 {
+		return s.FindByID(ctx, userID)
+	}
+	target, err := s.FindByID(ctx, userID)
+	if err != nil {
+		return data.User{}, err
+	}
+	if err := s.db.WithContext(ctx).Model(&data.User{}).
+		Where("id = ?", userID).
+		UpdateColumn("capacity_bonus", gorm.Expr("capacity_bonus + ?", deltaBytes)).Error; err != nil {
+		return data.User{}, err
+	}
+	return s.FindByID(ctx, target.ID)
+}
+
+// SetCapacityBonus 直接设置 capacity_bonus（字节）
+func (s *Service) SetCapacityBonus(ctx context.Context, actor data.User, userID uint, bonusBytes float64) (data.User, error) {
+	if !actor.IsAdmin {
+		return data.User{}, errors.New("admin required")
+	}
+	if _, err := s.FindByID(ctx, userID); err != nil {
+		return data.User{}, err
+	}
+	if err := s.db.WithContext(ctx).Model(&data.User{}).
+		Where("id = ?", userID).
+		UpdateColumn("capacity_bonus", bonusBytes).Error; err != nil {
+		return data.User{}, err
+	}
+	return s.FindByID(ctx, userID)
 }
 
 func groupCapacity(group data.Group) float64 {
@@ -574,4 +615,17 @@ func groupCapacity(group data.Group) float64 {
 		}
 	}
 	return 0
+}
+
+// EffectiveCapacity 计算用户有效容量（角色组 + 自定义增减）
+func EffectiveCapacity(user data.User) float64 {
+	base := float64(0)
+	if user.GroupID != nil {
+		base = groupCapacity(user.Group)
+	}
+	total := base + user.CapacityBonus
+	if total < 0 {
+		return 0
+	}
+	return total
 }

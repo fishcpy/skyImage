@@ -27,10 +27,11 @@ type User struct {
 	Email         string         `gorm:"size:255;uniqueIndex;not null" json:"email"`
 	PasswordHash  string         `gorm:"column:password;size:255;not null" json:"-"`
 	IsSuperAdmin  bool           `gorm:"column:is_super_admin;default:false" json:"isSuperAdmin"`
-	URL           string         `gorm:"size:255" json:"url"`
-	Capacity      float64        `gorm:"default:0" json:"capacity"`
-	UsedCapacity  float64        `gorm:"column:use_capacity;default:0" json:"usedCapacity"`
-	Configs       datatypes.JSON `gorm:"type:json" json:"configs"`
+	URL            string         `gorm:"size:255" json:"url"`
+	Capacity       float64        `gorm:"default:0" json:"capacity"`
+	CapacityBonus  float64        `gorm:"column:capacity_bonus;default:0" json:"capacityBonus"` // 相对角色组容量的增减（字节）
+	UsedCapacity   float64        `gorm:"column:use_capacity;default:0" json:"usedCapacity"`
+	Configs        datatypes.JSON `gorm:"type:json" json:"configs"`
 	IsAdmin       bool           `gorm:"column:is_adminer;default:false" json:"isAdmin"`
 	Status        uint8          `gorm:"default:1" json:"status"`
 	EmailVerified *time.Time     `gorm:"column:email_verified_at" json:"emailVerifiedAt"`
@@ -177,4 +178,40 @@ type Album struct {
 
 func (Album) TableName() string {
 	return "albums"
+}
+
+// RedeemCode 兑换码（角色组 / 容量增减）
+type RedeemCode struct {
+	ID               uint      `gorm:"primaryKey" json:"id"`
+	Code             string    `gorm:"size:64;uniqueIndex;not null" json:"code"`
+	RewardType       string    `gorm:"size:16;default:'group'" json:"rewardType"` // group | capacity
+	GroupID          *uint     `gorm:"index" json:"groupId"`
+	CapacityDelta    float64   `gorm:"default:0" json:"capacityDelta"` // 容量增减（字节，可负）
+	MaxUses          int       `gorm:"default:0" json:"maxUses"`       // 0 表示不限制
+	UsedCount        int       `gorm:"default:0" json:"usedCount"`
+	AllowMultiRedeem bool      `gorm:"default:false" json:"allowMultiRedeem"` // 同一用户是否可多次兑换
+	Enabled          bool      `gorm:"default:true" json:"enabled"`
+	Note             string    `gorm:"size:255" json:"note"`
+	CreatedBy        uint      `gorm:"index;not null" json:"createdBy"`
+	CreatedAt        time.Time `json:"createdAt"`
+	UpdatedAt        time.Time `json:"updatedAt"`
+	Group            *Group    `gorm:"foreignKey:GroupID" json:"group,omitempty"`
+	Creator          User      `gorm:"foreignKey:CreatedBy" json:"-"`
+}
+
+func (RedeemCode) TableName() string {
+	return "redeem_codes"
+}
+
+// RedeemCodeUsage 兑换码使用记录
+type RedeemCodeUsage struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	RedeemCodeID uint      `gorm:"index;not null" json:"redeemCodeId"`
+	UserID       uint      `gorm:"index;not null" json:"userId"`
+	CreatedAt    time.Time `json:"createdAt"`
+	User         User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}
+
+func (RedeemCodeUsage) TableName() string {
+	return "redeem_code_usages"
 }
