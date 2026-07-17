@@ -49,6 +49,9 @@ func PrepareSchema(db *gorm.DB) error {
 	if err := AutoMigrateAll(db); err != nil {
 		return fmt.Errorf("auto migrate: %w", err)
 	}
+	if err := MigrateUserIDsToSixteenDigits(db); err != nil {
+		return fmt.Errorf("migrate user ids to 16 digits: %w", err)
+	}
 	return nil
 }
 

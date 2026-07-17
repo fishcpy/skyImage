@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { fetchProfile } from "@/lib/api";
 
 type User = {
-  id: number;
+  id: string;
   name: string;
   email: string;
   url?: string;
@@ -16,6 +16,7 @@ type User = {
   groupId?: number | null;
   themePreference?: "light" | "dark" | "system";
   loginNotification?: boolean;
+  publicProfile?: boolean;
 };
 
 type AuthState = {
@@ -43,7 +44,7 @@ const normalizeUser = (user: any): User | null => {
       ? statusValue
       : Number.parseInt(String(statusValue), 10);
   return {
-    id: user.id,
+    id: user.id == null ? "" : String(user.id),
     name: user.name,
     email: user.email,
     url: typeof user.url === "string" ? user.url : "",
@@ -70,6 +71,7 @@ const normalizeUser = (user: any): User | null => {
     groupId: user.groupId ?? user.group?.id ?? null,
     themePreference: readThemePreference(user),
     loginNotification: readLoginNotification(user),
+    publicProfile: readPublicProfile(user),
     status: Number.isFinite(status) ? status : 1
   };
 };
@@ -147,6 +149,26 @@ const readLoginNotification = (user: any): boolean => {
     const parsed =
       typeof configs === "string" ? JSON.parse(configs) : configs;
     return parsed?.login_notification === true;
+  } catch {
+    return false;
+  }
+};
+
+const readPublicProfile = (user: any): boolean => {
+  const configs =
+    user.configs ??
+    user.Configs ??
+    user.preferences ??
+    user.preferences_json ??
+    null;
+  if (!configs) return false;
+  try {
+    const parsed =
+      typeof configs === "string" ? JSON.parse(configs) : configs;
+    return (
+      parsed?.public_profile === true ||
+      parsed?.publicProfile === true
+    );
   } catch {
     return false;
   }

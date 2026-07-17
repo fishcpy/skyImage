@@ -85,6 +85,7 @@ ENV HTTP_ADDR=:8080 \
     DATABASE_PATH=storage/data/demo.db \
     ALLOW_REGISTRATION=false \
     CORS_ALLOWED_ORIGINS= \
+    GIN_MODE=release \
     TZ=Asia/Shanghai \
     DEMO_MODE=${DEMO_MODE} \
     SITE_NAME=${SITE_NAME} \

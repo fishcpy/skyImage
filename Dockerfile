@@ -75,6 +75,7 @@ ENV HTTP_ADDR=:8080 \
     DATABASE_PATH=storage/data/skyimage.db \
     ALLOW_REGISTRATION=true \
     CORS_ALLOWED_ORIGINS= \
+    GIN_MODE=release \
     TZ=Asia/Shanghai
 
 # 启动应用

@@ -21,7 +21,9 @@ func (Group) TableName() string {
 }
 
 type User struct {
-	ID            uint           `gorm:"primaryKey" json:"id"`
+	// ID is a 16-digit public identifier assigned on create (not DB auto-increment).
+	// Serialized as a JSON string so browsers keep full precision for large ids.
+	ID            uint           `gorm:"primaryKey;autoIncrement:false" json:"id,string"`
 	GroupID       *uint          `gorm:"index" json:"groupId"`
 	Name          string         `gorm:"size:128;not null" json:"name"`
 	Email         string         `gorm:"size:255;uniqueIndex;not null" json:"email"`

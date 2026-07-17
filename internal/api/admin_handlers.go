@@ -157,13 +157,17 @@ func (s *Server) handleAdminUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": users})
 }
 
+func parseRouteUserID(c *gin.Context) (uint, error) {
+	return data.ParseUserID(c.Param("id"))
+}
+
 func (s *Server) handleAdminGetUser(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := parseRouteUserID(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	user, err := s.users.FindByID(c.Request.Context(), uint(id))
+	user, err := s.users.FindByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -177,7 +181,7 @@ func (s *Server) handleAdminUpdateStatus(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user"})
 		return
 	}
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := parseRouteUserID(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -198,7 +202,7 @@ func (s *Server) handleAdminUpdateStatus(c *gin.Context) {
 	s.mu.RUnlock()
 
 	if demoMode {
-		target, findErr := s.users.FindByID(c.Request.Context(), uint(id))
+		target, findErr := s.users.FindByID(c.Request.Context(), id)
 		if findErr == nil {
 			targetEmail := strings.ToLower(strings.TrimSpace(target.Email))
 			if targetEmail == adminEmail || targetEmail == demoUserEmail {
@@ -208,7 +212,7 @@ func (s *Server) handleAdminUpdateStatus(c *gin.Context) {
 		}
 	}
 
-	if err := s.users.UpdateStatus(c.Request.Context(), actor, uint(id), payload.Status); err != nil {
+	if err := s.users.UpdateStatus(c.Request.Context(), actor, id, payload.Status); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -221,7 +225,7 @@ func (s *Server) handleAdminToggleAdmin(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user"})
 		return
 	}
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := parseRouteUserID(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -242,7 +246,7 @@ func (s *Server) handleAdminToggleAdmin(c *gin.Context) {
 	s.mu.RUnlock()
 
 	if demoMode {
-		target, findErr := s.users.FindByID(c.Request.Context(), uint(id))
+		target, findErr := s.users.FindByID(c.Request.Context(), id)
 		if findErr == nil {
 			targetEmail := strings.ToLower(strings.TrimSpace(target.Email))
 			if targetEmail == adminEmail || targetEmail == demoUserEmail {
@@ -252,7 +256,7 @@ func (s *Server) handleAdminToggleAdmin(c *gin.Context) {
 		}
 	}
 
-	if err := s.users.ToggleAdmin(c.Request.Context(), actor, uint(id), payload.Admin); err != nil {
+	if err := s.users.ToggleAdmin(c.Request.Context(), actor, id, payload.Admin); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -265,7 +269,7 @@ func (s *Server) handleAdminAssignUserGroup(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user"})
 		return
 	}
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := parseRouteUserID(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -286,7 +290,7 @@ func (s *Server) handleAdminAssignUserGroup(c *gin.Context) {
 	s.mu.RUnlock()
 
 	if demoMode {
-		target, findErr := s.users.FindByID(c.Request.Context(), uint(id))
+		target, findErr := s.users.FindByID(c.Request.Context(), id)
 		if findErr == nil {
 			targetEmail := strings.ToLower(strings.TrimSpace(target.Email))
 			if targetEmail == adminEmail || targetEmail == demoUserEmail {
@@ -296,7 +300,7 @@ func (s *Server) handleAdminAssignUserGroup(c *gin.Context) {
 		}
 	}
 
-	user, err := s.users.AssignGroup(c.Request.Context(), actor, uint(id), payload.GroupID)
+	user, err := s.users.AssignGroup(c.Request.Context(), actor, id, payload.GroupID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -310,7 +314,7 @@ func (s *Server) handleAdminAdjustCapacityBonus(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user"})
 		return
 	}
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := parseRouteUserID(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -340,9 +344,9 @@ func (s *Server) handleAdminAdjustCapacityBonus(c *gin.Context) {
 
 	var user data.User
 	if payload.DeltaBytes != nil {
-		user, err = s.users.AdjustCapacityBonus(c.Request.Context(), actor, uint(id), *payload.DeltaBytes)
+		user, err = s.users.AdjustCapacityBonus(c.Request.Context(), actor, id, *payload.DeltaBytes)
 	} else {
-		user, err = s.users.SetCapacityBonus(c.Request.Context(), actor, uint(id), *payload.BonusBytes)
+		user, err = s.users.SetCapacityBonus(c.Request.Context(), actor, id, *payload.BonusBytes)
 	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -376,7 +380,7 @@ func (s *Server) handleAdminDeleteUser(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user"})
 		return
 	}
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := parseRouteUserID(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -390,7 +394,7 @@ func (s *Server) handleAdminDeleteUser(c *gin.Context) {
 	s.mu.RUnlock()
 
 	if demoMode {
-		target, findErr := s.users.FindByID(c.Request.Context(), uint(id))
+		target, findErr := s.users.FindByID(c.Request.Context(), id)
 		if findErr == nil {
 			targetEmail := strings.ToLower(strings.TrimSpace(target.Email))
 			if targetEmail == adminEmail || targetEmail == demoUserEmail {
@@ -400,7 +404,7 @@ func (s *Server) handleAdminDeleteUser(c *gin.Context) {
 		}
 	}
 
-	if err := s.users.DeleteUser(c.Request.Context(), actor, uint(id)); err != nil {
+	if err := s.users.DeleteUser(c.Request.Context(), actor, id); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

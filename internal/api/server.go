@@ -60,7 +60,16 @@ type Server struct {
 }
 
 func NewServer(cfg config.Config, db *gorm.DB) *Server {
-	gin.SetMode(gin.ReleaseMode)
+	// Default to release. Set GIN_MODE=debug for local Vite LAN proxy logging/tools.
+	// Docker/release images set GIN_MODE=release explicitly.
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("GIN_MODE"))) {
+	case "debug":
+		gin.SetMode(gin.DebugMode)
+	case "test":
+		gin.SetMode(gin.TestMode)
+	default:
+		gin.SetMode(gin.ReleaseMode)
+	}
 	engine := gin.New()
 	trustedProxies := cfg.TrustedProxies
 	if len(trustedProxies) == 0 {
@@ -234,7 +243,7 @@ func (s *Server) ensureDemoUser(ctx context.Context) error {
 		Status:       1,
 		Configs:      datatypes.JSON([]byte(`{"default_visibility":"private"}`)),
 	}
-	if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
+	if err := users.CreateUserWithGeneratedID(s.db.WithContext(ctx), &user); err != nil {
 		return fmt.Errorf("创建演示用户: %w", err)
 	}
 
@@ -345,6 +354,7 @@ func (s *Server) isKnownFrontendRoute(rawPath string) bool {
 
 	prefixRoutes := []string{
 		"/dashboard",
+		"/u",
 	}
 	for _, prefix := range prefixRoutes {
 		if cleanPath == prefix || strings.HasPrefix(cleanPath, prefix+"/") {
@@ -664,6 +674,7 @@ func reservedPublicPathSegments() map[string]struct{} {
 		"assets":          {},
 		"forgot-password": {},
 		"reset-password":  {},
+		"u":               {},
 	}
 }
 

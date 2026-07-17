@@ -18,6 +18,7 @@ import { MyImagesPage } from "@/features/files/MyImagesPage";
 import { ProfileSettingsPage } from "@/features/settings/ProfileSettingsPage";
 import { NotificationsPage } from "@/features/notifications/NotificationsPage";
 import { GalleryPage } from "@/features/gallery/GalleryPage";
+import { PublicUserPage } from "@/features/profile/PublicUserPage";
 import { ApiDocsPage } from "@/features/api/ApiDocsPage";
 import { ApiTokensPage } from "@/features/api/ApiTokensPage";
 import { ApiTokenEditorPage } from "@/features/api/ApiTokenEditorPage";
@@ -152,6 +153,7 @@ export default function App() {
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
+        {installed && <Route path="/u/:id" element={<PublicUserPage />} />}
         {installed && <Route path="/" element={<HomeEntry />} />}
         {installed && (
           <Route element={<ProtectedRoute />}>

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Fancybox } from "@fancyapps/ui";
 import "@fancyapps/ui/dist/fancybox/fancybox.css";
@@ -52,28 +53,54 @@ export function GalleryPage() {
             const imageUrl = normalizeFileUrl(file.viewUrl || file.directUrl);
             const thumbUrl = normalizeFileUrl(file.thumbnailUrl || file.viewUrl || file.directUrl);
             return (
-              <a
+              <div
                 key={file.id}
-                href={imageUrl}
-                data-fancybox="gallery"
-                data-caption={file.originalName}
                 className="group rounded-lg border bg-card transition hover:shadow-md"
               >
-                <img
-                  src={thumbUrl}
-                  alt={file.originalName}
-                  className="h-48 w-full rounded-t-lg object-cover"
-                  loading="lazy"
-                />
+                <a
+                  href={imageUrl}
+                  data-fancybox="gallery"
+                  data-caption={file.originalName}
+                >
+                  <img
+                    src={thumbUrl}
+                    alt={file.originalName}
+                    className="h-48 w-full rounded-t-lg object-cover"
+                    loading="lazy"
+                  />
+                </a>
                 <div className="p-3">
-                  <p className="truncate text-sm font-medium group-hover:text-primary">
+                  <a
+                    href={imageUrl}
+                    data-fancybox="gallery"
+                    data-caption={file.originalName}
+                    className="truncate text-sm font-medium group-hover:text-primary"
+                  >
                     {file.originalName}
-                  </p>
+                  </a>
                   <p className="text-xs text-muted-foreground">
                     {(file.size / 1024).toFixed(1)} KB
+                    {file.ownerName ? (
+                      <>
+                        {" · "}
+                        {file.ownerPublicProfile &&
+                        file.ownerId != null &&
+                        String(file.ownerId) !== "" &&
+                        String(file.ownerId) !== "0" ? (
+                          <Link
+                            to={`/u/${String(file.ownerId)}`}
+                            className="hover:text-primary hover:underline"
+                          >
+                            {file.ownerName}
+                          </Link>
+                        ) : (
+                          file.ownerName
+                        )}
+                      </>
+                    ) : null}
                   </p>
                 </div>
-              </a>
+              </div>
             );
           })}
         </div>

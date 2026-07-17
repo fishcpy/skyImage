@@ -16,6 +16,7 @@ import (
 
 	"skyimage/internal/config"
 	"skyimage/internal/data"
+	"skyimage/internal/users"
 	"skyimage/internal/version"
 )
 
@@ -148,7 +149,7 @@ func (s *Service) Run(ctx context.Context, in RunInput) (Status, error) {
 			Status:       1,
 			Configs:      datatypes.JSON(cfgBytes),
 		}
-		if err := tx.Create(&admin).Error; err != nil {
+		if err := users.CreateUserWithGeneratedID(tx, &admin); err != nil {
 			return fmt.Errorf("create admin: %w", err)
 		}
 

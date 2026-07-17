@@ -74,12 +74,12 @@ export function AdminUserDetailPage() {
   const currentUser = useAuthStore((state) => state.user);
   const isAdmin = currentUser?.isAdmin;
 
-  const userId = Number(id);
+  const userId = id ? String(id) : "";
 
   const { data: user, refetch } = useQuery({
     queryKey: ["admin", "user", userId],
     queryFn: () => fetchUserDetail(userId),
-    enabled: Number.isFinite(userId)
+    enabled: Boolean(userId)
   });
   const { data: groups } = useQuery({
     queryKey: ["admin", "groups"],
@@ -106,7 +106,7 @@ export function AdminUserDetailPage() {
       refetch();
       
       // 如果修改的是当前用户，刷新当前用户信息
-      if (currentUser && userId === currentUser.id) {
+      if (currentUser && String(userId) === String(currentUser.id)) {
         useAuthStore.getState().refreshUser().catch((err) => {
           console.error('[AdminUserDetail] Failed to refresh current user:', err);
         });
@@ -123,7 +123,7 @@ export function AdminUserDetailPage() {
       refetch();
       
       // 如果修改的是当前用户，刷新当前用户信息
-      if (currentUser && userId === currentUser.id) {
+      if (currentUser && String(userId) === String(currentUser.id)) {
         useAuthStore.getState().refreshUser().catch((err) => {
           console.error('[AdminUserDetail] Failed to refresh current user:', err);
         });
@@ -151,7 +151,7 @@ export function AdminUserDetailPage() {
       toast.success(t("users.updated.capacity"));
       queryClient.invalidateQueries({ queryKey: ["users"] });
       refetch();
-      if (currentUser && userId === currentUser.id) {
+      if (currentUser && String(userId) === String(currentUser.id)) {
         useAuthStore.getState().refreshUser().catch(() => undefined);
       }
     },

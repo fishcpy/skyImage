@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	defaultVisibilityKey    = "default_visibility"
-	defaultStrategyKey      = "default_strategy"
-	themePreferenceKey      = "theme_preference"
-	loginNotificationKey    = "login_notification"
+	defaultVisibilityKey = "default_visibility"
+	defaultStrategyKey   = "default_strategy"
+	themePreferenceKey   = "theme_preference"
+	loginNotificationKey = "login_notification"
+	publicProfileKey     = "public_profile"
 )
 
 // NormalizeVisibility coerces arbitrary user input into supported visibility values.
@@ -156,4 +157,19 @@ func UpdateLoginNotificationEnabled(existing datatypes.JSON, enabled bool) datat
 	cfg[loginNotificationKey] = enabled
 	bytes, _ := json.Marshal(cfg)
 	return datatypes.JSON(bytes)
+}
+
+// PublicProfileEnabled reports whether /u/:id is publicly visible (default false).
+func PublicProfileEnabled(user data.User) bool {
+	if len(user.Configs) == 0 {
+		return false
+	}
+	var cfg map[string]interface{}
+	if err := json.Unmarshal(user.Configs, &cfg); err != nil {
+		return false
+	}
+	if val, ok := cfg[publicProfileKey].(bool); ok {
+		return val
+	}
+	return false
 }

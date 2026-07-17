@@ -71,14 +71,15 @@ type FileDTO struct {
 	ThumbnailURL  string        `json:"thumbnailUrl"`
 	Markdown      string        `json:"markdown"`
 	HTML          string        `json:"html"`
-	OwnerID       uint          `json:"ownerId,omitempty"`
-	OwnerName     string        `json:"ownerName,omitempty"`
-	OwnerEmail    string        `json:"ownerEmail,omitempty"`
-	RelativePath  string        `json:"relativePath"`
-	StorageDriver string        `json:"storageDriver"`
-	Width         int           `json:"width,omitempty"`
-	Height        int           `json:"height,omitempty"`
-	Audit         *FileAuditDTO `json:"audit,omitempty"`
+	OwnerID            uint          `json:"ownerId,string,omitempty"`
+	OwnerName          string        `json:"ownerName,omitempty"`
+	OwnerEmail         string        `json:"ownerEmail,omitempty"`
+	OwnerPublicProfile bool          `json:"ownerPublicProfile,omitempty"`
+	RelativePath       string        `json:"relativePath"`
+	StorageDriver      string        `json:"storageDriver"`
+	Width              int           `json:"width,omitempty"`
+	Height             int           `json:"height,omitempty"`
+	Audit              *FileAuditDTO `json:"audit,omitempty"`
 }
 
 type ProxyObject struct {
@@ -453,32 +454,37 @@ func (s *Service) ToDTO(ctx context.Context, file data.FileAsset) (FileDTO, erro
 	}
 
 	return FileDTO{
-		ID:            file.ID,
-		Key:           file.Key,
-		Name:          file.Name,
-		OriginalName:  file.OriginalName,
-		Size:          file.Size,
-		MimeType:      file.MimeType,
-		Extension:     file.Extension,
-		Visibility:    file.Visibility,
-		Storage:       file.StorageProvider,
-		CreatedAt:     file.CreatedAt,
-		ViewURL:       publicURL,
-		DirectURL:     publicURL,
-		ThumbnailURL:  thumbnailURL,
-		Markdown:      embeds.Markdown,
-		HTML:          embeds.HTML,
-		OwnerID:       file.UserID,
-		OwnerName:     file.User.Name,
-		OwnerEmail:    file.User.Email,
-		StrategyID:    file.StrategyID,
-		StrategyName:  file.Strategy.Name,
-		RelativePath:  file.RelativePath,
-		StorageDriver: file.StorageProvider,
-		Width:         file.Width,
-		Height:        file.Height,
-		Audit:         buildFileAuditDTO(file),
+		ID:                 file.ID,
+		Key:                file.Key,
+		Name:               file.Name,
+		OriginalName:       file.OriginalName,
+		Size:               file.Size,
+		MimeType:           file.MimeType,
+		Extension:          file.Extension,
+		Visibility:         file.Visibility,
+		Storage:            file.StorageProvider,
+		CreatedAt:          file.CreatedAt,
+		ViewURL:            publicURL,
+		DirectURL:          publicURL,
+		ThumbnailURL:       thumbnailURL,
+		Markdown:           embeds.Markdown,
+		HTML:               embeds.HTML,
+		OwnerID:            file.UserID,
+		OwnerName:          file.User.Name,
+		OwnerEmail:         file.User.Email,
+		OwnerPublicProfile: ownerPublicProfileEnabled(file.User),
+		StrategyID:         file.StrategyID,
+		StrategyName:       file.Strategy.Name,
+		RelativePath:       file.RelativePath,
+		StorageDriver:      file.StorageProvider,
+		Width:              file.Width,
+		Height:             file.Height,
+		Audit:              buildFileAuditDTO(file),
 	}, nil
+}
+
+func ownerPublicProfileEnabled(user data.User) bool {
+	return users.PublicProfileEnabled(user)
 }
 
 // ToDTOForViewer builds a FileDTO and only exposes thumbnailUrl when the viewer may access it.
@@ -1048,6 +1054,28 @@ func (s *Service) ListPublic(ctx context.Context, limit int, offset int) ([]data
 		Preload("User").
 		Preload("Strategy").
 		Where("visibility = ?", "public").
+		Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&files).Error
+	return files, err
+}
+
+// ListPublicByUser returns public images owned by a specific user.
+func (s *Service) ListPublicByUser(ctx context.Context, userID uint, limit int, offset int) ([]data.FileAsset, error) {
+	if limit <= 0 {
+		limit = 40
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	var files []data.FileAsset
+	err := s.db.WithContext(ctx).
+		Preload("Strategy").
+		Where("visibility = ? AND user_id = ?", "public", userID).
 		Order("created_at DESC").
 		Limit(limit).
 		Offset(offset).

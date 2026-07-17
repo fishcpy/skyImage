@@ -1,21 +1,25 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"skyimage/internal/captcha"
 	"skyimage/internal/data"
 	"skyimage/internal/files"
 	"skyimage/internal/middleware"
+	"skyimage/internal/users"
 )
 
 func (s *Server) registerSiteRoutes(r *gin.RouterGroup) {
 	r.GET("/site/config", s.handleSiteConfig)
 	r.GET("/site/turnstile/:scenario", s.handleTurnstileConfig)
 	r.GET("/gallery/public", middleware.OptionalAuth(s.users, s.session), s.handleGalleryPublic)
+	r.GET("/users/:id/public", middleware.OptionalAuth(s.users, s.session), s.handlePublicUserProfile)
 	s.engine.GET("/favicon.ico", s.handleFavicon)
 }
 
@@ -98,9 +102,74 @@ func (s *Server) handleGalleryPublic(c *gin.Context) {
 			return
 		}
 		dto.Audit = nil
+		// Gallery is public; do not leak owner emails.
+		dto.OwnerEmail = ""
+		// Only expose profile link target when the owner enabled public profile.
+		if !dto.OwnerPublicProfile {
+			dto.OwnerID = 0
+		}
 		dtos = append(dtos, dto)
 	}
 	c.JSON(http.StatusOK, gin.H{"data": dtos})
+}
+
+func (s *Server) handlePublicUserProfile(c *gin.Context) {
+	userID, err := data.ParseUserID(c.Param("id"))
+	if err != nil || userID == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	user, err := s.users.FindByID(c.Request.Context(), userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if user.Status == 0 || !users.PublicProfileEnabled(user) {
+		// Closed profile: not visible to anyone (including owner).
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	avatarURL := ""
+	var binding data.UserOAuthBinding
+	if err := s.db.WithContext(c.Request.Context()).
+		Where("user_id = ? AND avatar_url <> ''", user.ID).
+		Order("updated_at DESC").
+		First(&binding).Error; err == nil {
+		avatarURL = binding.AvatarURL
+	}
+
+	limit, offset := parsePagination(c, 40, 100)
+	items, err := s.files.ListPublicByUser(c.Request.Context(), user.ID, limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	images := make([]gin.H, 0, len(items))
+	for _, file := range items {
+		viewURL, err := s.files.PublicURL(c.Request.Context(), file)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		// Thumbnails are login-only in this app; public profile exposes the image URL for both.
+		images = append(images, gin.H{
+			"viewUrl":      viewURL,
+			"thumbnailUrl": viewURL,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"name":      user.Name,
+			"avatarUrl": avatarURL,
+			"images":    images,
+		},
+	})
 }
 
 func (s *Server) handleTurnstileConfig(c *gin.Context) {

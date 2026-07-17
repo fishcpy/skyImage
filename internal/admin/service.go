@@ -524,6 +524,7 @@ func reservedStrategyPathSegments() map[string]struct{} {
 		"assets":          {},
 		"forgot-password": {},
 		"reset-password":  {},
+		"u":               {},
 	}
 }
 

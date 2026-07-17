@@ -102,7 +102,8 @@ export function ProfileSettingsPage() {
     password: "",
     defaultVisibility: "private" as "public" | "private",
     theme: "system" as "light" | "dark" | "system",
-    loginNotification: false
+    loginNotification: false,
+    publicProfile: false
   });
 
   useEffect(() => {
@@ -114,7 +115,8 @@ export function ProfileSettingsPage() {
         password: "",
         defaultVisibility: extractDefaultVisibility(profile),
         theme: extractThemePreference(profile),
-        loginNotification: extractLoginNotification(profile)
+        loginNotification: extractLoginNotification(profile),
+        publicProfile: extractPublicProfile(profile)
       });
     }
   }, [profile]);
@@ -227,9 +229,16 @@ export function ProfileSettingsPage() {
       password: form.password,
       defaultVisibility: form.defaultVisibility,
       theme: form.theme,
-      loginNotification: form.loginNotification
+      loginNotification: form.loginNotification,
+      publicProfile: form.publicProfile
     });
   };
+
+  const profileId =
+    profile?.id == null ? "" : String(profile.id);
+  const publicProfileUrl = profileId
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/u/${profileId}`
+    : "";
 
   return (
     <div className="space-y-6">
@@ -330,6 +339,33 @@ export function ProfileSettingsPage() {
                 setForm((prev) => ({ ...prev, loginNotification: checked }))
               }
               disabled={!globalLoginNotify}
+            />
+          </div>
+          <div className="flex items-center justify-between space-x-2 rounded-md border p-3">
+            <div className="space-y-0.5">
+              <Label>{t("profile.publicProfile")}</Label>
+              <p className="text-xs text-muted-foreground">
+                {t("profile.publicProfileHint")}
+              </p>
+              {form.publicProfile && publicProfileUrl ? (
+                <p className="text-xs text-muted-foreground">
+                  {t("profile.publicProfileLinkHint")}{" "}
+                  <a
+                    href={`/u/${profileId}`}
+                    className="text-primary underline-offset-4 hover:underline"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {publicProfileUrl}
+                  </a>
+                </p>
+              ) : null}
+            </div>
+            <Switch
+              checked={form.publicProfile}
+              onCheckedChange={(checked) =>
+                setForm((prev) => ({ ...prev, publicProfile: checked }))
+              }
             />
           </div>
           <Button onClick={handleSubmit} disabled={mutation.isPending}>
@@ -530,6 +566,25 @@ function extractLoginNotification(user: any): boolean {
     const parsed =
       typeof configs === "string" ? JSON.parse(configs) : configs;
     return parsed?.login_notification === true;
+  } catch {
+    return false;
+  }
+}
+
+function extractPublicProfile(user: any): boolean {
+  const configs =
+    user?.configs ??
+    user?.Configs ??
+    user?.preferences ??
+    user?.preferences_json ??
+    null;
+  if (!configs) return false;
+  try {
+    const parsed =
+      typeof configs === "string" ? JSON.parse(configs) : configs;
+    return (
+      parsed?.public_profile === true || parsed?.publicProfile === true
+    );
   } catch {
     return false;
   }

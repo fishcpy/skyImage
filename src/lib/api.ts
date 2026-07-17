@@ -331,6 +331,28 @@ export async function fetchGalleryPublic(params?: {
   return res.data.data;
 }
 
+export type PublicUserImage = {
+  viewUrl: string;
+  thumbnailUrl: string;
+};
+
+export type PublicUserProfile = {
+  name: string;
+  avatarUrl?: string;
+  images: PublicUserImage[];
+};
+
+export async function fetchPublicUserProfile(
+  userId: string,
+  params?: { limit?: number; offset?: number }
+) {
+  const res = await apiClient.get<{ data: PublicUserProfile }>(
+    `/users/${encodeURIComponent(userId)}/public`,
+    { params }
+  );
+  return res.data.data;
+}
+
 export async function fetchAdminSettings() {
   const res = await apiClient.get<{ data: Record<string, string> }>(
     "/admin/settings"
@@ -347,11 +369,11 @@ export async function fetchUsers() {
   return res.data.data;
 }
 
-export async function updateUserStatus(userId: number, status: number) {
+export async function updateUserStatus(userId: string | number, status: number) {
   await apiClient.patch(`/admin/users/${userId}/status`, { status });
 }
 
-export async function toggleUserAdmin(userId: number, admin: boolean) {
+export async function toggleUserAdmin(userId: string | number, admin: boolean) {
   await apiClient.post(`/admin/users/${userId}/admin`, { admin });
 }
 
@@ -367,7 +389,7 @@ export async function createUser(payload: CreateUserPayload) {
   return res.data.data;
 }
 
-export async function deleteUserAccount(userId: number) {
+export async function deleteUserAccount(userId: string | number) {
   await apiClient.delete(`/admin/users/${userId}`);
 }
 
@@ -452,8 +474,10 @@ export type FileRecord = {
   markdown: string;
   html: string;
   createdAt: string;
+  ownerId?: string | number;
   ownerName?: string;
   ownerEmail?: string;
+  ownerPublicProfile?: boolean;
   strategyId?: number;
   strategyName?: string;
   relativePath?: string;
@@ -478,6 +502,7 @@ export async function updateAccountProfile(input: {
   defaultVisibility?: "public" | "private";
   theme?: "light" | "dark" | "system";
   loginNotification?: boolean;
+  publicProfile?: boolean;
 }) {
   const res = await apiClient.put<{ data: any }>("/account/profile", input);
   return res.data.data;
@@ -651,12 +676,12 @@ export async function deleteAuditProfile(id: number) {
   await apiClient.delete(`/admin/audits/${id}`);
 }
 
-export async function fetchUserDetail(userId: number) {
+export async function fetchUserDetail(userId: string | number) {
   const res = await apiClient.get<{ data: any }>(`/admin/users/${userId}`);
   return res.data.data;
 }
 
-export async function assignUserGroup(userId: number, groupId: number | null) {
+export async function assignUserGroup(userId: string | number, groupId: number | null) {
   const res = await apiClient.patch<{ data: any }>(
     `/admin/users/${userId}/group`,
     { groupId }
@@ -665,7 +690,7 @@ export async function assignUserGroup(userId: number, groupId: number | null) {
 }
 
 export async function adjustUserCapacityBonus(
-  userId: number,
+  userId: string | number,
   input: { deltaBytes?: number; bonusBytes?: number }
 ) {
   const res = await apiClient.patch<{ data: any }>(

@@ -20,6 +20,7 @@ import (
 	"gorm.io/gorm"
 
 	"skyimage/internal/data"
+	"skyimage/internal/users"
 )
 
 var (
@@ -869,7 +870,7 @@ func (s *Service) createUserFromOAuth(ctx context.Context, identity ExternalIden
 	}
 
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&user).Error; err != nil {
+		if err := users.CreateUserWithGeneratedID(tx, &user); err != nil {
 			return err
 		}
 		binding := data.UserOAuthBinding{

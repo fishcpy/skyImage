@@ -70,6 +70,7 @@ type ProfileUpdateInput struct {
 	DefaultVisibility string `json:"defaultVisibility"`
 	ThemePreference   string `json:"theme"`
 	LoginNotification *bool  `json:"loginNotification"`
+	PublicProfile     *bool  `json:"publicProfile"`
 }
 
 // validateEmail 验证邮箱格式
@@ -157,8 +158,11 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (data.User, er
 	if group, err := s.defaultGroup(ctx); err == nil && group != nil {
 		user.GroupID = &group.ID
 	}
-	if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
-		if isUniqueConstraintError(err) {
+	if err := CreateUserWithGeneratedID(s.db.WithContext(ctx), &user); err != nil {
+		if errors.Is(err, ErrGenerateUserID) {
+			return data.User{}, err
+		}
+		if IsEmailUniqueConflict(err) || isUniqueConstraintError(err) {
 			return data.User{}, ErrUserAlreadyExists
 		}
 		return data.User{}, err
@@ -340,7 +344,7 @@ func (s *Service) CreateUser(ctx context.Context, actor data.User, input CreateU
 	if group, err := s.defaultGroup(ctx); err == nil && group != nil {
 		user.GroupID = &group.ID
 	}
-	if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
+	if err := CreateUserWithGeneratedID(s.db.WithContext(ctx), &user); err != nil {
 		return data.User{}, err
 	}
 	_ = s.hydrateUser(ctx, &user)
@@ -466,6 +470,11 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint, input ProfileU
 	// Update login notification preference if provided
 	if input.LoginNotification != nil {
 		cfg["login_notification"] = *input.LoginNotification
+	}
+
+	// Public profile page (/u/:id)
+	if input.PublicProfile != nil {
+		cfg[publicProfileKey] = *input.PublicProfile
 	}
 
 	// Marshal updated configs
