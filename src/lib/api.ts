@@ -148,9 +148,63 @@ export async function logout() {
   await apiClient.post("/auth/logout");
 }
 
+export type RegistrationStatus = {
+  allowed: boolean;
+  mode: "open" | "oauth_only" | "closed";
+  passwordAllowed: boolean;
+  oauthAllowed: boolean;
+  emailVerifyEnabled: boolean;
+  forgotPasswordEnabled: boolean;
+};
+
 export async function fetchRegistrationStatus() {
-  const res = await apiClient.get<{ data: { allowed: boolean; emailVerifyEnabled: boolean; forgotPasswordEnabled: boolean } }>("/auth/registration-status");
+  const res = await apiClient.get<{ data: RegistrationStatus }>("/auth/registration-status");
   return res.data.data;
+}
+
+export type OAuthProviderPublic = {
+  id: string;
+  name: string;
+  enabled: boolean;
+};
+
+export async function fetchOAuthProviders() {
+  const res = await apiClient.get<{ data: { providers: OAuthProviderPublic[] } }>(
+    "/auth/oauth/providers"
+  );
+  return res.data.data.providers ?? [];
+}
+
+export function getOAuthStartUrl(provider: string) {
+  const base = apiBase.replace(/\/$/, "");
+  return `${base}/auth/oauth/${provider}/start`;
+}
+
+export type OAuthBinding = {
+  id: number;
+  provider: string;
+  providerEmail?: string;
+  providerName?: string;
+  avatarUrl?: string;
+  createdAt: string;
+};
+
+export async function fetchOAuthBindings() {
+  const res = await apiClient.get<{ data: OAuthBinding[] }>("/auth/oauth/bindings");
+  return res.data.data ?? [];
+}
+
+export async function startOAuthBind(provider: string) {
+  const res = await apiClient.post<{ data: { url: string } }>(
+    `/auth/oauth/${provider}/bind`,
+    {},
+    { headers: { Accept: "application/json" } }
+  );
+  return res.data.data.url;
+}
+
+export async function unbindOAuth(provider: string) {
+  await apiClient.delete(`/auth/oauth/${provider}`);
 }
 
 export async function requestPasswordReset(payload: {
@@ -681,6 +735,8 @@ export async function deleteAdminImagesBatch(ids: number[], reason?: string) {
 
 // ── Site Settings ──
 
+export type RegistrationMode = "open" | "oauth_only" | "closed";
+
 export type SiteSettings = {
   siteTitle: string;
   consoleUrl: string;
@@ -701,8 +757,38 @@ export type SiteSettings = {
   enableHome: boolean;
   enableApi: boolean;
   allowRegistration: boolean;
+  registrationMode: RegistrationMode;
   accountDisabledNotice: string;
 };
+
+export type OAuthProviderSettings = {
+  enabled: boolean;
+  clientId: string;
+  clientSecret: string;
+  name?: string;
+  authUrl?: string;
+  tokenUrl?: string;
+  userInfoUrl?: string;
+  scopes?: string;
+};
+
+export type OAuthSettings = {
+  enabled: boolean;
+  autoLinkByEmail: boolean;
+  github: OAuthProviderSettings;
+  google: OAuthProviderSettings;
+  discord: OAuthProviderSettings;
+  custom: OAuthProviderSettings;
+};
+
+export async function fetchOAuthSettings() {
+  const res = await apiClient.get<{ data: OAuthSettings }>("/admin/system/oauth");
+  return res.data.data;
+}
+
+export async function updateOAuthSettings(input: OAuthSettings) {
+  await apiClient.put("/admin/system/oauth", input);
+}
 
 export async function fetchSiteSettings() {
   const res = await apiClient.get<{ data: SiteSettings }>(

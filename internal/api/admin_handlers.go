@@ -77,6 +77,8 @@ func (s *Server) registerAdminRoutes(r *gin.RouterGroup) {
 	adminGroup.PUT("/system/captcha", s.handleAdminUpdateCaptchaSettings)
 	adminGroup.POST("/system/captcha/test-turnstile", s.handleAdminTestTurnstile)
 	adminGroup.POST("/system/captcha/test", s.handleAdminTestCaptcha)
+	adminGroup.GET("/system/oauth", s.handleAdminOAuthSettings)
+	adminGroup.PUT("/system/oauth", s.handleAdminUpdateOAuthSettings)
 }
 
 func requireSuperAdmin(c *gin.Context) bool {

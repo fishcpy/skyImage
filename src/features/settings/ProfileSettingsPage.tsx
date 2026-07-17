@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
@@ -32,7 +32,11 @@ import {
   fetchCaptchaConfig,
   updateAccountProfile,
   deleteAccount,
-  redeemCode
+  redeemCode,
+  fetchOAuthBindings,
+  fetchOAuthProviders,
+  startOAuthBind,
+  unbindOAuth
 } from "@/lib/api";
 import { UnifiedCaptcha, type UnifiedCaptchaRef } from "@/components/UnifiedCaptcha";
 import { SplashScreen } from "@/components/SplashScreen";
@@ -41,6 +45,7 @@ import { useI18n } from "@/i18n";
 export function ProfileSettingsPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const setUser = useAuthStore((state) => state.setUser);
   const clearAuth = useAuthStore((state) => state.clear);
   const captchaRef = useRef<UnifiedCaptchaRef>(null);
@@ -52,6 +57,35 @@ export function ProfileSettingsPage() {
     queryKey: ["captcha-config", "redeem"],
     queryFn: () => fetchCaptchaConfig("redeem")
   });
+  const { data: oauthBindings } = useQuery({
+    queryKey: ["account", "oauth-bindings"],
+    queryFn: fetchOAuthBindings
+  });
+  const { data: oauthProviders } = useQuery({
+    queryKey: ["oauth-providers"],
+    queryFn: fetchOAuthProviders,
+    staleTime: 0,
+    refetchOnMount: "always"
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("oauth_bound")) {
+      toast.success(t("oauth.bindSuccess"));
+      queryClient.invalidateQueries({ queryKey: ["account", "oauth-bindings"] });
+      params.delete("oauth_bound");
+      const next = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (next ? `?${next}` : ""));
+    }
+    const oauthError = params.get("oauth_error");
+    if (oauthError) {
+      toast.error(t("oauth.error", { message: oauthError }));
+      params.delete("oauth_error");
+      const next = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (next ? `?${next}` : ""));
+    }
+  }, [t, queryClient]);
 
   const profile = data?.user;
   const globalLoginNotify = data?.globalLoginNotificationEnabled ?? false;
@@ -116,6 +150,23 @@ export function ProfileSettingsPage() {
       clearAuth();
       toast.success(t("profile.deleted"));
       navigate("/login");
+    },
+    onError: (error) => toast.error(error.message)
+  });
+
+  const unbindMutation = useMutation({
+    mutationFn: unbindOAuth,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["account", "oauth-bindings"] });
+      toast.success(t("oauth.unbindSuccess"));
+    },
+    onError: (error) => toast.error(error.message)
+  });
+
+  const bindMutation = useMutation({
+    mutationFn: startOAuthBind,
+    onSuccess: (url) => {
+      window.location.href = url;
     },
     onError: (error) => toast.error(error.message)
   });
@@ -286,6 +337,53 @@ export function ProfileSettingsPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {(oauthProviders?.length || oauthBindings?.length) ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("oauth.bindingsTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">{t("oauth.bindingsDescription")}</p>
+            {(oauthProviders || []).map((provider) => {
+              const bound = (oauthBindings || []).find((b) => b.provider === provider.id);
+              return (
+                <div
+                  key={provider.id}
+                  className="flex items-center justify-between rounded-md border p-3"
+                >
+                  <div>
+                    <p className="font-medium">{provider.name}</p>
+                    {bound && (
+                      <p className="text-xs text-muted-foreground">
+                        {bound.providerName || bound.providerEmail || t("oauth.bound")}
+                      </p>
+                    )}
+                  </div>
+                  {bound ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={unbindMutation.isPending}
+                      onClick={() => unbindMutation.mutate(provider.id)}
+                    >
+                      {t("oauth.unbind")}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      disabled={bindMutation.isPending}
+                      onClick={() => bindMutation.mutate(provider.id)}
+                    >
+                      {t("oauth.bind")}
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

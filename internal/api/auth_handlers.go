@@ -17,6 +17,7 @@ import (
 	"skyimage/internal/captcha"
 	"skyimage/internal/data"
 	"skyimage/internal/middleware"
+	"skyimage/internal/oauth"
 	"skyimage/internal/session"
 	"skyimage/internal/users"
 )
@@ -121,6 +122,16 @@ func (s *Server) handleSendVerificationCode(c *gin.Context) {
 		return
 	}
 
+	regMode := s.registrationMode(settings)
+	if regMode == oauth.RegModeClosed || regMode == oauth.RegModeOAuthOnly {
+		c.JSON(http.StatusForbidden, gin.H{"error": "registration disabled"})
+		return
+	}
+	if !s.cfg.AllowRegistration {
+		c.JSON(http.StatusForbidden, gin.H{"error": "registration disabled"})
+		return
+	}
+
 	if settings["mail.register.verify"] != "true" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "邮件验证未启用"})
 		return
@@ -195,13 +206,21 @@ func (s *Server) handleSendVerificationCode(c *gin.Context) {
 }
 
 func (s *Server) handleRegister(c *gin.Context) {
-	// 检查数据库中的注册设置
 	settings, err := s.admin.GetSettings(c.Request.Context())
-	if err == nil && settings["features.allow_registration"] == "false" {
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "系统错误"})
+		return
+	}
+	regMode := s.registrationMode(settings)
+	if regMode == oauth.RegModeClosed {
 		c.JSON(http.StatusForbidden, gin.H{"error": "registration disabled"})
 		return
 	}
-	// 兼容环境变量配置
+	if regMode == oauth.RegModeOAuthOnly {
+		c.JSON(http.StatusForbidden, gin.H{"error": "password registration disabled"})
+		return
+	}
+	// 兼容环境变量配置（全局硬关闭）
 	if !s.cfg.AllowRegistration {
 		c.JSON(http.StatusForbidden, gin.H{"error": "registration disabled"})
 		return
@@ -450,28 +469,42 @@ func (s *Server) handleNeedsSetup(c *gin.Context) {
 }
 
 func (s *Server) handleRegistrationStatus(c *gin.Context) {
-	// 检查数据库中的注册设置
 	settings, err := s.admin.GetSettings(c.Request.Context())
-	allowed := true
+	mode := oauth.RegModeOpen
 	emailVerifyEnabled := false
-
 	if err == nil {
-		if settings["features.allow_registration"] == "false" {
-			allowed = false
-		}
+		mode = s.registrationMode(settings)
 		emailVerifyEnabled = settings["mail.register.verify"] == "true"
 	}
-
-	// 兼容环境变量配置
 	if !s.cfg.AllowRegistration {
-		allowed = false
+		mode = oauth.RegModeClosed
 	}
 
+	passwordAllowed := mode == oauth.RegModeOpen
+	oauthAllowed := mode == oauth.RegModeOpen || mode == oauth.RegModeOAuthOnly
+
+	forgotEnabled := false
+	if err == nil {
+		forgotEnabled = settings["mail.forgot_password.enabled"] == "true"
+	}
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
-		"allowed":               allowed,
+		"allowed":               passwordAllowed || oauthAllowed,
+		"mode":                  mode,
+		"passwordAllowed":       passwordAllowed,
+		"oauthAllowed":          oauthAllowed,
 		"emailVerifyEnabled":    emailVerifyEnabled,
-		"forgotPasswordEnabled": settings["mail.forgot_password.enabled"] == "true",
+		"forgotPasswordEnabled": forgotEnabled,
 	}})
+}
+
+func (s *Server) registrationMode(settings map[string]string) string {
+	if settings == nil {
+		if s.cfg.AllowRegistration {
+			return oauth.RegModeOpen
+		}
+		return oauth.RegModeClosed
+	}
+	return oauth.NormalizeRegistrationMode(settings["features.registration_mode"], settings["features.allow_registration"] != "false")
 }
 
 func (s *Server) handleForgotPassword(c *gin.Context) {

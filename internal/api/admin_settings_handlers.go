@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -16,25 +17,26 @@ import (
 // ---------------------------------------------------------------------------
 
 type siteSettingsPayload struct {
-	SiteTitle            string `json:"siteTitle"`
-	ConsoleURL           string `json:"consoleUrl"`
-	SiteDescription      string `json:"siteDescription"`
-	SiteSlogan           string `json:"siteSlogan"`
-	SiteLogo             string `json:"siteLogo"`
-	About                string `json:"about"`
-	AboutTitle           string `json:"aboutTitle"`
-	NotFoundMode         string `json:"notFoundMode"`
-	NotFoundHeading      string `json:"notFoundHeading"`
-	NotFoundText         string `json:"notFoundText"`
-	NotFoundHtml         string `json:"notFoundHtml"`
-	TermsOfService       string `json:"termsOfService"`
-	PrivacyPolicy        string `json:"privacyPolicy"`
-	HomePageMode         string `json:"homePageMode"`
-	HomeCustomHTML       string `json:"homeCustomHtml"`
-	EnableGallery        bool   `json:"enableGallery"`
-	EnableHome           bool   `json:"enableHome"`
-	EnableApi            bool   `json:"enableApi"`
-	AllowRegistration    bool   `json:"allowRegistration"`
+	SiteTitle             string `json:"siteTitle"`
+	ConsoleURL            string `json:"consoleUrl"`
+	SiteDescription       string `json:"siteDescription"`
+	SiteSlogan            string `json:"siteSlogan"`
+	SiteLogo              string `json:"siteLogo"`
+	About                 string `json:"about"`
+	AboutTitle            string `json:"aboutTitle"`
+	NotFoundMode          string `json:"notFoundMode"`
+	NotFoundHeading       string `json:"notFoundHeading"`
+	NotFoundText          string `json:"notFoundText"`
+	NotFoundHtml          string `json:"notFoundHtml"`
+	TermsOfService        string `json:"termsOfService"`
+	PrivacyPolicy         string `json:"privacyPolicy"`
+	HomePageMode          string `json:"homePageMode"`
+	HomeCustomHTML        string `json:"homeCustomHtml"`
+	EnableGallery         bool   `json:"enableGallery"`
+	EnableHome            bool   `json:"enableHome"`
+	EnableApi             bool   `json:"enableApi"`
+	AllowRegistration     bool   `json:"allowRegistration"` // legacy, derived from registrationMode
+	RegistrationMode      string `json:"registrationMode"`  // open | oauth_only | closed
 	AccountDisabledNotice string `json:"accountDisabledNotice"`
 }
 
@@ -65,26 +67,28 @@ func (s *Server) handleAdminSiteSettings(c *gin.Context) {
 		disabledNotice = defaultAccountDisabledNotice
 	}
 
+	regMode := s.registrationMode(settings)
 	payload := siteSettingsPayload{
-		SiteTitle:            settings["site.title"],
-		ConsoleURL:           consoleURL,
-		SiteDescription:      settings["site.description"],
-		SiteSlogan:           settings["site.slogan"],
-		SiteLogo:             settings["site.logo"],
-		About:                settings["site.about"],
-		AboutTitle:           settings["site.about_title"],
-		NotFoundMode:         settings["site.notfound_mode"],
-		NotFoundHeading:      settings["site.notfound_heading"],
-		NotFoundText:         settings["site.notfound_text"],
-		NotFoundHtml:         settings["site.notfound_html"],
-		TermsOfService:       settings["site.terms_of_service"],
-		PrivacyPolicy:        settings["site.privacy_policy"],
-		HomePageMode:         homePageMode,
-		HomeCustomHTML:       homeCustomHTML,
-		EnableGallery:        settings["features.gallery"] != "false",
-		EnableHome:           settings["features.home"] != "false",
-		EnableApi:            settings["features.api"] != "false",
-		AllowRegistration:    settings["features.allow_registration"] != "false",
+		SiteTitle:             settings["site.title"],
+		ConsoleURL:            consoleURL,
+		SiteDescription:       settings["site.description"],
+		SiteSlogan:            settings["site.slogan"],
+		SiteLogo:              settings["site.logo"],
+		About:                 settings["site.about"],
+		AboutTitle:            settings["site.about_title"],
+		NotFoundMode:          settings["site.notfound_mode"],
+		NotFoundHeading:       settings["site.notfound_heading"],
+		NotFoundText:          settings["site.notfound_text"],
+		NotFoundHtml:          settings["site.notfound_html"],
+		TermsOfService:        settings["site.terms_of_service"],
+		PrivacyPolicy:         settings["site.privacy_policy"],
+		HomePageMode:          homePageMode,
+		HomeCustomHTML:        homeCustomHTML,
+		EnableGallery:         settings["features.gallery"] != "false",
+		EnableHome:            settings["features.home"] != "false",
+		EnableApi:             settings["features.api"] != "false",
+		AllowRegistration:     regMode != "closed",
+		RegistrationMode:      regMode,
 		AccountDisabledNotice: disabledNotice,
 	}
 	c.JSON(http.StatusOK, gin.H{"data": payload})
@@ -113,6 +117,17 @@ func (s *Server) handleAdminUpdateSiteSettings(c *gin.Context) {
 		homeCustomHTML = payload.HomeCustomHTML
 	}
 
+	regMode := strings.ToLower(strings.TrimSpace(payload.RegistrationMode))
+	switch regMode {
+	case "open", "oauth_only", "closed":
+	default:
+		// Backward compatible: allowRegistration bool only
+		if payload.AllowRegistration {
+			regMode = "open"
+		} else {
+			regMode = "closed"
+		}
+	}
 	values := map[string]string{
 		"site.title":                  payload.SiteTitle,
 		"site.console_url":            payload.ConsoleURL,
@@ -132,7 +147,8 @@ func (s *Server) handleAdminUpdateSiteSettings(c *gin.Context) {
 		"features.gallery":            strconv.FormatBool(payload.EnableGallery),
 		"features.home":               strconv.FormatBool(payload.EnableHome),
 		"features.api":                strconv.FormatBool(payload.EnableApi),
-		"features.allow_registration": strconv.FormatBool(payload.AllowRegistration),
+		"features.registration_mode":  regMode,
+		"features.allow_registration": strconv.FormatBool(regMode != "closed"),
 		"account.disabled_notice":     notice,
 	}
 
@@ -550,4 +566,164 @@ func (s *Server) handleAdminUpdateCaptchaSettings(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": "updated"})
+}
+
+// ---------------------------------------------------------------------------
+// OAuth Settings (GET/PUT /admin/system/oauth)
+// ---------------------------------------------------------------------------
+
+type oauthProviderSettings struct {
+	Enabled      bool   `json:"enabled"`
+	ClientID     string `json:"clientId"`
+	ClientSecret string `json:"clientSecret"`
+	Name         string `json:"name,omitempty"`
+	AuthURL      string `json:"authUrl,omitempty"`
+	TokenURL     string `json:"tokenUrl,omitempty"`
+	UserInfoURL  string `json:"userInfoUrl,omitempty"`
+	Scopes       string `json:"scopes,omitempty"`
+}
+
+type oauthSettingsPayload struct {
+	Enabled         bool                  `json:"enabled"`
+	AutoLinkByEmail bool                  `json:"autoLinkByEmail"`
+	GitHub          oauthProviderSettings `json:"github"`
+	Google          oauthProviderSettings `json:"google"`
+	Discord         oauthProviderSettings `json:"discord"`
+	Custom          oauthProviderSettings `json:"custom"`
+}
+
+func (s *Server) handleAdminOAuthSettings(c *gin.Context) {
+	if !requireSuperAdmin(c) {
+		return
+	}
+	settings, err := s.admin.GetSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	payload := oauthSettingsPayload{
+		Enabled:         settings["oauth.enabled"] == "true",
+		AutoLinkByEmail: settings["oauth.auto_link_by_email"] == "true",
+		GitHub: oauthProviderSettings{
+			Enabled:      settings["oauth.github.enabled"] == "true",
+			ClientID:     settings["oauth.github.client_id"],
+			ClientSecret: redactSecret(settings["oauth.github.client_secret"]),
+		},
+		Google: oauthProviderSettings{
+			Enabled:      settings["oauth.google.enabled"] == "true",
+			ClientID:     settings["oauth.google.client_id"],
+			ClientSecret: redactSecret(settings["oauth.google.client_secret"]),
+		},
+		Discord: oauthProviderSettings{
+			Enabled:      settings["oauth.discord.enabled"] == "true",
+			ClientID:     settings["oauth.discord.client_id"],
+			ClientSecret: redactSecret(settings["oauth.discord.client_secret"]),
+		},
+		Custom: oauthProviderSettings{
+			Enabled:      settings["oauth.custom.enabled"] == "true",
+			Name:         settings["oauth.custom.name"],
+			ClientID:     settings["oauth.custom.client_id"],
+			ClientSecret: redactSecret(settings["oauth.custom.client_secret"]),
+			AuthURL:      settings["oauth.custom.auth_url"],
+			TokenURL:     settings["oauth.custom.token_url"],
+			UserInfoURL:  settings["oauth.custom.userinfo_url"],
+			Scopes:       settings["oauth.custom.scopes"],
+		},
+	}
+	c.JSON(http.StatusOK, gin.H{"data": payload})
+}
+
+func (s *Server) handleAdminUpdateOAuthSettings(c *gin.Context) {
+	if !requireSuperAdmin(c) {
+		return
+	}
+	var payload oauthSettingsPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	settings, _ := s.admin.GetSettings(c.Request.Context())
+
+	githubSecret := strings.TrimSpace(payload.GitHub.ClientSecret)
+	if githubSecret == "" || githubSecret == "***" {
+		githubSecret = settings["oauth.github.client_secret"]
+	}
+	googleSecret := strings.TrimSpace(payload.Google.ClientSecret)
+	if googleSecret == "" || googleSecret == "***" {
+		googleSecret = settings["oauth.google.client_secret"]
+	}
+	discordSecret := strings.TrimSpace(payload.Discord.ClientSecret)
+	if discordSecret == "" || discordSecret == "***" {
+		discordSecret = settings["oauth.discord.client_secret"]
+	}
+	customSecret := strings.TrimSpace(payload.Custom.ClientSecret)
+	if customSecret == "" || customSecret == "***" {
+		customSecret = settings["oauth.custom.client_secret"]
+	}
+
+	if payload.Enabled && payload.Custom.Enabled {
+		if strings.TrimSpace(payload.Custom.ClientID) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "自定义 OAuth 已启用，请填写 Client ID"})
+			return
+		}
+		if customSecret == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "自定义 OAuth 已启用，请填写 Client Secret"})
+			return
+		}
+		for _, item := range []struct {
+			label string
+			value string
+		}{
+			{"Auth URL", payload.Custom.AuthURL},
+			{"Token URL", payload.Custom.TokenURL},
+			{"UserInfo URL", payload.Custom.UserInfoURL},
+		} {
+			u, err := url.Parse(strings.TrimSpace(item.value))
+			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": item.label + " 必须是完整 http(s) 地址，例如 https://casdoor.example.com/login/oauth/authorize"})
+				return
+			}
+			host := strings.ToLower(u.Hostname())
+			if host == "localhost" || strings.HasSuffix(host, ".localhost") || host == "127.0.0.1" || host == "::1" || host == "metadata.google.internal" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": item.label + " 不能指向本机或元数据地址"})
+				return
+			}
+		}
+	}
+
+	values := map[string]string{
+		"oauth.enabled":               strconv.FormatBool(payload.Enabled),
+		"oauth.auto_link_by_email":    strconv.FormatBool(payload.AutoLinkByEmail),
+		"oauth.github.enabled":        strconv.FormatBool(payload.GitHub.Enabled),
+		"oauth.github.client_id":      strings.TrimSpace(payload.GitHub.ClientID),
+		"oauth.github.client_secret":  githubSecret,
+		"oauth.google.enabled":        strconv.FormatBool(payload.Google.Enabled),
+		"oauth.google.client_id":      strings.TrimSpace(payload.Google.ClientID),
+		"oauth.google.client_secret":  googleSecret,
+		"oauth.discord.enabled":       strconv.FormatBool(payload.Discord.Enabled),
+		"oauth.discord.client_id":     strings.TrimSpace(payload.Discord.ClientID),
+		"oauth.discord.client_secret": discordSecret,
+		"oauth.custom.enabled":        strconv.FormatBool(payload.Custom.Enabled),
+		"oauth.custom.name":           strings.TrimSpace(payload.Custom.Name),
+		"oauth.custom.client_id":      strings.TrimSpace(payload.Custom.ClientID),
+		"oauth.custom.client_secret":  customSecret,
+		"oauth.custom.auth_url":       strings.TrimRight(strings.TrimSpace(payload.Custom.AuthURL), "?&"),
+		"oauth.custom.token_url":      strings.TrimRight(strings.TrimSpace(payload.Custom.TokenURL), "?&"),
+		"oauth.custom.userinfo_url":   strings.TrimRight(strings.TrimSpace(payload.Custom.UserInfoURL), "?&"),
+		"oauth.custom.scopes":         firstNonEmptyTrim(payload.Custom.Scopes, "openid profile email"),
+	}
+	if err := s.admin.UpdateSettings(c.Request.Context(), values); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": "updated"})
+}
+
+func firstNonEmptyTrim(values ...string) string {
+	for _, v := range values {
+		if t := strings.TrimSpace(v); t != "" {
+			return t
+		}
+	}
+	return ""
 }

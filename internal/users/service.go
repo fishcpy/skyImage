@@ -185,6 +185,9 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (data.User, error) {
 		}
 		return data.User{}, err
 	}
+	if strings.TrimSpace(user.PasswordHash) == "" {
+		return data.User{}, errors.New("invalid credentials")
+	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(in.Password)); err != nil {
 		return data.User{}, errors.New("invalid credentials")
 	}
@@ -369,6 +372,9 @@ func (s *Service) DeleteUser(ctx context.Context, actor data.User, userID uint) 
 		if err := tx.Where("user_id = ?", user.ID).Delete(&data.UserNotification{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("user_id = ?", user.ID).Delete(&data.UserOAuthBinding{}).Error; err != nil {
+			return err
+		}
 		if err := tx.Delete(&data.User{}, user.ID).Error; err != nil {
 			return err
 		}
@@ -399,6 +405,9 @@ func (s *Service) DeleteOwnAccount(ctx context.Context, userID uint) error {
 			return err
 		}
 		if err := tx.Where("user_id = ?", user.ID).Delete(&data.UserNotification{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", user.ID).Delete(&data.UserOAuthBinding{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Delete(&data.User{}, user.ID).Error; err != nil {

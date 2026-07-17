@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { Link, Navigate } from "react-router-dom";
-
-import { fetchHasUsers, fetchSiteConfig } from "@/lib/api";
+import { Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { fetchHasUsers, fetchProfile, fetchSiteConfig } from "@/lib/api";
 import { useAuthStore } from "@/state/auth";
 import { Button } from "@/components/ui/button";
 import { LoginForm } from "@/components/login-form";
@@ -12,6 +12,31 @@ import { useI18n } from "@/i18n";
 export function LoginPage() {
   const { t } = useI18n();
   const token = useAuthStore((state) => state.token);
+  const setAuth = useAuthStore((state) => state.setAuth);
+  const [sessionChecked, setSessionChecked] = useState(Boolean(token));
+
+  useEffect(() => {
+    if (token) {
+      setSessionChecked(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const user = await fetchProfile();
+        if (!cancelled && user) {
+          setAuth({ user });
+        }
+      } catch {
+        // no session
+      } finally {
+        if (!cancelled) setSessionChecked(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, setAuth]);
 
   const {
     data: hasUsers,
@@ -32,6 +57,14 @@ export function LoginPage() {
 
   if (token) {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  if (!sessionChecked) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
   if (!checkingUsers && hasUsers === false) {

@@ -1,11 +1,41 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
+import { fetchProfile } from "@/lib/api";
 import { useAuthStore } from "@/state/auth";
 
 export function ProtectedRoute() {
   const token = useAuthStore((state) => state.token);
+  const setAuth = useAuthStore((state) => state.setAuth);
   const location = useLocation();
+  const [bootstrapping, setBootstrapping] = useState(!token);
+
+  useEffect(() => {
+    if (token) {
+      setBootstrapping(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const user = await fetchProfile();
+        if (!cancelled && user) {
+          setAuth({ user });
+        }
+      } catch {
+        // no valid session cookie
+      } finally {
+        if (!cancelled) setBootstrapping(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, setAuth]);
+
+  if (bootstrapping) {
+    return null;
+  }
 
   if (!token) {
     return <Navigate to="/login" state={{ from: location }} replace />;

@@ -7,6 +7,7 @@ import { useAuthStore } from "@/state/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RegisterForm } from "@/components/register-form";
+import { OAuthButtons } from "@/components/OAuthButtons";
 import { PublicTopNav } from "@/components/PublicTopNav";
 import { useI18n } from "@/i18n";
 
@@ -54,7 +55,11 @@ export function RegisterPage() {
     );
   }
 
-  if (statusError || !registrationStatus?.allowed) {
+  const mode = registrationStatus?.mode ?? "open";
+  const passwordAllowed = registrationStatus?.passwordAllowed ?? registrationStatus?.allowed ?? true;
+  const oauthAllowed = registrationStatus?.oauthAllowed ?? false;
+
+  if (statusError || mode === "closed" || (!passwordAllowed && !oauthAllowed)) {
     return (
       <div className="min-h-svh bg-muted">
         <PublicTopNav title={siteName} description={siteConfig?.description || ""} compact />
@@ -82,6 +87,35 @@ export function RegisterPage() {
     );
   }
 
+  if (!passwordAllowed && oauthAllowed) {
+    return (
+      <div className="min-h-svh bg-muted">
+        <PublicTopNav title={siteName} description={siteConfig?.description || ""} compact />
+        <div className="flex min-h-[calc(100svh-88px)] flex-col items-center justify-center gap-6 px-6 pb-10 md:px-10">
+          <div className="flex w-full max-w-sm flex-col gap-6">
+            <a href="/" className="self-center font-medium text-xl">
+              {siteName}
+            </a>
+            <Card>
+              <CardHeader className="text-center">
+                <CardTitle>{t("register.oauthOnlyTitle")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground text-center">
+                  {t("register.oauthOnlyDescription")}
+                </p>
+                <OAuthButtons />
+                <Button asChild variant="ghost" className="w-full">
+                  <Link to="/login">{t("register.backToLogin")}</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-svh bg-muted">
       <PublicTopNav title={siteName} description={siteConfig?.description || ""} compact />
@@ -90,7 +124,7 @@ export function RegisterPage() {
           <a href="/" className="self-center font-medium text-xl">
             {siteName}
           </a>
-          <RegisterForm emailVerifyEnabled={emailVerifyEnabled} />
+          <RegisterForm emailVerifyEnabled={emailVerifyEnabled} showOAuth={oauthAllowed} />
         </div>
       </div>
     </div>

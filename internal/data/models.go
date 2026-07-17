@@ -25,7 +25,7 @@ type User struct {
 	GroupID       *uint          `gorm:"index" json:"groupId"`
 	Name          string         `gorm:"size:128;not null" json:"name"`
 	Email         string         `gorm:"size:255;uniqueIndex;not null" json:"email"`
-	PasswordHash  string         `gorm:"column:password;size:255;not null" json:"-"`
+	PasswordHash  string         `gorm:"column:password;size:255;default:''" json:"-"`
 	IsSuperAdmin  bool           `gorm:"column:is_super_admin;default:false" json:"isSuperAdmin"`
 	URL            string         `gorm:"size:255" json:"url"`
 	Capacity       float64        `gorm:"default:0" json:"capacity"`
@@ -46,6 +46,39 @@ type User struct {
 
 func (User) TableName() string {
 	return "users"
+}
+
+// UserOAuthBinding links a local user to an external OAuth provider account.
+type UserOAuthBinding struct {
+	ID             uint      `gorm:"primaryKey" json:"id"`
+	UserID         uint      `gorm:"index;not null" json:"userId"`
+	Provider       string    `gorm:"size:32;not null;uniqueIndex:idx_oauth_provider_uid" json:"provider"`
+	ProviderUserID string    `gorm:"size:255;not null;uniqueIndex:idx_oauth_provider_uid" json:"providerUserId"`
+	ProviderEmail  string    `gorm:"size:255" json:"providerEmail"`
+	ProviderName   string    `gorm:"size:255" json:"providerName"`
+	AvatarURL      string    `gorm:"size:512" json:"avatarUrl"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+	User           User      `gorm:"foreignKey:UserID" json:"-"`
+}
+
+func (UserOAuthBinding) TableName() string {
+	return "user_oauth_bindings"
+}
+
+// OAuthState stores short-lived OAuth CSRF/PKCE state (multi-instance safe).
+type OAuthState struct {
+	ID            string    `gorm:"primaryKey;size:64" json:"id"`
+	Provider      string    `gorm:"size:32;not null" json:"provider"`
+	Mode          string    `gorm:"size:16;not null" json:"mode"`
+	UserID        uint      `gorm:"default:0" json:"userId"`
+	CodeVerifier  string    `gorm:"size:128;default:''" json:"-"`
+	ExpiresAt     time.Time `gorm:"index;not null" json:"expiresAt"`
+	CreatedAt     time.Time `json:"createdAt"`
+}
+
+func (OAuthState) TableName() string {
+	return "oauth_states"
 }
 
 type FileAsset struct {

@@ -45,6 +45,7 @@ const defaultSiteSettingsForm: SiteSettings = {
   enableHome: true,
   enableApi: true,
   allowRegistration: true,
+  registrationMode: "open",
   accountDisabledNotice: ""
 };
 
@@ -375,13 +376,25 @@ export function AdminSiteSettingsPage() {
               />
               <Label htmlFor="enableApi">{t("admin.siteSettings.enableApi")}</Label>
             </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="allowRegistration"
-                checked={form.allowRegistration}
-                onCheckedChange={(checked) => handleChange("allowRegistration", checked)}
-              />
-              <Label htmlFor="allowRegistration">{t("admin.siteSettings.allowRegistration")}</Label>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>{t("admin.siteSettings.registrationMode")}</Label>
+              <Select
+                value={form.registrationMode || "open"}
+                onValueChange={(value) => {
+                  handleChange("registrationMode", value);
+                  handleChange("allowRegistration", value !== "closed");
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open">{t("admin.siteSettings.registrationMode.open")}</SelectItem>
+                  <SelectItem value="oauth_only">{t("admin.siteSettings.registrationMode.oauthOnly")}</SelectItem>
+                  <SelectItem value="closed">{t("admin.siteSettings.registrationMode.closed")}</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{t("admin.siteSettings.registrationModeHint")}</p>
             </div>
           </div>
           <div className="space-y-2">

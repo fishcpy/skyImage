@@ -32,6 +32,7 @@ import (
 	"skyimage/internal/mail"
 	"skyimage/internal/middleware"
 	"skyimage/internal/notifications"
+	"skyimage/internal/oauth"
 	"skyimage/internal/redeem"
 	"skyimage/internal/session"
 	"skyimage/internal/users"
@@ -52,6 +53,7 @@ type Server struct {
 	mail          *mail.Service
 	captcha       *captcha.Service
 	verification  *verification.Service
+	oauth         *oauth.Service
 	session       *session.Manager
 	authLimiter   *requestLimiter
 	publicPaths   map[string]struct{}
@@ -111,6 +113,12 @@ func (s *Server) applyRuntimeConfig(cfg config.Config, db *gorm.DB) {
 	s.mail = mail.New(adminService)
 	s.captcha = captcha.New(adminService)
 	s.verification = verification.New()
+	if s.oauth == nil {
+		s.oauth = oauth.New(db, adminService)
+	} else {
+		s.oauth.SetDB(db)
+		s.oauth.SetSettings(adminService)
+	}
 	if s.session == nil {
 		s.session = session.NewManager(db, 24*time.Hour)
 	} else {
@@ -267,6 +275,7 @@ func (s *Server) registerRoutes() {
 	apiGroup.GET("/health", s.healthHandler)
 	s.registerInstallerRoutes(apiGroup)
 	s.registerAuthRoutes(apiGroup)
+	s.registerOAuthRoutes(apiGroup)
 	s.registerAccountRoutes(apiGroup)
 	s.registerAdminRoutes(apiGroup)
 	s.registerFileRoutes(apiGroup)
@@ -1173,5 +1182,15 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 		sessionManager := s.session
 		s.mu.RUnlock()
 		middleware.Auth(userService, sessionManager)(c)
+	}
+}
+
+func (s *Server) optionalAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		s.mu.RLock()
+		userService := s.users
+		sessionManager := s.session
+		s.mu.RUnlock()
+		middleware.OptionalAuth(userService, sessionManager)(c)
 	}
 }

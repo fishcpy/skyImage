@@ -19,9 +19,10 @@ import {
   FieldSeparator,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { login, fetchCaptchaConfig } from "@/lib/api";
+import { login, fetchCaptchaConfig, fetchRegistrationStatus } from "@/lib/api";
 import { useAuthStore } from "@/state/auth";
 import { UnifiedCaptcha, type UnifiedCaptchaRef } from "@/components/UnifiedCaptcha";
+import { OAuthButtons } from "@/components/OAuthButtons";
 import { useI18n } from "@/i18n";
 
 export function LoginForm({
@@ -51,6 +52,23 @@ export function LoginForm({
     queryKey: ["captcha-config", "login"],
     queryFn: () => fetchCaptchaConfig("login"),
   });
+
+  const { data: registrationStatus } = useQuery({
+    queryKey: ["registration-status"],
+    queryFn: fetchRegistrationStatus,
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const oauthError = params.get("oauth_error");
+    if (oauthError) {
+      toast.error(t("oauth.error", { message: oauthError }));
+      params.delete("oauth_error");
+      const next = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (next ? `?${next}` : ""));
+    }
+  }, [t]);
 
   const mutation = useMutation({
     mutationFn: login,
@@ -171,9 +189,15 @@ export function LoginForm({
                 <Button type="submit" className="w-full" disabled={mutation.isPending}>
                   {mutation.isPending ? t("login.submitting") : t("login.submit")}
                 </Button>
-                <FieldDescription className="text-center">
-                  {t("login.noAccount")} <Link to="/register" className="text-primary hover:underline">{t("login.registerNow")}</Link>
-                </FieldDescription>
+                <OAuthButtons />
+                {registrationStatus?.allowed !== false && (
+                  <FieldDescription className="text-center">
+                    {t("login.noAccount")}{" "}
+                    <Link to="/register" className="text-primary hover:underline">
+                      {t("login.registerNow")}
+                    </Link>
+                  </FieldDescription>
+                )}
               </Field>
             </FieldGroup>
           </form>

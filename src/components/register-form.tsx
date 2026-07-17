@@ -21,15 +21,18 @@ import { Input } from "@/components/ui/input";
 import { register, sendVerificationCode, fetchCaptchaConfig } from "@/lib/api";
 import { useAuthStore } from "@/state/auth";
 import { UnifiedCaptcha, type UnifiedCaptchaRef } from "@/components/UnifiedCaptcha";
+import { OAuthButtons } from "@/components/OAuthButtons";
 import { useI18n } from "@/i18n";
 
 interface RegisterFormProps extends React.ComponentProps<"div"> {
   emailVerifyEnabled: boolean;
+  showOAuth?: boolean;
 }
 
 export function RegisterForm({
   className,
   emailVerifyEnabled,
+  showOAuth = false,
   ...props
 }: RegisterFormProps) {
   const navigate = useNavigate();
@@ -335,6 +338,7 @@ export function RegisterForm({
                 <Button type="submit" className="w-full" disabled={mutation.isPending}>
                   {mutation.isPending ? t("register.submitting") : t("register.submit")}
                 </Button>
+                {showOAuth && <OAuthButtons />}
                 <FieldDescription className="text-center">
                   {t("register.hasAccount")} <Link to="/login" className="text-primary hover:underline">{t("register.loginNow")}</Link>
                 </FieldDescription>
