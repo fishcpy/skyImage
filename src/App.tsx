@@ -31,6 +31,7 @@ import { AdminSiteSettingsPage } from "@/features/admin/AdminSiteSettingsPage";
 import { AdminEmailSettingsPage } from "@/features/admin/AdminEmailSettingsPage";
 import { AdminCaptchaSettingsPage } from "@/features/admin/AdminCaptchaSettingsPage";
 import { AdminOAuthSettingsPage } from "@/features/admin/AdminOAuthSettingsPage";
+import { AdminDatabaseSettingsPage } from "@/features/admin/AdminDatabaseSettingsPage";
 import { AdminGroupEditorPage } from "@/features/admin/AdminGroupEditorPage";
 import { AdminRedeemCodesPage } from "@/features/admin/AdminRedeemCodesPage";
 import { AdminRedeemCodeEditorPage } from "@/features/admin/AdminRedeemCodeEditorPage";
@@ -191,6 +192,7 @@ export default function App() {
                 <Route path="admin/settings/system" element={<AdminSystemSettingsPage />} />
                 <Route path="admin/settings/captcha" element={<AdminCaptchaSettingsPage />} />
                 <Route path="admin/settings/oauth" element={<AdminOAuthSettingsPage />} />
+                <Route path="admin/settings/database" element={<AdminDatabaseSettingsPage />} />
               </Route>
               <Route path="*" element={<NotFoundPage />} />
             </Route>

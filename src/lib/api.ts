@@ -790,6 +790,64 @@ export async function updateOAuthSettings(input: OAuthSettings) {
   await apiClient.put("/admin/system/oauth", input);
 }
 
+// ── Database config & migration ──
+
+export type DatabaseConfigView = {
+  type: string;
+  path?: string;
+  host?: string;
+  port?: string;
+  name?: string;
+  user?: string;
+  hasPassword: boolean;
+};
+
+export type DatabaseTargetInput = {
+  type: string;
+  path?: string;
+  host?: string;
+  port?: string;
+  name?: string;
+  user?: string;
+  password?: string;
+};
+
+export type DatabaseMigrateResult = {
+  sourceType: string;
+  targetType: string;
+  tables: {
+    table: string;
+    rows: number;
+    sourceRows?: number;
+    copiedRows?: number;
+    targetRows?: number;
+  }[];
+  switched: boolean;
+};
+
+export async function fetchDatabaseConfig() {
+  const res = await apiClient.get<{ data: DatabaseConfigView }>("/admin/system/database");
+  return res.data.data;
+}
+
+export async function testDatabaseConnection(input: DatabaseTargetInput) {
+  const res = await apiClient.post<{ data: { ok: boolean } }>("/admin/system/database/test", input);
+  return res.data.data;
+}
+
+export async function migrateDatabase(input: {
+  target: DatabaseTargetInput;
+  truncateTarget?: boolean;
+  switchRuntime?: boolean;
+  batchSize?: number;
+}) {
+  const res = await apiClient.post<{ data: DatabaseMigrateResult }>(
+    "/admin/system/database/migrate",
+    input
+  );
+  return res.data.data;
+}
+
 export async function fetchSiteSettings() {
   const res = await apiClient.get<{ data: SiteSettings }>(
     "/admin/system/site"

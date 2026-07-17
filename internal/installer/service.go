@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -228,7 +227,7 @@ func (s *Service) Run(ctx context.Context, in RunInput) (Status, error) {
 		return Status{}, err
 	}
 
-	if err := saveDatabaseConfig(targetCfg); err != nil {
+	if err := config.SaveDatabaseEnv(targetCfg); err != nil {
 		if needSwitch {
 			closeDB(dbConn)
 		}
@@ -391,65 +390,4 @@ func ensureDefaultStrategy(tx *gorm.DB, cfg config.Config, groupID uint) (uint, 
 	return strategy.ID, nil
 }
 
-func saveDatabaseConfig(cfg config.Config) error {
-	envPath := ".env"
-	content := ""
 
-	if existingContent, err := os.ReadFile(envPath); err == nil {
-		content = string(existingContent)
-	}
-
-	updates := map[string]string{
-		"DATABASE_TYPE":     cfg.DatabaseType,
-		"DATABASE_PATH":     cfg.DatabasePath,
-		"DATABASE_HOST":     cfg.DatabaseHost,
-		"DATABASE_PORT":     cfg.DatabasePort,
-		"DATABASE_NAME":     cfg.DatabaseName,
-		"DATABASE_USER":     cfg.DatabaseUser,
-		"DATABASE_PASSWORD": cfg.DatabasePassword,
-	}
-
-	for key, value := range updates {
-		sanitized, err := sanitizeEnvValue(value)
-		if err != nil {
-			return fmt.Errorf("invalid %s: %w", key, err)
-		}
-		if strings.TrimSpace(sanitized) == "" {
-			continue
-		}
-		pattern := fmt.Sprintf("%s=", key)
-		lineValue := quoteEnvValue(sanitized)
-		if strings.Contains(content, pattern) {
-			lines := strings.Split(content, "\n")
-			for i, line := range lines {
-				if strings.HasPrefix(strings.TrimSpace(line), pattern) {
-					lines[i] = fmt.Sprintf("%s=%s", key, lineValue)
-				}
-			}
-			content = strings.Join(lines, "\n")
-		} else {
-			if content != "" && !strings.HasSuffix(content, "\n") {
-				content += "\n"
-			}
-			content += fmt.Sprintf("%s=%s\n", key, lineValue)
-		}
-	}
-
-	return os.WriteFile(envPath, []byte(content), 0o644)
-}
-
-func sanitizeEnvValue(raw string) (string, error) {
-	if strings.Contains(raw, "\x00") {
-		return "", fmt.Errorf("contains null byte")
-	}
-	if strings.Contains(raw, "\n") || strings.Contains(raw, "\r") {
-		return "", fmt.Errorf("contains newline")
-	}
-	return raw, nil
-}
-
-func quoteEnvValue(raw string) string {
-	escaped := strings.ReplaceAll(raw, `\`, `\\`)
-	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-	return `"` + escaped + `"`
-}

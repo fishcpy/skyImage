@@ -94,7 +94,8 @@ export const buildNavSections = ({
             { url: "/dashboard/admin/settings/email", title: t("nav.emailSettings") },
             { url: "/dashboard/admin/settings/system", title: t("nav.systemSettings") },
             { url: "/dashboard/admin/settings/captcha", title: t("nav.captchaSettings") },
-            { url: "/dashboard/admin/settings/oauth", title: t("nav.oauthSettings") }
+            { url: "/dashboard/admin/settings/oauth", title: t("nav.oauthSettings") },
+            { url: "/dashboard/admin/settings/database", title: t("nav.databaseSettings") }
           ]
         }
       ]

@@ -139,6 +139,33 @@ go run ./cmd/api
 - MySQL
 - PostgreSQL
 
+安装向导可选择数据库类型；运行中可在 **管理后台 → 系统设置 → 数据库** 将数据迁移到另一种数据库（例如 SQLite → MySQL/PostgreSQL，或反向）。
+
+#### 命令行迁移
+
+```bash
+# 将当前 .env 指向的库迁移到 MySQL，并写入 .env 切换运行配置
+go run ./cmd/migrate \
+  -target-type=mysql \
+  -target-host=127.0.0.1 \
+  -target-port=3306 \
+  -target-name=skyimage \
+  -target-user=root \
+  -target-password=secret \
+  -truncate-target \
+  -switch
+
+# 仅测试连接
+go run ./cmd/migrate -target-type=sqlite -target-path=storage/data/new.db -dry-run
+```
+
+迁移会复制全部业务表数据，不移动已上传的文件（文件仍由存储策略管理）。
+
+注意：
+- 目标库非空时须加 `-truncate-target`（或管理端开启「清空目标表」），否则会拒绝迁移
+- SQLite 路径必须是相对路径，且位于 `storage/` 下
+- 同一进程内同时只能运行一次迁移；请在维护窗口操作
+
 ### 存储支持
 
 以下支持情况按当前代码中的存储驱动实现统计；AWS S3、阿里云 OSS、腾讯云 COS、七牛云、又拍云通过 S3 兼容存储驱动接入。
@@ -158,6 +185,7 @@ go run ./cmd/api
 - 容量监控
 - API 文档
 - 系统安装向导
+- 数据库跨库迁移（SQLite / MySQL / PostgreSQL）
 - Turnstile 验证码集成
 - 邮件通知
 
@@ -167,18 +195,18 @@ go run ./cmd/api
 skyimage/
 ├── cmd/                    # 命令行入口
 │   ├── api/               # API 服务
-│   └── legacy-import/     # 数据导入工具
+│   └── migrate/           # 跨库数据迁移工具
 ├── internal/              # 内部包
 │   ├── admin/            # 管理员服务
 │   ├── api/              # API 处理器
 │   ├── config/           # 配置管理
-│   ├── data/             # 数据库模型
+│   ├── data/             # 数据库模型与连接
+│   ├── dbmigrate/        # 跨库迁移实现
 │   ├── files/            # 文件服务
 │   ├── installer/        # 安装服务
-│   ├── legacy/           # 数据迁移
+│   ├── legacy/           # 旧版导入
 │   ├── mail/             # 邮件服务
 │   ├── middleware/       # 中间件
-│   ├── turnstile/        # 验证码服务
 │   ├── users/            # 用户服务
 │   └── version/          # 版本信息
 ├── src/                   # 前端源码

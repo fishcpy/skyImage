@@ -2,13 +2,8 @@ package data
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
-	"github.com/glebarez/sqlite"
-	"gorm.io/driver/mysql"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
 	"skyimage/internal/config"
@@ -16,74 +11,55 @@ import (
 
 // NewDatabase connects to the configured database and runs auto migrations.
 func NewDatabase(cfg config.Config) (*gorm.DB, error) {
-	var dialector gorm.Dialector
-
-	dbType := strings.ToLower(strings.TrimSpace(cfg.DatabaseType))
-
-	switch dbType {
-	case "":
-		// 安装阶段，使用内存数据库避免提前创建实际数据库文件
-		dialector = sqlite.Open("file:installer?mode=memory&cache=shared")
-	case "mysql":
-		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-			cfg.DatabaseUser,
-			cfg.DatabasePassword,
-			cfg.DatabaseHost,
-			cfg.DatabasePort,
-			cfg.DatabaseName,
-		)
-		dialector = mysql.Open(dsn)
-	case "postgres", "postgresql":
-		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Shanghai",
-			cfg.DatabaseHost,
-			cfg.DatabaseUser,
-			cfg.DatabasePassword,
-			cfg.DatabaseName,
-			cfg.DatabasePort,
-		)
-		dialector = postgres.Open(dsn)
-	case "sqlite":
-		dbPath := cfg.DatabasePath
-		if dbPath == "" {
-			dbPath = filepath.Join("storage", "data", "skyImage.db")
-		}
-		dbPath = filepath.Clean(dbPath)
-		if strings.Contains(dbPath, "..") {
-			return nil, fmt.Errorf("invalid database path")
-		}
-		if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
-			return nil, fmt.Errorf("create database dir: %w", err)
-		}
-		dialector = sqlite.Open(dbPath)
-	default:
-		return nil, fmt.Errorf("unsupported database type: %s", dbType)
-	}
-
-	db, err := gorm.Open(dialector, &gorm.Config{
-		PrepareStmt: true,
-	})
+	db, err := OpenDatabase(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("open database: %w", err)
+		return nil, err
 	}
+	if err := PrepareSchema(db); err != nil {
+		return nil, err
+	}
+	return db, nil
+}
 
+func MustDatabase(cfg config.Config) *gorm.DB {
+	db, err := NewDatabase(cfg)
+	if err != nil {
+		panic(err)
+	}
+	return db
+}
+
+// PrepareSchema runs lightweight column fixes then AutoMigrate for all models.
+func PrepareSchema(db *gorm.DB) error {
 	if err := ensureRelativePathColumn(db); err != nil {
-		return nil, fmt.Errorf("prepare files table: %w", err)
+		return fmt.Errorf("prepare files table: %w", err)
 	}
 	if err := ensurePublicURLColumn(db); err != nil {
-		return nil, fmt.Errorf("prepare files table: %w", err)
+		return fmt.Errorf("prepare files table: %w", err)
 	}
 	if err := ensureLastUsedAtColumn(db); err != nil {
-		return nil, fmt.Errorf("prepare api_tokens table: %w", err)
+		return fmt.Errorf("prepare api_tokens table: %w", err)
 	}
 	if err := ensureAPITokenHashes(db); err != nil {
-		return nil, fmt.Errorf("migrate api token hashes: %w", err)
+		return fmt.Errorf("migrate api token hashes: %w", err)
 	}
-
 	if err := migrateTurnstileToCaptcha(db); err != nil {
-		return nil, fmt.Errorf("migrate turnstile to captcha: %w", err)
+		return fmt.Errorf("migrate turnstile to captcha: %w", err)
 	}
+	if err := AutoMigrateAll(db); err != nil {
+		return fmt.Errorf("auto migrate: %w", err)
+	}
+	return nil
+}
 
-	if err := db.AutoMigrate(
+// AutoMigrateAll migrates all application models.
+func AutoMigrateAll(db *gorm.DB) error {
+	return db.AutoMigrate(AllModels()...)
+}
+
+// AllModels returns GORM models in a dependency-friendly order for schema setup.
+func AllModels() []interface{} {
+	return []interface{}{
 		&Group{},
 		&User{},
 		&UserOAuthBinding{},
@@ -100,19 +76,51 @@ func NewDatabase(cfg config.Config) (*gorm.DB, error) {
 		&Album{},
 		&RedeemCode{},
 		&RedeemCodeUsage{},
-	); err != nil {
-		return nil, fmt.Errorf("auto migrate: %w", err)
 	}
-
-	return db, nil
 }
 
-func MustDatabase(cfg config.Config) *gorm.DB {
-	db, err := NewDatabase(cfg)
-	if err != nil {
-		panic(err)
+// MigrateTables lists tables to copy during cross-database migration (FK-safe order).
+func MigrateTables() []MigrateTable {
+	return []MigrateTable{
+		{Name: "groups", Model: &Group{}},
+		{Name: "strategies", Model: &Strategy{}},
+		{Name: "group_strategy", Model: &GroupStrategy{}},
+		{Name: "users", Model: &User{}},
+		{Name: "user_oauth_bindings", Model: &UserOAuthBinding{}},
+		{Name: "oauth_states", Model: &OAuthState{}},
+		{Name: "user_notifications", Model: &UserNotification{}},
+		{Name: "files", Model: &FileAsset{}},
+		{Name: "configs", Model: &ConfigEntry{}},
+		{Name: "audit_profiles", Model: &AuditProfile{}},
+		{Name: "installer_states", Model: &InstallerState{}},
+		{Name: "sessions", Model: &SessionEntry{}},
+		{Name: "api_tokens", Model: &ApiToken{}},
+		{Name: "albums", Model: &Album{}},
+		{Name: "redeem_codes", Model: &RedeemCode{}},
+		{Name: "redeem_code_usages", Model: &RedeemCodeUsage{}},
 	}
-	return db
+}
+
+// MigrateTable describes one table involved in data migration.
+type MigrateTable struct {
+	Name  string
+	Model interface{}
+}
+
+func dialectName(db *gorm.DB) string {
+	if db == nil || db.Dialector == nil {
+		return ""
+	}
+	return strings.ToLower(db.Dialector.Name())
+}
+
+func quoteIdent(db *gorm.DB, name string) string {
+	switch dialectName(db) {
+	case "postgres":
+		return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
+	default:
+		return "`" + strings.ReplaceAll(name, "`", "``") + "`"
+	}
 }
 
 func ensureRelativePathColumn(db *gorm.DB) error {
@@ -122,10 +130,12 @@ func ensureRelativePathColumn(db *gorm.DB) error {
 	if db.Migrator().HasColumn(&FileAsset{}, "relative_path") {
 		return nil
 	}
-	if err := db.Exec("ALTER TABLE `files` ADD COLUMN `relative_path` TEXT DEFAULT ''").Error; err != nil {
+	table := quoteIdent(db, "files")
+	col := quoteIdent(db, "relative_path")
+	if err := db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s TEXT DEFAULT ''", table, col)).Error; err != nil {
 		return err
 	}
-	return db.Exec("UPDATE `files` SET `relative_path` = '' WHERE `relative_path` IS NULL").Error
+	return db.Exec(fmt.Sprintf("UPDATE %s SET %s = '' WHERE %s IS NULL", table, col, col)).Error
 }
 
 func ensurePublicURLColumn(db *gorm.DB) error {
@@ -135,10 +145,12 @@ func ensurePublicURLColumn(db *gorm.DB) error {
 	if db.Migrator().HasColumn(&FileAsset{}, "public_url") {
 		return nil
 	}
-	if err := db.Exec("ALTER TABLE `files` ADD COLUMN `public_url` TEXT DEFAULT ''").Error; err != nil {
+	table := quoteIdent(db, "files")
+	col := quoteIdent(db, "public_url")
+	if err := db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s TEXT DEFAULT ''", table, col)).Error; err != nil {
 		return err
 	}
-	return db.Exec("UPDATE `files` SET `public_url` = '' WHERE `public_url` IS NULL").Error
+	return db.Exec(fmt.Sprintf("UPDATE %s SET %s = '' WHERE %s IS NULL", table, col, col)).Error
 }
 
 func ensureLastUsedAtColumn(db *gorm.DB) error {
@@ -148,7 +160,13 @@ func ensureLastUsedAtColumn(db *gorm.DB) error {
 	if db.Migrator().HasColumn(&ApiToken{}, "last_used_at") {
 		return nil
 	}
-	return db.Exec("ALTER TABLE `api_tokens` ADD COLUMN `last_used_at` DATETIME").Error
+	table := quoteIdent(db, "api_tokens")
+	col := quoteIdent(db, "last_used_at")
+	typ := "DATETIME"
+	if dialectName(db) == "postgres" {
+		typ = "TIMESTAMPTZ"
+	}
+	return db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, col, typ)).Error
 }
 
 func ensureAPITokenHashes(db *gorm.DB) error {
@@ -186,20 +204,18 @@ func migrateTurnstileToCaptcha(db *gorm.DB) error {
 		return nil
 	}
 
-	// Check if migration is needed: old key exists and new key doesn't
 	var oldCount int64
 	db.Model(&ConfigEntry{}).Where("key = ?", "turnstile.site_key").Count(&oldCount)
 	if oldCount == 0 {
-		return nil // No old settings, nothing to migrate
+		return nil
 	}
 
 	var newCount int64
 	db.Model(&ConfigEntry{}).Where("key = ?", "captcha.cloudflare.site_key").Count(&newCount)
 	if newCount > 0 {
-		return nil // New settings already exist, skip migration
+		return nil
 	}
 
-	// Migrate key mappings: old key -> new key
 	migrations := map[string]string{
 		"turnstile.site_key":                "captcha.cloudflare.site_key",
 		"turnstile.secret_key":              "captcha.cloudflare.secret_key",
@@ -213,26 +229,22 @@ func migrateTurnstileToCaptcha(db *gorm.DB) error {
 	for oldKey, newKey := range migrations {
 		var entry ConfigEntry
 		if err := db.Where("key = ?", oldKey).First(&entry).Error; err != nil {
-			continue // Key doesn't exist, skip
+			continue
 		}
-		// Create new entry
 		db.Where("key = ?", newKey).Delete(&ConfigEntry{})
 		db.Create(&ConfigEntry{Key: newKey, Value: entry.Value})
 	}
 
-	// Migrate turnstile.enabled -> captcha.enabled + set provider to cloudflare
 	var enabledEntry ConfigEntry
 	if err := db.Where("key = ?", "turnstile.enabled").First(&enabledEntry).Error; err == nil {
 		db.Where("key = ?", "captcha.enabled").Delete(&ConfigEntry{})
 		db.Create(&ConfigEntry{Key: "captcha.enabled", Value: enabledEntry.Value})
-		// If turnstile was enabled, set provider to cloudflare
 		if enabledEntry.Value == "true" {
 			db.Where("key = ?", "captcha.provider").Delete(&ConfigEntry{})
 			db.Create(&ConfigEntry{Key: "captcha.provider", Value: "cloudflare"})
 		}
 	}
 
-	// Migrate forgot password turnstile settings
 	forgotMigrations := map[string]string{
 		"turnstile.forgot_password_request": "captcha.forgot_password_request",
 		"turnstile.forgot_password_reset":   "captcha.forgot_password_reset",

@@ -78,6 +78,9 @@ func (s *Server) registerAdminRoutes(r *gin.RouterGroup) {
 	adminGroup.POST("/system/captcha/test-turnstile", s.handleAdminTestTurnstile)
 	adminGroup.POST("/system/captcha/test", s.handleAdminTestCaptcha)
 	adminGroup.GET("/system/oauth", s.handleAdminOAuthSettings)
+	adminGroup.GET("/system/database", s.handleAdminDatabaseConfig)
+	adminGroup.POST("/system/database/test", s.handleAdminDatabaseTest)
+	adminGroup.POST("/system/database/migrate", s.handleAdminDatabaseMigrate)
 	adminGroup.PUT("/system/oauth", s.handleAdminUpdateOAuthSettings)
 }
 
