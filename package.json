@@ -2,6 +2,7 @@
   "name": "skyimage",
   "private": true,
   "version": "0.2.1",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "pnpm": {
     "onlyBuiltDependencies": [
