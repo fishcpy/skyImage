@@ -503,6 +503,7 @@ export async function updateAccountProfile(input: {
   theme?: "light" | "dark" | "system";
   loginNotification?: boolean;
   publicProfile?: boolean;
+  ticketStaffName?: string;
 }) {
   const res = await apiClient.put<{ data: any }>("/account/profile", input);
   return res.data.data;
@@ -894,6 +895,22 @@ export type GeneralSettings = {
   enableCDN: boolean;
 };
 
+export type TicketSettings = {
+  attachmentStrategyId: number;
+  emailNotifyEnabled: boolean;
+  emailNotifyMode: "all_admins" | "selected";
+  emailNotifyAdminIds: string[];
+};
+
+export async function fetchTicketSettings() {
+  const res = await apiClient.get<{ data: TicketSettings }>("/admin/system/tickets");
+  return res.data.data;
+}
+
+export async function updateTicketSettings(input: TicketSettings) {
+  await apiClient.put("/admin/system/tickets", input);
+}
+
 export async function fetchGeneralSettings() {
   const res = await apiClient.get<{ data: GeneralSettings }>(
     "/admin/system/general"
@@ -924,6 +941,14 @@ export type EmailSettings = {
   mailLoginNotificationBody: string;
   mailForgotPasswordSubject: string;
   mailForgotPasswordBody: string;
+  mailTicketCreatedSubject: string;
+  mailTicketCreatedBody: string;
+  mailTicketReplyUserSubject: string;
+  mailTicketReplyUserBody: string;
+  mailTicketReplyAdminSubject: string;
+  mailTicketReplyAdminBody: string;
+  mailTicketStatusSubject: string;
+  mailTicketStatusBody: string;
   enableRegisterVerify: boolean;
   enableLoginNotification: boolean;
   enableForgotPassword: boolean;
@@ -961,6 +986,7 @@ export type CaptchaSettings = {
   enableForgotPasswordRequestCaptcha: boolean;
   enableForgotPasswordResetCaptcha: boolean;
   enableRedeemCaptcha: boolean;
+  enableTicketCaptcha: boolean;
   cloudflareVerified: boolean;
   cloudflareLastVerifiedAt?: string;
   geetestVerified: boolean;
@@ -1430,4 +1456,186 @@ export function formatPriceCents(cents: number, currency = "CNY") {
   if (currency === "CNY" || currency === "cny") return `¥${amount}`;
   if (currency === "USD" || currency === "usd") return `$${amount}`;
   return `${amount} ${currency}`;
+}
+
+// ── Tickets ──
+
+export type TicketStatus = "open" | "pending" | "resolved" | "closed";
+export type TicketPriority = "low" | "normal" | "high" | "urgent";
+
+export type TicketUser = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+export type TicketRecord = {
+  id: number;
+  ticketNo: string;
+  userId: string;
+  subject: string;
+  status: TicketStatus;
+  priority: TicketPriority;
+  lastReplyAt?: string;
+  closedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  user?: TicketUser;
+};
+
+export type TicketAttachment = {
+  id: number;
+  ticketId: number;
+  messageId?: number;
+  name: string;
+  size: number;
+  mimeType: string;
+  url: string;
+  createdAt: string;
+};
+
+export type TicketMessage = {
+  id: number;
+  ticketId: number;
+  userId: string;
+  body: string;
+  isStaff: boolean;
+  createdAt: string;
+  user?: TicketUser;
+  attachments?: TicketAttachment[];
+};
+
+export type TicketDetail = {
+  ticket: TicketRecord;
+  messages: TicketMessage[];
+  attachments: TicketAttachment[];
+};
+
+export async function fetchMyTickets(params?: {
+  status?: string;
+  priority?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const res = await apiClient.get<{ data: TicketRecord[] }>("/account/tickets", { params });
+  return res.data.data;
+}
+
+export async function fetchMyTicket(id: number) {
+  const res = await apiClient.get<{ data: TicketDetail }>(`/account/tickets/${id}`);
+  return res.data.data;
+}
+
+export async function createTicket(input: {
+  subject: string;
+  body: string;
+  priority?: TicketPriority;
+  captchaToken?: string;
+  captchaData?: Record<string, string>;
+  captchaProvider?: string;
+}) {
+  const res = await apiClient.post<{ data: TicketDetail }>("/account/tickets", input);
+  return res.data.data;
+}
+
+export async function replyMyTicket(
+  id: number,
+  body: string,
+  captcha?: {
+    captchaToken?: string;
+    captchaData?: Record<string, string>;
+    captchaProvider?: string;
+  }
+) {
+  const res = await apiClient.post<{ data: TicketMessage }>(`/account/tickets/${id}/replies`, {
+    body,
+    ...captcha
+  });
+  return res.data.data;
+}
+
+export async function closeMyTicket(id: number) {
+  const res = await apiClient.post<{ data: TicketRecord }>(`/account/tickets/${id}/close`);
+  return res.data.data;
+}
+
+export async function uploadMyTicketAttachment(
+  id: number,
+  file: File,
+  messageId?: number,
+  captcha?: {
+    captchaToken?: string;
+    captchaProvider?: string;
+  }
+) {
+  const form = new FormData();
+  form.append("file", file);
+  if (messageId) {
+    form.append("messageId", String(messageId));
+  }
+  if (captcha?.captchaToken) {
+    form.append("captchaToken", captcha.captchaToken);
+  }
+  if (captcha?.captchaProvider) {
+    form.append("captchaProvider", captcha.captchaProvider);
+  }
+  const res = await apiClient.post<{ data: TicketAttachment }>(
+    `/account/tickets/${id}/attachments`,
+    form
+  );
+  return res.data.data;
+}
+
+export async function fetchTicketAttachmentStrategy() {
+  const res = await apiClient.get<{ data: { strategyId: number; enabled: boolean } }>(
+    "/account/tickets/attachment-strategy"
+  );
+  return res.data.data;
+}
+
+export async function fetchAdminTickets(params?: {
+  status?: string;
+  priority?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const res = await apiClient.get<{ data: TicketRecord[] }>("/admin/tickets", { params });
+  return res.data.data;
+}
+
+export async function fetchAdminTicket(id: number) {
+  const res = await apiClient.get<{ data: TicketDetail }>(`/admin/tickets/${id}`);
+  return res.data.data;
+}
+
+export async function updateAdminTicket(
+  id: number,
+  input: { status?: TicketStatus; priority?: TicketPriority }
+) {
+  const res = await apiClient.patch<{ data: TicketRecord }>(`/admin/tickets/${id}`, input);
+  return res.data.data;
+}
+
+export async function replyAdminTicket(id: number, body: string) {
+  const res = await apiClient.post<{ data: TicketMessage }>(`/admin/tickets/${id}/replies`, {
+    body
+  });
+  return res.data.data;
+}
+
+export async function uploadAdminTicketAttachment(
+  id: number,
+  file: File,
+  messageId?: number
+) {
+  const form = new FormData();
+  form.append("file", file);
+  if (messageId) {
+    form.append("messageId", String(messageId));
+  }
+  const res = await apiClient.post<{ data: TicketAttachment }>(
+    `/admin/tickets/${id}/attachments`,
+    form
+  );
+  return res.data.data;
 }

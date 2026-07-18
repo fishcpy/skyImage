@@ -9,10 +9,12 @@ import (
 	"mime/quotedprintable"
 	"net/mail"
 	"net/smtp"
+	"strconv"
 	"strings"
 	"unicode"
 
 	"skyimage/internal/admin"
+	"skyimage/internal/data"
 )
 
 type Service struct {
@@ -340,6 +342,93 @@ func (s *Service) SendPasswordResetEmail(ctx context.Context, email, code, reset
 		return err
 	}
 	return s.SendMail(ctx, email, content.Subject, content.Body)
+}
+
+func (s *Service) consoleBase(ctx context.Context) string {
+	settings, err := s.admin.GetSettings(ctx)
+	if err != nil {
+		return ""
+	}
+	base := strings.TrimSpace(settings["site.console_url"])
+	return strings.TrimRight(base, "/")
+}
+
+func (s *Service) SendTicketCreatedToAdmin(ctx context.Context, adminEmail, adminName string, ticket data.Ticket, userName string) error {
+	if !s.IsEnabled(ctx) {
+		return fmt.Errorf("SMTP 配置不完整或未配置")
+	}
+	base := s.consoleBase(ctx)
+	content, err := s.renderConfiguredTemplate(ctx, TemplateTicketCreated, TemplateVariables{
+		AdminName:      adminName,
+		UserName:       userName,
+		TicketNo:       ticket.TicketNo,
+		TicketSubject:  ticket.Subject,
+		TicketPriority: ticket.Priority,
+		TicketStatus:   ticket.Status,
+		TicketURL:      base + "/dashboard/admin/tickets/" + strconv.FormatUint(uint64(ticket.ID), 10),
+	})
+	if err != nil {
+		return err
+	}
+	return s.SendMail(ctx, adminEmail, content.Subject, content.Body)
+}
+
+func (s *Service) SendTicketReplyToUser(ctx context.Context, userEmail, userName string, ticket data.Ticket, staffName, replyBody string) error {
+	if !s.IsEnabled(ctx) {
+		return fmt.Errorf("SMTP 配置不完整或未配置")
+	}
+	base := s.consoleBase(ctx)
+	content, err := s.renderConfiguredTemplate(ctx, TemplateTicketReplyUser, TemplateVariables{
+		UserName:      userName,
+		StaffName:     staffName,
+		TicketNo:      ticket.TicketNo,
+		TicketSubject: ticket.Subject,
+		TicketStatus:  ticket.Status,
+		ReplyBody:     replyBody,
+		TicketURL:     base + "/dashboard/tickets/" + strconv.FormatUint(uint64(ticket.ID), 10),
+	})
+	if err != nil {
+		return err
+	}
+	return s.SendMail(ctx, userEmail, content.Subject, content.Body)
+}
+
+func (s *Service) SendTicketReplyToAdmin(ctx context.Context, adminEmail, adminName string, ticket data.Ticket, userName, replyBody string) error {
+	if !s.IsEnabled(ctx) {
+		return fmt.Errorf("SMTP 配置不完整或未配置")
+	}
+	base := s.consoleBase(ctx)
+	content, err := s.renderConfiguredTemplate(ctx, TemplateTicketReplyAdmin, TemplateVariables{
+		AdminName:     adminName,
+		UserName:      userName,
+		TicketNo:      ticket.TicketNo,
+		TicketSubject: ticket.Subject,
+		TicketStatus:  ticket.Status,
+		ReplyBody:     replyBody,
+		TicketURL:     base + "/dashboard/admin/tickets/" + strconv.FormatUint(uint64(ticket.ID), 10),
+	})
+	if err != nil {
+		return err
+	}
+	return s.SendMail(ctx, adminEmail, content.Subject, content.Body)
+}
+
+func (s *Service) SendTicketStatusToUser(ctx context.Context, userEmail, userName string, ticket data.Ticket) error {
+	if !s.IsEnabled(ctx) {
+		return fmt.Errorf("SMTP 配置不完整或未配置")
+	}
+	base := s.consoleBase(ctx)
+	content, err := s.renderConfiguredTemplate(ctx, TemplateTicketStatus, TemplateVariables{
+		UserName:      userName,
+		TicketNo:      ticket.TicketNo,
+		TicketSubject: ticket.Subject,
+		TicketStatus:  ticket.Status,
+		TicketURL:     base + "/dashboard/tickets/" + strconv.FormatUint(uint64(ticket.ID), 10),
+	})
+	if err != nil {
+		return err
+	}
+	return s.SendMail(ctx, userEmail, content.Subject, content.Body)
 }
 
 func (s *Service) renderConfiguredTemplate(ctx context.Context, key TemplateKey, vars TemplateVariables) (TemplateContent, error) {

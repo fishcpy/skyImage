@@ -14,8 +14,9 @@ const (
 	defaultVisibilityKey = "default_visibility"
 	defaultStrategyKey   = "default_strategy"
 	themePreferenceKey   = "theme_preference"
-	loginNotificationKey = "login_notification"
-	publicProfileKey     = "public_profile"
+	loginNotificationKey   = "login_notification"
+	publicProfileKey       = "public_profile"
+	ticketStaffDisplayName = "ticket_staff_name"
 )
 
 // NormalizeVisibility coerces arbitrary user input into supported visibility values.
@@ -172,4 +173,42 @@ func PublicProfileEnabled(user data.User) bool {
 		return val
 	}
 	return false
+}
+
+// TicketStaffDisplayName returns the admin display name used in tickets (fallback to account name).
+func TicketStaffDisplayName(user data.User) string {
+	if len(user.Configs) > 0 {
+		var cfg map[string]interface{}
+		if err := json.Unmarshal(user.Configs, &cfg); err == nil {
+			if val, ok := cfg[ticketStaffDisplayName].(string); ok {
+				name := strings.TrimSpace(val)
+				if name != "" {
+					return name
+				}
+			}
+		}
+	}
+	if name := strings.TrimSpace(user.Name); name != "" {
+		return name
+	}
+	return "Staff"
+}
+
+// UpdateTicketStaffDisplayName stores admin ticket display name in configs.
+func UpdateTicketStaffDisplayName(existing datatypes.JSON, name string) datatypes.JSON {
+	cfg := map[string]interface{}{}
+	if len(existing) > 0 {
+		_ = json.Unmarshal(existing, &cfg)
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		delete(cfg, ticketStaffDisplayName)
+	} else {
+		if len(name) > 64 {
+			name = name[:64]
+		}
+		cfg[ticketStaffDisplayName] = name
+	}
+	bytes, _ := json.Marshal(cfg)
+	return datatypes.JSON(bytes)
 }

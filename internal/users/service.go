@@ -66,13 +66,14 @@ type CreateUserInput struct {
 }
 
 type ProfileUpdateInput struct {
-	Name              string `json:"name"`
-	URL               string `json:"url"`
-	Password          string `json:"password"`
-	DefaultVisibility string `json:"defaultVisibility"`
-	ThemePreference   string `json:"theme"`
-	LoginNotification *bool  `json:"loginNotification"`
-	PublicProfile     *bool  `json:"publicProfile"`
+	Name               string `json:"name"`
+	URL                string `json:"url"`
+	Password           string `json:"password"`
+	DefaultVisibility  string `json:"defaultVisibility"`
+	ThemePreference    string `json:"theme"`
+	LoginNotification  *bool  `json:"loginNotification"`
+	PublicProfile      *bool  `json:"publicProfile"`
+	TicketStaffName    *string `json:"ticketStaffName"`
 }
 
 // validateEmail 验证邮箱格式
@@ -378,6 +379,9 @@ func (s *Service) DeleteUser(ctx context.Context, actor data.User, userID uint) 
 		if err := tx.Where("user_id = ?", user.ID).Delete(&data.UserNotification{}).Error; err != nil {
 			return err
 		}
+		if err := deleteUserTickets(tx, user.ID); err != nil {
+			return err
+		}
 		if err := tx.Where("user_id = ?", user.ID).Delete(&data.UserOAuthBinding{}).Error; err != nil {
 			return err
 		}
@@ -392,6 +396,28 @@ func (s *Service) DeleteUser(ctx context.Context, actor data.User, userID uint) 
 		}
 		return nil
 	})
+}
+
+func deleteUserTickets(tx *gorm.DB, userID uint) error {
+	var ticketIDs []uint
+	if err := tx.Model(&data.Ticket{}).Where("user_id = ?", userID).Pluck("id", &ticketIDs).Error; err != nil {
+		return err
+	}
+	if len(ticketIDs) > 0 {
+		if err := tx.Where("ticket_id IN ?", ticketIDs).Delete(&data.TicketAttachment{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("ticket_id IN ?", ticketIDs).Delete(&data.TicketMessage{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("id IN ?", ticketIDs).Delete(&data.Ticket{}).Error; err != nil {
+			return err
+		}
+	}
+	if err := tx.Where("user_id = ?", userID).Delete(&data.TicketMessage{}).Error; err != nil {
+		return err
+	}
+	return tx.Where("user_id = ?", userID).Delete(&data.TicketAttachment{}).Error
 }
 
 func (s *Service) DeleteOwnAccount(ctx context.Context, userID uint) error {
@@ -411,6 +437,9 @@ func (s *Service) DeleteOwnAccount(ctx context.Context, userID uint) error {
 			return err
 		}
 		if err := tx.Where("user_id = ?", user.ID).Delete(&data.UserNotification{}).Error; err != nil {
+			return err
+		}
+		if err := deleteUserTickets(tx, user.ID); err != nil {
 			return err
 		}
 		if err := tx.Where("user_id = ?", user.ID).Delete(&data.UserOAuthBinding{}).Error; err != nil {
@@ -477,6 +506,19 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint, input ProfileU
 	// Public profile page (/u/:id)
 	if input.PublicProfile != nil {
 		cfg[publicProfileKey] = *input.PublicProfile
+	}
+
+	// Admin-only ticket display name
+	if input.TicketStaffName != nil && (user.IsAdmin || user.IsSuperAdmin) {
+		name := strings.TrimSpace(*input.TicketStaffName)
+		if name == "" {
+			delete(cfg, ticketStaffDisplayName)
+		} else {
+			if len(name) > 64 {
+				name = name[:64]
+			}
+			cfg[ticketStaffDisplayName] = name
+		}
 	}
 
 	// Marshal updated configs

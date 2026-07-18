@@ -193,6 +193,8 @@ func (s *Server) handleTurnstileConfig(c *gin.Context) {
 		configKey = "captcha.forgot_password_request"
 	case "redeem":
 		configKey = "captcha.redeem"
+	case "ticket":
+		configKey = "captcha.ticket"
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scenario"})
 		return

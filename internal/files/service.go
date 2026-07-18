@@ -635,6 +635,119 @@ func (s *Service) resolveStrategyByID(ctx context.Context, strategyID uint) (dat
 	return strategy, s.parseStrategyConfig(strategy), nil
 }
 
+// StoredObject is a stored blob written through a strategy (e.g. ticket attachments).
+type StoredObject struct {
+	Path            string
+	Size            int64
+	StorageProvider string
+	StrategyID      uint
+}
+
+// ProcessBytesWithStrategy applies strategy image compression/format conversion when enabled.
+func (s *Service) ProcessBytesWithStrategy(ctx context.Context, strategyID uint, payload []byte, mimeType string) ([]byte, string, error) {
+	_, cfg, err := s.resolveStrategyByID(ctx, strategyID)
+	if err != nil {
+		return payload, mimeType, err
+	}
+	if !cfg.EnableCompression && strings.TrimSpace(cfg.TargetFormat) == "" {
+		return payload, mimeType, nil
+	}
+	processConfig := ImageProcessConfig{
+		EnableCompression:  cfg.EnableCompression,
+		CompressionQuality: cfg.CompressionQuality,
+		TargetFormat:       cfg.TargetFormat,
+		SupportedFormats:   cfg.ProcessFormats,
+	}
+	return ProcessImage(payload, mimeType, processConfig)
+}
+
+// StoreBytes stores raw bytes under relativePath using the given strategy.
+func (s *Service) StoreBytes(ctx context.Context, strategyID uint, relativePath string, payload []byte) (StoredObject, error) {
+	strategy, cfg, err := s.resolveStrategyByID(ctx, strategyID)
+	if err != nil {
+		return StoredObject{}, err
+	}
+	rel := sanitizeRelativePath(relativePath)
+	if rel == "" {
+		return StoredObject{}, fmt.Errorf("invalid relative path")
+	}
+	result, err := s.storeObjectWithData(ctx, cfg, rel, payload)
+	if err != nil {
+		return StoredObject{}, err
+	}
+	driver := strings.ToLower(strings.TrimSpace(cfg.Driver))
+	if driver == "" {
+		driver = "local"
+	}
+	return StoredObject{
+		Path:            result.Path,
+		Size:            result.Size,
+		StorageProvider: driver,
+		StrategyID:      strategy.ID,
+	}, nil
+}
+
+// ConsolePublicURL builds a public URL on the site console domain.
+func (s *Service) ConsolePublicURL(ctx context.Context, relativePath string) string {
+	return sanitizeURL(s.buildConsolePublicURL(ctx, relativePath))
+}
+
+// DeleteStoredObject removes a stored object best-effort.
+func (s *Service) DeleteStoredObject(ctx context.Context, strategyID uint, pathValue, relativePath, storageProvider string) error {
+	cfg := strategyConfig{Driver: storageProvider}
+	if strategyID > 0 {
+		if _, resolved, err := s.resolveStrategyByID(ctx, strategyID); err == nil {
+			cfg = resolved
+		}
+	}
+	if strings.TrimSpace(cfg.Driver) == "" {
+		cfg.Driver = storageProvider
+	}
+	return s.deleteStoredPath(ctx, cfg, pathValue, relativePath)
+}
+
+// OpenStoredObject streams a stored object for download (local/proxy/remote).
+func (s *Service) OpenStoredObject(ctx context.Context, strategyID uint, pathValue, relativePath, storageProvider string) (*ProxyObject, error) {
+	file := data.FileAsset{
+		Path:            pathValue,
+		RelativePath:    relativePath,
+		StorageProvider: storageProvider,
+		StrategyID:      strategyID,
+	}
+	if strategyID > 0 {
+		if err := s.db.WithContext(ctx).First(&file.Strategy, strategyID).Error; err != nil {
+			return nil, err
+		}
+	}
+	driver := strings.ToLower(strings.TrimSpace(storageProvider))
+	if driver == "" {
+		driver = "local"
+	}
+	if isS3CompatibleDriver(driver) {
+		cfg := s.parseStrategyConfig(file.Strategy)
+		if cfg.S3Proxy {
+			return s.fetchS3Object(ctx, cfg, file)
+		}
+	}
+	// Local file open as ProxyObject for streaming consistency.
+	if driver == "local" || pathValue != "" {
+		f, err := os.Open(pathValue)
+		if err != nil {
+			return nil, err
+		}
+		stat, err := f.Stat()
+		if err != nil {
+			_ = f.Close()
+			return nil, err
+		}
+		return &ProxyObject{
+			Body:          f,
+			ContentLength: stat.Size(),
+		}, nil
+	}
+	return nil, fmt.Errorf("cannot open stored object for driver %s", driver)
+}
+
 func (s *Service) attachThumbnail(ctx context.Context, file *data.FileAsset, sourceCfg strategyConfig, user data.User, imageData []byte, mimeType string) error {
 	thumbBytes, thumbMime, origW, origH, err := GenerateThumbnail(imageData, mimeType, ThumbnailConfig{
 		MaxSize: sourceCfg.ThumbnailMaxSize,

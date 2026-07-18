@@ -95,6 +95,7 @@ export function ProfileSettingsPage() {
   const [redeemInput, setRedeemInput] = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaData, setCaptchaData] = useState<Record<string, string> | undefined>();
+  const isAdmin = Boolean(profile?.isAdmin || profile?.isSuperAdmin);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -103,7 +104,8 @@ export function ProfileSettingsPage() {
     defaultVisibility: "private" as "public" | "private",
     theme: "system" as "light" | "dark" | "system",
     loginNotification: false,
-    publicProfile: false
+    publicProfile: false,
+    ticketStaffName: ""
   });
 
   useEffect(() => {
@@ -116,7 +118,8 @@ export function ProfileSettingsPage() {
         defaultVisibility: extractDefaultVisibility(profile),
         theme: extractThemePreference(profile),
         loginNotification: extractLoginNotification(profile),
-        publicProfile: extractPublicProfile(profile)
+        publicProfile: extractPublicProfile(profile),
+        ticketStaffName: extractTicketStaffName(profile)
       });
     }
   }, [profile]);
@@ -230,7 +233,8 @@ export function ProfileSettingsPage() {
       defaultVisibility: form.defaultVisibility,
       theme: form.theme,
       loginNotification: form.loginNotification,
-      publicProfile: form.publicProfile
+      publicProfile: form.publicProfile,
+      ...(isAdmin ? { ticketStaffName: form.ticketStaffName } : {})
     });
   };
 
@@ -368,6 +372,21 @@ export function ProfileSettingsPage() {
               }
             />
           </div>
+          {isAdmin && (
+            <div className="space-y-2">
+              <Label>{t("profile.ticketStaffName")}</Label>
+              <Input
+                value={form.ticketStaffName}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, ticketStaffName: e.target.value }))
+                }
+                placeholder={t("profile.ticketStaffNamePlaceholder")}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("profile.ticketStaffNameHint")}
+              </p>
+            </div>
+          )}
           <Button onClick={handleSubmit} disabled={mutation.isPending}>
             {mutation.isPending ? t("profile.saving") : t("profile.save")}
           </Button>
@@ -587,5 +606,23 @@ function extractPublicProfile(user: any): boolean {
     );
   } catch {
     return false;
+  }
+}
+
+function extractTicketStaffName(user: any): string {
+  const configs =
+    user?.configs ??
+    user?.Configs ??
+    user?.preferences ??
+    user?.preferences_json ??
+    null;
+  if (!configs) return "";
+  try {
+    const parsed =
+      typeof configs === "string" ? JSON.parse(configs) : configs;
+    const raw = parsed?.ticket_staff_name ?? parsed?.ticketStaffName ?? "";
+    return typeof raw === "string" ? raw : "";
+  } catch {
+    return "";
   }
 }

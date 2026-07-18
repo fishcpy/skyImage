@@ -338,6 +338,11 @@ export function AdminStrategyEditorPage() {
       toast.error(t("admin.strategyEditor.pathTemplateCannotContainThumb"));
       return;
     }
+    const lowerTemplate = String(template).toLowerCase();
+    if (template && (lowerTemplate.includes("tickets/") || lowerTemplate.includes("_ticket."))) {
+      toast.error(t("admin.strategyEditor.pathTemplateCannotContainTicket"));
+      return;
+    }
     const publicUrls = normalizePublicUrls(
       form.configs?.url || form.configs?.base_url || form.configs?.baseUrl || ""
     );

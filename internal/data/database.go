@@ -81,6 +81,9 @@ func AllModels() []interface{} {
 		&RedeemCodeUsage{},
 		&ShopProduct{},
 		&ShopOrder{},
+		&Ticket{},
+		&TicketMessage{},
+		&TicketAttachment{},
 	}
 }
 
@@ -105,6 +108,9 @@ func MigrateTables() []MigrateTable {
 		{Name: "redeem_code_usages", Model: &RedeemCodeUsage{}},
 		{Name: "shop_products", Model: &ShopProduct{}},
 		{Name: "shop_orders", Model: &ShopOrder{}},
+		{Name: "tickets", Model: &Ticket{}},
+		{Name: "ticket_messages", Model: &TicketMessage{}},
+		{Name: "ticket_attachments", Model: &TicketAttachment{}},
 	}
 }
 

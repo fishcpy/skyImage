@@ -10,7 +10,20 @@ import (
 
 	"skyimage/internal/captcha"
 	"skyimage/internal/notifications"
+	"skyimage/internal/tickets"
 )
+
+func parseUintSetting(raw string) uint {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	value, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return uint(value)
+}
 
 // ---------------------------------------------------------------------------
 // Site Settings (GET/PUT /admin/system/site)
@@ -177,11 +190,11 @@ func (s *Server) handleAdminUpdateSiteSettings(c *gin.Context) {
 // ---------------------------------------------------------------------------
 
 type generalSettingsPayload struct {
-	ImageLoadRows                int    `json:"imageLoadRows"`
-	UserNotificationLimit        int    `json:"userNotificationLimit"`
+	ImageLoadRows                 int    `json:"imageLoadRows"`
+	UserNotificationLimit         int    `json:"userNotificationLimit"`
 	AdminImageDeleteDefaultReason string `json:"adminImageDeleteDefaultReason"`
 	SystemAutoDeleteDefaultReason string `json:"systemAutoDeleteDefaultReason"`
-	EnableCDN                    bool   `json:"enableCDN"`
+	EnableCDN                     bool   `json:"enableCDN"`
 }
 
 func (s *Server) handleAdminGeneralSettings(c *gin.Context) {
@@ -195,11 +208,11 @@ func (s *Server) handleAdminGeneralSettings(c *gin.Context) {
 	}
 
 	payload := generalSettingsPayload{
-		ImageLoadRows:                normalizeImageLoadRows(settings["images.load_rows"]),
-		UserNotificationLimit:        notifications.NormalizeRetentionLimit(settings[notifications.ConfigUserRetentionLimit]),
+		ImageLoadRows:                 normalizeImageLoadRows(settings["images.load_rows"]),
+		UserNotificationLimit:         notifications.NormalizeRetentionLimit(settings[notifications.ConfigUserRetentionLimit]),
 		AdminImageDeleteDefaultReason: notifications.NormalizeAdminDeleteReason(settings[notifications.ConfigAdminImageDeleteReason]),
 		SystemAutoDeleteDefaultReason: notifications.NormalizeSystemAutoDeleteReason(settings[notifications.ConfigSystemAutoDeleteReason]),
-		EnableCDN:                    settings["mail.cdn.enabled"] == "true",
+		EnableCDN:                     settings["mail.cdn.enabled"] == "true",
 	}
 	c.JSON(http.StatusOK, gin.H{"data": payload})
 }
@@ -219,12 +232,87 @@ func (s *Server) handleAdminUpdateGeneralSettings(c *gin.Context) {
 
 	values := map[string]string{
 		"images.load_rows":                         strconv.Itoa(normalizeImageLoadRowsValue(payload.ImageLoadRows)),
-		notifications.ConfigUserRetentionLimit:      strconv.Itoa(normalizeUserNotificationLimit(payload.UserNotificationLimit)),
-		notifications.ConfigAdminImageDeleteReason:  adminDeleteReason,
-		notifications.ConfigSystemAutoDeleteReason:  systemAutoDeleteReason,
+		notifications.ConfigUserRetentionLimit:     strconv.Itoa(normalizeUserNotificationLimit(payload.UserNotificationLimit)),
+		notifications.ConfigAdminImageDeleteReason: adminDeleteReason,
+		notifications.ConfigSystemAutoDeleteReason: systemAutoDeleteReason,
 		"mail.cdn.enabled":                         strconv.FormatBool(payload.EnableCDN),
 	}
 
+	if err := s.admin.UpdateSettings(c.Request.Context(), values); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": "updated"})
+}
+
+// ---------------------------------------------------------------------------
+// Ticket Settings (GET/PUT /admin/system/tickets)
+// ---------------------------------------------------------------------------
+
+type ticketSettingsPayload struct {
+	AttachmentStrategyID uint     `json:"attachmentStrategyId"`
+	EmailNotifyEnabled   bool     `json:"emailNotifyEnabled"`
+	EmailNotifyMode      string   `json:"emailNotifyMode"` // all_admins | selected
+	EmailNotifyAdminIDs  []string `json:"emailNotifyAdminIds"`
+}
+
+func (s *Server) handleAdminTicketSettings(c *gin.Context) {
+	if !requireSuperAdmin(c) {
+		return
+	}
+	settings, err := s.admin.GetSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	mode := strings.ToLower(strings.TrimSpace(settings[tickets.ConfigEmailNotifyMode]))
+	if mode != tickets.NotifyModeSelected {
+		mode = tickets.NotifyModeAllAdmins
+	}
+	ids := []string{}
+	for _, part := range strings.Split(settings[tickets.ConfigEmailNotifyAdminIDs], ",") {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			ids = append(ids, part)
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": ticketSettingsPayload{
+		AttachmentStrategyID: parseUintSetting(settings[tickets.ConfigAttachmentStrategyID]),
+		EmailNotifyEnabled:   settings[tickets.ConfigEmailNotifyEnabled] == "true",
+		EmailNotifyMode:      mode,
+		EmailNotifyAdminIDs:  ids,
+	}})
+}
+
+func (s *Server) handleAdminUpdateTicketSettings(c *gin.Context) {
+	if !requireSuperAdmin(c) {
+		return
+	}
+	var payload ticketSettingsPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	mode := strings.ToLower(strings.TrimSpace(payload.EmailNotifyMode))
+	if mode != tickets.NotifyModeSelected {
+		mode = tickets.NotifyModeAllAdmins
+	}
+	ids := make([]string, 0, len(payload.EmailNotifyAdminIDs))
+	for _, id := range payload.EmailNotifyAdminIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, err := strconv.ParseUint(id, 10, 64); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	values := map[string]string{
+		tickets.ConfigAttachmentStrategyID: strconv.FormatUint(uint64(payload.AttachmentStrategyID), 10),
+		tickets.ConfigEmailNotifyEnabled:   strconv.FormatBool(payload.EmailNotifyEnabled),
+		tickets.ConfigEmailNotifyMode:      mode,
+		tickets.ConfigEmailNotifyAdminIDs:  strings.Join(ids, ","),
+	}
 	if err := s.admin.UpdateSettings(c.Request.Context(), values); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -253,6 +341,14 @@ type emailSettingsPayload struct {
 	MailLoginNotificationBody            string `json:"mailLoginNotificationBody"`
 	MailForgotPasswordSubject            string `json:"mailForgotPasswordSubject"`
 	MailForgotPasswordBody               string `json:"mailForgotPasswordBody"`
+	MailTicketCreatedSubject             string `json:"mailTicketCreatedSubject"`
+	MailTicketCreatedBody                string `json:"mailTicketCreatedBody"`
+	MailTicketReplyUserSubject           string `json:"mailTicketReplyUserSubject"`
+	MailTicketReplyUserBody              string `json:"mailTicketReplyUserBody"`
+	MailTicketReplyAdminSubject          string `json:"mailTicketReplyAdminSubject"`
+	MailTicketReplyAdminBody             string `json:"mailTicketReplyAdminBody"`
+	MailTicketStatusSubject              string `json:"mailTicketStatusSubject"`
+	MailTicketStatusBody                 string `json:"mailTicketStatusBody"`
 	EnableRegisterVerify                 bool   `json:"enableRegisterVerify"`
 	EnableLoginNotification              bool   `json:"enableLoginNotification"`
 	EnableForgotPassword                 bool   `json:"enableForgotPassword"`
@@ -288,6 +384,14 @@ func (s *Server) handleAdminEmailSettings(c *gin.Context) {
 		MailLoginNotificationBody:            settings["mail.template.login_notification.body"],
 		MailForgotPasswordSubject:            settings["mail.template.forgot_password.subject"],
 		MailForgotPasswordBody:               settings["mail.template.forgot_password.body"],
+		MailTicketCreatedSubject:             settings["mail.template.ticket_created.subject"],
+		MailTicketCreatedBody:                settings["mail.template.ticket_created.body"],
+		MailTicketReplyUserSubject:           settings["mail.template.ticket_reply_user.subject"],
+		MailTicketReplyUserBody:              settings["mail.template.ticket_reply_user.body"],
+		MailTicketReplyAdminSubject:          settings["mail.template.ticket_reply_admin.subject"],
+		MailTicketReplyAdminBody:             settings["mail.template.ticket_reply_admin.body"],
+		MailTicketStatusSubject:              settings["mail.template.ticket_status.subject"],
+		MailTicketStatusBody:                 settings["mail.template.ticket_status.body"],
 		EnableRegisterVerify:                 settings["mail.register.verify"] == "true",
 		EnableLoginNotification:              settings["mail.login.notification"] == "true",
 		EnableForgotPassword:                 settings["mail.forgot_password.enabled"] == "true",
@@ -336,6 +440,14 @@ func (s *Server) handleAdminUpdateEmailSettings(c *gin.Context) {
 		"mail.template.login_notification.body":    payload.MailLoginNotificationBody,
 		"mail.template.forgot_password.subject":    payload.MailForgotPasswordSubject,
 		"mail.template.forgot_password.body":       payload.MailForgotPasswordBody,
+		"mail.template.ticket_created.subject":     payload.MailTicketCreatedSubject,
+		"mail.template.ticket_created.body":        payload.MailTicketCreatedBody,
+		"mail.template.ticket_reply_user.subject":  payload.MailTicketReplyUserSubject,
+		"mail.template.ticket_reply_user.body":     payload.MailTicketReplyUserBody,
+		"mail.template.ticket_reply_admin.subject": payload.MailTicketReplyAdminSubject,
+		"mail.template.ticket_reply_admin.body":    payload.MailTicketReplyAdminBody,
+		"mail.template.ticket_status.subject":      payload.MailTicketStatusSubject,
+		"mail.template.ticket_status.body":         payload.MailTicketStatusBody,
 		"mail.register.verify":                     strconv.FormatBool(payload.EnableRegisterVerify),
 		"mail.login.notification":                  strconv.FormatBool(payload.EnableLoginNotification),
 		"mail.forgot_password.enabled":             strconv.FormatBool(payload.EnableForgotPassword),
@@ -371,6 +483,7 @@ type captchaSettingsPayload struct {
 	EnableForgotPasswordRequestCaptcha bool   `json:"enableForgotPasswordRequestCaptcha"`
 	EnableForgotPasswordResetCaptcha   bool   `json:"enableForgotPasswordResetCaptcha"`
 	EnableRedeemCaptcha                bool   `json:"enableRedeemCaptcha"`
+	EnableTicketCaptcha                bool   `json:"enableTicketCaptcha"`
 }
 
 type captchaSettingsResponse struct {
@@ -410,6 +523,7 @@ func (s *Server) handleAdminCaptchaSettings(c *gin.Context) {
 			EnableForgotPasswordRequestCaptcha: settings["captcha.forgot_password_request"] == "true",
 			EnableForgotPasswordResetCaptcha:   settings["captcha.forgot_password_reset"] == "true",
 			EnableRedeemCaptcha:                settings["captcha.redeem"] == "true",
+			EnableTicketCaptcha:                settings["captcha.ticket"] == "true",
 		},
 		CloudflareLastVerifiedAt: settings["captcha.cloudflare.last_verified_at"],
 		GeetestLastVerifiedAt:    settings["captcha.geetest.last_verified_at"],
@@ -543,6 +657,7 @@ func (s *Server) handleAdminUpdateCaptchaSettings(c *gin.Context) {
 		"captcha.forgot_password_request": strconv.FormatBool(payload.EnableForgotPasswordRequestCaptcha),
 		"captcha.forgot_password_reset":   strconv.FormatBool(payload.EnableForgotPasswordResetCaptcha),
 		"captcha.redeem":                  strconv.FormatBool(payload.EnableRedeemCaptcha),
+		"captcha.ticket":                  strconv.FormatBool(payload.EnableTicketCaptcha),
 	}
 
 	// Cloudflare 配置变更时清除验证状态

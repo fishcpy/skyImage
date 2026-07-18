@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -13,7 +14,10 @@ import (
 )
 
 const (
-	TypeImageDeleted = "image_deleted"
+	TypeImageDeleted  = "image_deleted"
+	TypeTicketCreated = "ticket_created"
+	TypeTicketReply   = "ticket_reply"
+	TypeTicketStatus  = "ticket_status"
 
 	ReasonAuditBlockDelete = "audit_block_delete"
 	ReasonAuditErrorDelete = "audit_error_delete"
@@ -211,6 +215,10 @@ func (s *Service) ClearAll(ctx context.Context, userID uint) (int64, error) {
 }
 
 func (s *Service) create(ctx context.Context, userID uint, title, message string, metadata ImageDeletedMetadata) error {
+	return s.createTyped(ctx, userID, TypeImageDeleted, title, message, metadata)
+}
+
+func (s *Service) createTyped(ctx context.Context, userID uint, noticeType, title, message string, metadata interface{}) error {
 	if userID == 0 {
 		return nil
 	}
@@ -221,7 +229,7 @@ func (s *Service) create(ctx context.Context, userID uint, title, message string
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		notification := data.UserNotification{
 			UserID:   userID,
-			Type:     TypeImageDeleted,
+			Type:     noticeType,
 			Title:    strings.TrimSpace(title),
 			Message:  strings.TrimSpace(message),
 			Metadata: datatypes.JSON(metadataJSON),
@@ -231,6 +239,91 @@ func (s *Service) create(ctx context.Context, userID uint, title, message string
 		}
 		return trimUserNotifications(ctx, tx, userID)
 	})
+}
+
+type TicketNoticeMetadata struct {
+	TicketID  uint   `json:"ticketId"`
+	TicketNo  string `json:"ticketNo"`
+	Subject   string `json:"subject"`
+	Status    string `json:"status,omitempty"`
+	FromStaff bool   `json:"fromStaff,omitempty"`
+}
+
+func (s *Service) listAdminUserIDs(ctx context.Context) ([]uint, error) {
+	var ids []uint
+	err := s.db.WithContext(ctx).
+		Model(&data.User{}).
+		Where("is_adminer = ? OR is_super_admin = ?", true, true).
+		Where("status = ?", 1).
+		Pluck("id", &ids).Error
+	return ids, err
+}
+
+func (s *Service) NotifyAdminsTicketCreated(ctx context.Context, ticket data.Ticket) error {
+	ids, err := s.listAdminUserIDs(ctx)
+	if err != nil {
+		return err
+	}
+	meta := TicketNoticeMetadata{
+		TicketID: ticket.ID,
+		TicketNo: ticket.TicketNo,
+		Subject:  ticket.Subject,
+	}
+	title := "新工单"
+	message := fmt.Sprintf("用户提交了工单 %s：%s", ticket.TicketNo, ticket.Subject)
+	for _, id := range ids {
+		if id == ticket.UserID {
+			continue
+		}
+		_ = s.createTyped(ctx, id, TypeTicketCreated, title, message, meta)
+	}
+	return nil
+}
+
+func (s *Service) NotifyAdminsTicketReply(ctx context.Context, ticket data.Ticket) error {
+	ids, err := s.listAdminUserIDs(ctx)
+	if err != nil {
+		return err
+	}
+	meta := TicketNoticeMetadata{
+		TicketID:  ticket.ID,
+		TicketNo:  ticket.TicketNo,
+		Subject:   ticket.Subject,
+		FromStaff: false,
+	}
+	title := "工单有新回复"
+	message := fmt.Sprintf("工单 %s 收到用户回复", ticket.TicketNo)
+	for _, id := range ids {
+		if id == ticket.UserID {
+			continue
+		}
+		_ = s.createTyped(ctx, id, TypeTicketReply, title, message, meta)
+	}
+	return nil
+}
+
+func (s *Service) NotifyTicketReply(ctx context.Context, ticket data.Ticket, fromStaff bool) error {
+	meta := TicketNoticeMetadata{
+		TicketID:  ticket.ID,
+		TicketNo:  ticket.TicketNo,
+		Subject:   ticket.Subject,
+		FromStaff: fromStaff,
+	}
+	title := "工单有新回复"
+	message := fmt.Sprintf("工单 %s 有新的工作人员回复", ticket.TicketNo)
+	return s.createTyped(ctx, ticket.UserID, TypeTicketReply, title, message, meta)
+}
+
+func (s *Service) NotifyTicketStatus(ctx context.Context, ticket data.Ticket) error {
+	meta := TicketNoticeMetadata{
+		TicketID: ticket.ID,
+		TicketNo: ticket.TicketNo,
+		Subject:  ticket.Subject,
+		Status:   ticket.Status,
+	}
+	title := "工单状态已更新"
+	message := fmt.Sprintf("工单 %s 状态变更为 %s", ticket.TicketNo, ticket.Status)
+	return s.createTyped(ctx, ticket.UserID, TypeTicketStatus, title, message, meta)
 }
 
 func (s *Service) settingsMap(ctx context.Context) (map[string]string, error) {

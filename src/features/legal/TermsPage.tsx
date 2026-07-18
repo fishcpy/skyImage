@@ -2,10 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { fetchSiteConfig } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import DOMPurify from "dompurify";
-import { useMemo } from "react";
 import { useI18n } from "@/i18n";
 import { PublicTopNav } from "@/components/PublicTopNav";
+import { MarkdownContent } from "@/components/MarkdownContent";
 
 export function TermsPage() {
   const { t } = useI18n();
@@ -14,15 +13,7 @@ export function TermsPage() {
     queryFn: fetchSiteConfig,
   });
   const siteName = siteConfig?.title;
-
-  const termsContent = useMemo(() => {
-    const content = siteConfig?.termsOfService || "";
-    return DOMPurify.sanitize(content, {
-      ALLOWED_TAGS: ['p', 'div', 'section', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'strong', 'em', 'br', 'a', 'span'],
-      ALLOWED_ATTR: ['class', 'href', 'target', 'rel'],
-      ALLOW_DATA_ATTR: false,
-    });
-  }, [siteConfig?.termsOfService]);
+  const termsContent = siteConfig?.termsOfService || "";
 
   if (isLoading) {
     return (
@@ -41,7 +32,7 @@ export function TermsPage() {
     );
   }
 
-  if (!termsContent) {
+  if (!termsContent.trim()) {
     return (
       <div className="min-h-screen bg-muted">
         <PublicTopNav title={siteName} description="" compact />
@@ -68,10 +59,7 @@ export function TermsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div 
-              className="prose prose-sm max-w-none dark:prose-invert"
-              dangerouslySetInnerHTML={{ __html: termsContent }}
-            />
+            <MarkdownContent content={termsContent} />
           </CardContent>
         </Card>
       </div>

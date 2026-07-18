@@ -14,6 +14,10 @@ const (
 	TemplateRegisterSuccess   TemplateKey = "register_success"
 	TemplateLoginNotification TemplateKey = "login_notification"
 	TemplateForgotPassword    TemplateKey = "forgot_password"
+	TemplateTicketCreated     TemplateKey = "ticket_created"
+	TemplateTicketReplyUser   TemplateKey = "ticket_reply_user"
+	TemplateTicketReplyAdmin  TemplateKey = "ticket_reply_admin"
+	TemplateTicketStatus      TemplateKey = "ticket_status"
 )
 
 type TemplateContent struct {
@@ -30,6 +34,14 @@ type TemplateVariables struct {
 	LoginIP          string
 	TestEmail        string
 	CurrentTime      string
+	TicketNo         string
+	TicketSubject    string
+	TicketStatus     string
+	TicketPriority   string
+	TicketURL        string
+	ReplyBody        string
+	StaffName        string
+	AdminName        string
 }
 
 type templateDefinition struct {
@@ -116,6 +128,84 @@ var templateDefinitions = map[TemplateKey]templateDefinition{
 此邮件由系统自动发送，请勿回复。`,
 		},
 	},
+	TemplateTicketCreated: {
+		SubjectSettingKey: "mail.template.ticket_created.subject",
+		BodySettingKey:    "mail.template.ticket_created.body",
+		Default: TemplateContent{
+			Subject: "[{{site_name}}] 新工单 {{ticket_no}}",
+			Body: `您好 {{admin_name}}，
+
+用户 {{user_name}} 提交了新工单。
+
+工单编号：{{ticket_no}}
+标题：{{ticket_subject}}
+优先级：{{ticket_priority}}
+
+处理入口：{{ticket_url}}
+
+此邮件由系统自动发送，请勿回复。`,
+		},
+	},
+	TemplateTicketReplyUser: {
+		SubjectSettingKey: "mail.template.ticket_reply_user.subject",
+		BodySettingKey:    "mail.template.ticket_reply_user.body",
+		Default: TemplateContent{
+			Subject: "[{{site_name}}] 工单 {{ticket_no}} 有新回复",
+			Body: `您好 {{user_name}}，
+
+您的工单有新的工作人员回复。
+
+工单编号：{{ticket_no}}
+标题：{{ticket_subject}}
+工作人员：{{staff_name}}
+
+回复内容：
+{{reply_body}}
+
+查看工单：{{ticket_url}}
+
+此邮件由系统自动发送，请勿回复。`,
+		},
+	},
+	TemplateTicketReplyAdmin: {
+		SubjectSettingKey: "mail.template.ticket_reply_admin.subject",
+		BodySettingKey:    "mail.template.ticket_reply_admin.body",
+		Default: TemplateContent{
+			Subject: "[{{site_name}}] 工单 {{ticket_no}} 用户回复",
+			Body: `您好 {{admin_name}}，
+
+工单收到用户回复。
+
+工单编号：{{ticket_no}}
+标题：{{ticket_subject}}
+用户：{{user_name}}
+
+回复内容：
+{{reply_body}}
+
+处理入口：{{ticket_url}}
+
+此邮件由系统自动发送，请勿回复。`,
+		},
+	},
+	TemplateTicketStatus: {
+		SubjectSettingKey: "mail.template.ticket_status.subject",
+		BodySettingKey:    "mail.template.ticket_status.body",
+		Default: TemplateContent{
+			Subject: "[{{site_name}}] 工单 {{ticket_no}} 状态更新",
+			Body: `您好 {{user_name}}，
+
+您的工单状态已更新。
+
+工单编号：{{ticket_no}}
+标题：{{ticket_subject}}
+当前状态：{{ticket_status}}
+
+查看工单：{{ticket_url}}
+
+此邮件由系统自动发送，请勿回复。`,
+		},
+	},
 }
 
 func ResolveTemplateContent(settings map[string]string, key TemplateKey) TemplateContent {
@@ -196,6 +286,14 @@ func buildTemplateReplacements(vars TemplateVariables) map[string]string {
 		"login_ip":          sanitizeTemplateValue(vars.LoginIP),
 		"test_email":        sanitizeTemplateValue(vars.TestEmail),
 		"current_time":      currentTime,
+		"ticket_no":         sanitizeTemplateValue(vars.TicketNo),
+		"ticket_subject":    sanitizeTemplateValue(vars.TicketSubject),
+		"ticket_status":     sanitizeTemplateValue(vars.TicketStatus),
+		"ticket_priority":   sanitizeTemplateValue(vars.TicketPriority),
+		"ticket_url":        sanitizeTemplateValue(vars.TicketURL),
+		"reply_body":        strings.TrimSpace(vars.ReplyBody),
+		"staff_name":        sanitizeTemplateValue(vars.StaffName),
+		"admin_name":        sanitizeTemplateValue(vars.AdminName),
 	}
 }
 

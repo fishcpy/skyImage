@@ -73,6 +73,7 @@ export function AdminCaptchaSettingsPage() {
     enableForgotPasswordRequestCaptcha: false,
     enableForgotPasswordResetCaptcha: false,
     enableRedeemCaptcha: false,
+    enableTicketCaptcha: false,
   });
 
   const [providerStatus, setProviderStatus] = useState<{
@@ -125,6 +126,7 @@ export function AdminCaptchaSettingsPage() {
         enableForgotPasswordRequestCaptcha: data.enableForgotPasswordRequestCaptcha ?? false,
         enableForgotPasswordResetCaptcha: data.enableForgotPasswordResetCaptcha ?? false,
         enableRedeemCaptcha: data.enableRedeemCaptcha ?? false,
+        enableTicketCaptcha: data.enableTicketCaptcha ?? false,
       };
       setForm(normalized);
       setInitialForm(normalized);
@@ -594,6 +596,18 @@ export function AdminCaptchaSettingsPage() {
               />
               <Label htmlFor="enableRedeemCaptcha" className={!form.enableCaptcha ? "text-muted-foreground" : ""}>
                 {t("admin.captchaSettings.scene.redeem")}
+              </Label>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="enableTicketCaptcha"
+                checked={form.enableTicketCaptcha}
+                disabled={!form.enableCaptcha}
+                onCheckedChange={(checked) => handleChange("enableTicketCaptcha", checked)}
+              />
+              <Label htmlFor="enableTicketCaptcha" className={!form.enableCaptcha ? "text-muted-foreground" : ""}>
+                {t("admin.captchaSettings.scene.ticket")}
               </Label>
             </div>
           </div>

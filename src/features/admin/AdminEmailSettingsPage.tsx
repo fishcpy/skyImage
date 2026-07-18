@@ -41,7 +41,11 @@ type MailTemplateKey =
   | "registerVerify"
   | "registerSuccess"
   | "loginNotification"
-  | "forgotPassword";
+  | "forgotPassword"
+  | "ticketCreated"
+  | "ticketReplyUser"
+  | "ticketReplyAdmin"
+  | "ticketStatus";
 
 type MailTemplateVariable = {
   token: string;
@@ -89,6 +93,38 @@ const templateVariables = {
   currentTime: {
     token: "{{current_time}}",
     labelKey: "admin.emailSettings.variable.currentTime"
+  },
+  ticketNo: {
+    token: "{{ticket_no}}",
+    labelKey: "admin.emailSettings.variable.ticketNo"
+  },
+  ticketSubject: {
+    token: "{{ticket_subject}}",
+    labelKey: "admin.emailSettings.variable.ticketSubject"
+  },
+  ticketStatus: {
+    token: "{{ticket_status}}",
+    labelKey: "admin.emailSettings.variable.ticketStatus"
+  },
+  ticketPriority: {
+    token: "{{ticket_priority}}",
+    labelKey: "admin.emailSettings.variable.ticketPriority"
+  },
+  ticketUrl: {
+    token: "{{ticket_url}}",
+    labelKey: "admin.emailSettings.variable.ticketUrl"
+  },
+  replyBody: {
+    token: "{{reply_body}}",
+    labelKey: "admin.emailSettings.variable.replyBody"
+  },
+  staffName: {
+    token: "{{staff_name}}",
+    labelKey: "admin.emailSettings.variable.staffName"
+  },
+  adminName: {
+    token: "{{admin_name}}",
+    labelKey: "admin.emailSettings.variable.adminName"
   }
 } satisfies Record<string, MailTemplateVariable>;
 
@@ -191,6 +227,119 @@ const mailTemplateDefinitions: Record<MailTemplateKey, MailTemplateDefinition> =
       templateVariables.resetLink,
       templateVariables.currentTime
     ]
+  },
+  ticketCreated: {
+    labelKey: "admin.emailSettings.template.ticketCreated",
+    subjectField: "mailTicketCreatedSubject",
+    bodyField: "mailTicketCreatedBody",
+    defaultSubject: "[{{site_name}}] 新工单 {{ticket_no}}",
+    defaultBody: `您好 {{admin_name}}，
+
+用户 {{user_name}} 提交了新工单。
+
+工单编号：{{ticket_no}}
+标题：{{ticket_subject}}
+优先级：{{ticket_priority}}
+
+处理入口：{{ticket_url}}
+
+此邮件由系统自动发送，请勿回复。`,
+    variables: [
+      templateVariables.siteName,
+      templateVariables.adminName,
+      templateVariables.userName,
+      templateVariables.ticketNo,
+      templateVariables.ticketSubject,
+      templateVariables.ticketPriority,
+      templateVariables.ticketUrl,
+      templateVariables.currentTime
+    ]
+  },
+  ticketReplyUser: {
+    labelKey: "admin.emailSettings.template.ticketReplyUser",
+    subjectField: "mailTicketReplyUserSubject",
+    bodyField: "mailTicketReplyUserBody",
+    defaultSubject: "[{{site_name}}] 工单 {{ticket_no}} 有新回复",
+    defaultBody: `您好 {{user_name}}，
+
+您的工单有新的工作人员回复。
+
+工单编号：{{ticket_no}}
+标题：{{ticket_subject}}
+工作人员：{{staff_name}}
+
+回复内容：
+{{reply_body}}
+
+查看工单：{{ticket_url}}
+
+此邮件由系统自动发送，请勿回复。`,
+    variables: [
+      templateVariables.siteName,
+      templateVariables.userName,
+      templateVariables.staffName,
+      templateVariables.ticketNo,
+      templateVariables.ticketSubject,
+      templateVariables.replyBody,
+      templateVariables.ticketUrl,
+      templateVariables.currentTime
+    ]
+  },
+  ticketReplyAdmin: {
+    labelKey: "admin.emailSettings.template.ticketReplyAdmin",
+    subjectField: "mailTicketReplyAdminSubject",
+    bodyField: "mailTicketReplyAdminBody",
+    defaultSubject: "[{{site_name}}] 工单 {{ticket_no}} 用户回复",
+    defaultBody: `您好 {{admin_name}}，
+
+工单收到用户回复。
+
+工单编号：{{ticket_no}}
+标题：{{ticket_subject}}
+用户：{{user_name}}
+
+回复内容：
+{{reply_body}}
+
+处理入口：{{ticket_url}}
+
+此邮件由系统自动发送，请勿回复。`,
+    variables: [
+      templateVariables.siteName,
+      templateVariables.adminName,
+      templateVariables.userName,
+      templateVariables.ticketNo,
+      templateVariables.ticketSubject,
+      templateVariables.replyBody,
+      templateVariables.ticketUrl,
+      templateVariables.currentTime
+    ]
+  },
+  ticketStatus: {
+    labelKey: "admin.emailSettings.template.ticketStatus",
+    subjectField: "mailTicketStatusSubject",
+    bodyField: "mailTicketStatusBody",
+    defaultSubject: "[{{site_name}}] 工单 {{ticket_no}} 状态更新",
+    defaultBody: `您好 {{user_name}}，
+
+您的工单状态已更新。
+
+工单编号：{{ticket_no}}
+标题：{{ticket_subject}}
+当前状态：{{ticket_status}}
+
+查看工单：{{ticket_url}}
+
+此邮件由系统自动发送，请勿回复。`,
+    variables: [
+      templateVariables.siteName,
+      templateVariables.userName,
+      templateVariables.ticketNo,
+      templateVariables.ticketSubject,
+      templateVariables.ticketStatus,
+      templateVariables.ticketUrl,
+      templateVariables.currentTime
+    ]
   }
 };
 
@@ -199,7 +348,11 @@ const mailTemplateOrder: MailTemplateKey[] = [
   "registerVerify",
   "registerSuccess",
   "loginNotification",
-  "forgotPassword"
+  "forgotPassword",
+  "ticketCreated",
+  "ticketReplyUser",
+  "ticketReplyAdmin",
+  "ticketStatus"
 ];
 
 const defaultEmailSettingsForm: EmailSettings = {
@@ -219,6 +372,14 @@ const defaultEmailSettingsForm: EmailSettings = {
   mailLoginNotificationBody: "",
   mailForgotPasswordSubject: "",
   mailForgotPasswordBody: "",
+  mailTicketCreatedSubject: "",
+  mailTicketCreatedBody: "",
+  mailTicketReplyUserSubject: "",
+  mailTicketReplyUserBody: "",
+  mailTicketReplyAdminSubject: "",
+  mailTicketReplyAdminBody: "",
+  mailTicketStatusSubject: "",
+  mailTicketStatusBody: "",
   enableRegisterVerify: false,
   enableLoginNotification: false,
   enableForgotPassword: false,

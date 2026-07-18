@@ -318,3 +318,72 @@ type ShopOrder struct {
 func (ShopOrder) TableName() string {
 	return "shop_orders"
 }
+
+const (
+	TicketStatusOpen     = "open"
+	TicketStatusPending  = "pending"
+	TicketStatusResolved = "resolved"
+	TicketStatusClosed   = "closed"
+
+	TicketPriorityLow    = "low"
+	TicketPriorityNormal = "normal"
+	TicketPriorityHigh   = "high"
+	TicketPriorityUrgent = "urgent"
+)
+
+// Ticket is a support ticket created by a user.
+type Ticket struct {
+	ID          uint       `gorm:"primaryKey" json:"id"`
+	TicketNo    string     `gorm:"size:32;uniqueIndex;not null" json:"ticketNo"`
+	UserID      uint       `gorm:"index;not null" json:"userId"`
+	Subject     string     `gorm:"size:255;not null" json:"subject"`
+	Status      string     `gorm:"size:16;index;default:'open'" json:"status"`
+	Priority    string     `gorm:"size:16;index;default:'normal'" json:"priority"`
+	LastReplyAt *time.Time `json:"lastReplyAt,omitempty"`
+	ClosedAt    *time.Time `json:"closedAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	User        User       `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}
+
+func (Ticket) TableName() string {
+	return "tickets"
+}
+
+// TicketMessage is a reply on a ticket (Markdown body).
+type TicketMessage struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	TicketID  uint      `gorm:"index;not null" json:"ticketId"`
+	UserID    uint      `gorm:"index;not null" json:"userId"`
+	Body      string    `gorm:"type:text;not null" json:"body"`
+	IsStaff   bool      `gorm:"default:false" json:"isStaff"`
+	CreatedAt time.Time `json:"createdAt"`
+	User      User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}
+
+func (TicketMessage) TableName() string {
+	return "ticket_messages"
+}
+
+// TicketAttachment is a private attachment served only via console domain.
+type TicketAttachment struct {
+	ID              uint      `gorm:"primaryKey" json:"id"`
+	TicketID        uint      `gorm:"index;not null" json:"ticketId"`
+	MessageID       *uint     `gorm:"index" json:"messageId,omitempty"`
+	UserID          uint      `gorm:"index;not null" json:"userId"`
+	StrategyID      uint      `gorm:"index;not null" json:"strategyId"`
+	Key             string    `gorm:"size:64;uniqueIndex;not null" json:"key"`
+	Path            string    `gorm:"size:512;not null" json:"path"`
+	RelativePath    string    `gorm:"size:512;index;not null" json:"relativePath"`
+	Name            string    `gorm:"size:255;not null" json:"name"`
+	Size            int64     `gorm:"not null" json:"size"`
+	MimeType        string    `gorm:"size:128" json:"mimeType"`
+	StorageProvider string    `gorm:"size:32;default:'local'" json:"storageProvider"`
+	CreatedAt       time.Time `json:"createdAt"`
+	User            User      `gorm:"foreignKey:UserID" json:"-"`
+	Ticket          Ticket    `gorm:"foreignKey:TicketID" json:"-"`
+}
+
+func (TicketAttachment) TableName() string {
+	return "ticket_attachments"
+}

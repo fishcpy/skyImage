@@ -70,6 +70,8 @@ func (s *Service) GetConfig(ctx context.Context, context string) (Config, error)
 		contextKey = "captcha.forgot_password_reset"
 	case "redeem":
 		contextKey = "captcha.redeem"
+	case "ticket":
+		contextKey = "captcha.ticket"
 	default:
 		return Config{Enabled: false}, fmt.Errorf("unknown context: %s", context)
 	}

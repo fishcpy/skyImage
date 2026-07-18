@@ -36,6 +36,7 @@ import (
 	"skyimage/internal/redeem"
 	"skyimage/internal/session"
 	"skyimage/internal/shop"
+	"skyimage/internal/tickets"
 	"skyimage/internal/users"
 	"skyimage/internal/verification"
 )
@@ -52,6 +53,7 @@ type Server struct {
 	notifications *notifications.Service
 	redeem        *redeem.Service
 	shop          *shop.Service
+	tickets       *tickets.Service
 	mail          *mail.Service
 	captcha       *captcha.Service
 	verification  *verification.Service
@@ -129,6 +131,14 @@ func (s *Server) applyRuntimeConfig(cfg config.Config, db *gorm.DB) {
 		s.shop.SetAdmin(adminService)
 	}
 	s.mail = mail.New(adminService)
+	if s.tickets == nil {
+		s.tickets = tickets.New(db, s.files, s.notifications)
+	} else {
+		s.tickets.SetDB(db)
+		s.tickets.SetFiles(s.files)
+		s.tickets.SetNotifications(s.notifications)
+	}
+	s.tickets.SetMail(s.mail)
 	s.captcha = captcha.New(adminService)
 	s.verification = verification.New()
 	if s.oauth == nil {
@@ -320,6 +330,7 @@ func (s *Server) registerRoutes() {
 	s.registerAuthRoutes(apiGroup)
 	s.registerOAuthRoutes(apiGroup)
 	s.registerAccountRoutes(apiGroup)
+	s.registerTicketRoutes(apiGroup)
 	s.registerAdminRoutes(apiGroup)
 	s.registerShopRoutes(apiGroup)
 	s.registerFileRoutes(apiGroup)
@@ -730,11 +741,100 @@ func (s *Server) tryServeLocalFile(c *gin.Context) bool {
 	}
 
 	for _, candidate := range candidates {
+		if s.tryServeTicketAttachment(c, candidate) {
+			return true
+		}
 		if s.serveLocalFileByRelative(c, candidate) {
 			return true
 		}
 	}
 	return false
+}
+
+// tryServeTicketAttachment serves private ticket attachments (console domain + login).
+func (s *Server) tryServeTicketAttachment(c *gin.Context, rel string) bool {
+	if s.tickets == nil {
+		return false
+	}
+	rel = strings.Trim(strings.TrimPrefix(rel, "/"), "/")
+	att, err := s.tickets.FindAttachmentByRelativePath(c.Request.Context(), rel)
+	if err != nil {
+		return false
+	}
+	user, ok := middleware.CurrentUser(c)
+	if !ok || !s.tickets.CanAccessAttachment(att, &user) {
+		c.Status(http.StatusNotFound)
+		return true
+	}
+	if s.rejectIfConsoleDomainMismatch(c) {
+		return true
+	}
+	header := c.Writer.Header()
+	// Private resource: do not open CORS to arbitrary origins.
+	header.Del("Access-Control-Allow-Origin")
+	header.Del("Access-Control-Allow-Credentials")
+	header.Set("Cache-Control", "private, no-store")
+	header.Set("X-Content-Type-Options", "nosniff")
+	mimeType := strings.TrimSpace(att.MimeType)
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	header.Set("Content-Type", mimeType)
+	header.Set("Content-Disposition", contentDispositionInline(att.Name))
+
+	obj, err := s.files.OpenStoredObject(c.Request.Context(), att.StrategyID, att.Path, att.RelativePath, att.StorageProvider)
+	if err != nil {
+		// Fall back to local path serve only for local absolute paths.
+		if att.Path != "" && filepath.IsAbs(att.Path) {
+			c.File(att.Path)
+			return true
+		}
+		c.Status(http.StatusNotFound)
+		return true
+	}
+	defer obj.Body.Close()
+	if obj.ContentType != "" {
+		header.Set("Content-Type", obj.ContentType)
+	}
+	if obj.ContentLength > 0 {
+		header.Set("Content-Length", strconv.FormatInt(obj.ContentLength, 10))
+	}
+	c.Status(http.StatusOK)
+	if c.Request.Method != http.MethodHead {
+		_, _ = io.Copy(c.Writer, obj.Body)
+	}
+	return true
+}
+
+// contentDispositionInline builds a safe Content-Disposition value (no CRLF/quote injection).
+func contentDispositionInline(name string) string {
+	name = strings.TrimSpace(name)
+	name = strings.Map(func(r rune) rune {
+		if r == '\r' || r == '\n' || r == '\x00' || r == '"' || r == '\\' {
+			return -1
+		}
+		if r < 32 {
+			return -1
+		}
+		return r
+	}, name)
+	if name == "" {
+		name = "attachment"
+	}
+	if len(name) > 180 {
+		name = name[:180]
+	}
+	// ASCII fallback + RFC 5987 filename* for non-ASCII.
+	ascii := strings.Map(func(r rune) rune {
+		if r > 127 {
+			return '_'
+		}
+		return r
+	}, name)
+	if ascii == "" {
+		ascii = "attachment"
+	}
+	return "inline; filename=\"" + ascii + "\"; filename*=UTF-8''" + url.PathEscape(name)
 }
 
 func (s *Server) serveLocalFileByRelative(c *gin.Context, rel string) bool {
@@ -767,6 +867,8 @@ func (s *Server) serveLocalFileByRelative(c *gin.Context, rel string) bool {
 	}
 
 	file = files.ServeTarget(file, isThumbnail)
+
+	// Ticket attachments are handled earlier via tryServeTicketAttachment.
 
 	// 原图：策略配置了外部访问域名时，仅允许通过该域名访问，否则 404。
 	// 缩略图固定走控制台域名，不跟随策略自定义域名。

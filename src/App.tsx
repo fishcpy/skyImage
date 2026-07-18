@@ -50,6 +50,12 @@ import { PrivacyPage } from "@/features/legal/PrivacyPage";
 import { PublicShopPage } from "@/features/shop/PublicShopPage";
 import { ShopPage } from "@/features/shop/ShopPage";
 import { OrdersPage } from "@/features/shop/OrdersPage";
+import { TicketsPage } from "@/features/tickets/TicketsPage";
+import { TicketCreatePage } from "@/features/tickets/TicketCreatePage";
+import { TicketDetailPage } from "@/features/tickets/TicketDetailPage";
+import { AdminTicketsPage } from "@/features/admin/AdminTicketsPage";
+import { AdminTicketDetailPage } from "@/features/admin/AdminTicketDetailPage";
+import { AdminTicketSettingsPage } from "@/features/admin/AdminTicketSettingsPage";
 import { AdminRoute } from "@/components/AdminRoute";
 import { SiteMetaWatcher } from "@/components/SiteMetaWatcher";
 import { NavigationProgress } from "@/components/NavigationProgress";
@@ -171,6 +177,9 @@ export default function App() {
               <Route path="images" element={<MyImagesPage />} />
               <Route path="shop" element={<ShopPage />} />
               <Route path="orders" element={<OrdersPage />} />
+              <Route path="tickets" element={<TicketsPage />} />
+              <Route path="tickets/new" element={<TicketCreatePage />} />
+              <Route path="tickets/:id" element={<TicketDetailPage />} />
               <Route path="settings" element={<ProfileSettingsPage />} />
               <Route path="notifications" element={<NotificationsPage />} />
               <Route path="gallery" element={<GalleryPage />} />
@@ -192,6 +201,8 @@ export default function App() {
                 <Route path="admin/shop/products/new" element={<AdminShopProductEditorPage />} />
                 <Route path="admin/shop/products/:id" element={<AdminShopProductEditorPage />} />
                 <Route path="admin/shop/orders" element={<AdminShopOrdersPage />} />
+                <Route path="admin/tickets" element={<AdminTicketsPage />} />
+                <Route path="admin/tickets/:id" element={<AdminTicketDetailPage />} />
                 <Route path="admin/users" element={<UserManagementPage />} />
                 <Route path="admin/users/new" element={<AdminUserCreatePage />} />
                 <Route path="admin/users/:id" element={<AdminUserDetailPage />} />
@@ -206,6 +217,7 @@ export default function App() {
                 <Route path="admin/settings/site" element={<AdminSiteSettingsPage />} />
                 <Route path="admin/settings/email" element={<AdminEmailSettingsPage />} />
                 <Route path="admin/settings/system" element={<AdminSystemSettingsPage />} />
+                <Route path="admin/settings/tickets" element={<AdminTicketSettingsPage />} />
                 <Route path="admin/settings/captcha" element={<AdminCaptchaSettingsPage />} />
                 <Route path="admin/settings/oauth" element={<AdminOAuthSettingsPage />} />
                 <Route path="admin/settings/payment" element={<AdminPaymentSettingsPage />} />

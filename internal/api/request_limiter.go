@@ -52,3 +52,8 @@ func (l *requestLimiter) Allow(key string, limit int, window time.Duration) (boo
 	bucket.count++
 	return true, 0
 }
+
+// AllowInterval allows at most one action per key inside interval (cooldown).
+func (l *requestLimiter) AllowInterval(key string, interval time.Duration) (bool, time.Duration) {
+	return l.Allow(key, 1, interval)
+}
