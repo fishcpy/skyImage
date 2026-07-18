@@ -38,11 +38,18 @@ import { AdminRedeemCodesPage } from "@/features/admin/AdminRedeemCodesPage";
 import { AdminRedeemCodeEditorPage } from "@/features/admin/AdminRedeemCodeEditorPage";
 import { AdminStrategyEditorPage } from "@/features/admin/AdminStrategyEditorPage";
 import { AdminAuditEditorPage } from "@/features/admin/AdminAuditEditorPage";
+import { AdminShopProductsPage } from "@/features/admin/AdminShopProductsPage";
+import { AdminShopProductEditorPage } from "@/features/admin/AdminShopProductEditorPage";
+import { AdminShopOrdersPage } from "@/features/admin/AdminShopOrdersPage";
+import { AdminPaymentSettingsPage } from "@/features/admin/AdminPaymentSettingsPage";
 import { AdminUserCreatePage } from "@/features/users/AdminUserCreatePage";
 import { AdminUserDetailPage } from "@/features/users/AdminUserDetailPage";
 import { AboutPage } from "@/features/about/AboutPage";
 import { TermsPage } from "@/features/legal/TermsPage";
 import { PrivacyPage } from "@/features/legal/PrivacyPage";
+import { PublicShopPage } from "@/features/shop/PublicShopPage";
+import { ShopPage } from "@/features/shop/ShopPage";
+import { OrdersPage } from "@/features/shop/OrdersPage";
 import { AdminRoute } from "@/components/AdminRoute";
 import { SiteMetaWatcher } from "@/components/SiteMetaWatcher";
 import { NavigationProgress } from "@/components/NavigationProgress";
@@ -154,6 +161,7 @@ export default function App() {
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         {installed && <Route path="/u/:id" element={<PublicUserPage />} />}
+        {installed && <Route path="/shop" element={<PublicShopPage />} />}
         {installed && <Route path="/" element={<HomeEntry />} />}
         {installed && (
           <Route element={<ProtectedRoute />}>
@@ -161,6 +169,8 @@ export default function App() {
               <Route index element={<DashboardPage />} />
               <Route path="upload" element={<UploadPage />} />
               <Route path="images" element={<MyImagesPage />} />
+              <Route path="shop" element={<ShopPage />} />
+              <Route path="orders" element={<OrdersPage />} />
               <Route path="settings" element={<ProfileSettingsPage />} />
               <Route path="notifications" element={<NotificationsPage />} />
               <Route path="gallery" element={<GalleryPage />} />
@@ -178,6 +188,10 @@ export default function App() {
                 <Route path="admin/groups/:id" element={<AdminGroupEditorPage />} />
                 <Route path="admin/redeem-codes" element={<AdminRedeemCodesPage />} />
                 <Route path="admin/redeem-codes/new" element={<AdminRedeemCodeEditorPage />} />
+                <Route path="admin/shop/products" element={<AdminShopProductsPage />} />
+                <Route path="admin/shop/products/new" element={<AdminShopProductEditorPage />} />
+                <Route path="admin/shop/products/:id" element={<AdminShopProductEditorPage />} />
+                <Route path="admin/shop/orders" element={<AdminShopOrdersPage />} />
                 <Route path="admin/users" element={<UserManagementPage />} />
                 <Route path="admin/users/new" element={<AdminUserCreatePage />} />
                 <Route path="admin/users/:id" element={<AdminUserDetailPage />} />
@@ -194,6 +208,7 @@ export default function App() {
                 <Route path="admin/settings/system" element={<AdminSystemSettingsPage />} />
                 <Route path="admin/settings/captcha" element={<AdminCaptchaSettingsPage />} />
                 <Route path="admin/settings/oauth" element={<AdminOAuthSettingsPage />} />
+                <Route path="admin/settings/payment" element={<AdminPaymentSettingsPage />} />
                 <Route path="admin/settings/database" element={<AdminDatabaseSettingsPage />} />
               </Route>
               <Route path="*" element={<NotFoundPage />} />

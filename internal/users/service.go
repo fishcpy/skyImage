@@ -8,6 +8,7 @@ import (
 	"math"
 	"regexp"
 	"strings"
+	"time"
 	"unicode"
 
 	"os"
@@ -16,6 +17,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"skyimage/internal/data"
 )
@@ -539,6 +541,10 @@ func (s *Service) hydrateUser(ctx context.Context, user *data.User) error {
 	if user == nil {
 		return nil
 	}
+	// Lazy-expire paid membership so role-group privileges drop without waiting for the ticker.
+	if err := s.expireMembershipIfDue(ctx, user); err != nil {
+		return err
+	}
 	previousUsed := user.UsedCapacity
 	var usedBytes float64
 	if err := s.db.WithContext(ctx).
@@ -574,6 +580,52 @@ func (s *Service) hydrateUser(ctx context.Context, user *data.User) error {
 	}
 	user.Capacity = total
 	return nil
+}
+
+// expireMembershipIfDue restores previous/default group when paid membership has elapsed.
+func (s *Service) expireMembershipIfDue(ctx context.Context, user *data.User) error {
+	if user == nil || user.MembershipExpiresAt == nil {
+		return nil
+	}
+	if user.MembershipExpiresAt.After(time.Now()) {
+		return nil
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var u data.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&u, user.ID).Error; err != nil {
+			return err
+		}
+		if u.MembershipExpiresAt == nil || u.MembershipExpiresAt.After(time.Now()) {
+			*user = u
+			return nil
+		}
+		var restore interface{}
+		if u.MembershipPreviousGroupID != nil {
+			restore = *u.MembershipPreviousGroupID
+		} else {
+			var g data.Group
+			if err := tx.Where("is_default = ?", true).First(&g).Error; err == nil {
+				restore = g.ID
+			} else {
+				restore = nil
+			}
+		}
+		updates := map[string]interface{}{
+			"group_id":                     restore,
+			"membership_expires_at":        nil,
+			"membership_previous_group_id": nil,
+			"membership_unit_price_micros": 0,
+			"membership_active_product_id": nil,
+		}
+		if err := tx.Model(&data.User{}).Where("id = ?", u.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+		if err := tx.Preload("Group").First(&u, u.ID).Error; err != nil {
+			return err
+		}
+		*user = u
+		return nil
+	})
 }
 
 // AdjustCapacityBonus 在现有 capacity_bonus 基础上增减（字节）

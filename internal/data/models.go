@@ -41,9 +41,14 @@ type User struct {
 	AlbumCount    uint64         `gorm:"column:album_num;default:0" json:"albumCount"`
 	RegisteredIP  string         `gorm:"column:registered_ip;size:64" json:"registeredIp"`
 	RememberToken string         `gorm:"column:remember_token;size:255" json:"-"`
-	CreatedAt     time.Time      `json:"createdAt"`
-	UpdatedAt     time.Time      `json:"updatedAt"`
-	Group         Group          `gorm:"foreignKey:GroupID" json:"group"`
+	// Paid membership (shop). Empty/null means no active paid membership.
+	MembershipExpiresAt         *time.Time `gorm:"index" json:"membershipExpiresAt,omitempty"`
+	MembershipPreviousGroupID   *uint      `gorm:"index" json:"membershipPreviousGroupId,omitempty"`
+	MembershipUnitPriceMicros   int64      `gorm:"default:0" json:"membershipUnitPriceMicros"` // price_cents*1e6/duration_days
+	MembershipActiveProductID   *uint      `json:"membershipActiveProductId,omitempty"`
+	CreatedAt                   time.Time  `json:"createdAt"`
+	UpdatedAt                   time.Time  `json:"updatedAt"`
+	Group                       Group      `gorm:"foreignKey:GroupID" json:"group"`
 }
 
 func (User) TableName() string {
@@ -249,4 +254,67 @@ type RedeemCodeUsage struct {
 
 func (RedeemCodeUsage) TableName() string {
 	return "redeem_code_usages"
+}
+
+// ShopProduct is a purchasable membership package.
+type ShopProduct struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	Name         string    `gorm:"size:128;not null" json:"name"`
+	Description  string    `gorm:"size:512" json:"description"`
+	PriceCents   int64     `gorm:"not null;default:0" json:"priceCents"` // minor units (fen/cents)
+	Currency     string    `gorm:"size:8;default:'CNY'" json:"currency"`
+	DurationDays int       `gorm:"not null;default:30" json:"durationDays"`
+	GroupID      uint      `gorm:"index;not null" json:"groupId"`
+	Enabled      bool      `gorm:"default:true;index" json:"enabled"`
+	Sort         int       `gorm:"default:0" json:"sort"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+	Group        Group     `gorm:"foreignKey:GroupID" json:"group,omitempty"`
+}
+
+func (ShopProduct) TableName() string {
+	return "shop_products"
+}
+
+const (
+	OrderStatusPending = "pending"
+	OrderStatusPaid    = "paid"
+	OrderStatusClosed  = "closed"
+	OrderStatusFailed  = "failed"
+)
+
+const (
+	PayProviderEpay   = "epay"
+	PayProviderAlipay = "alipay"
+	PayProviderWechat = "wechat"
+	PayProviderStripe = "stripe"
+)
+
+// ShopOrder is a payment order for a shop product.
+type ShopOrder struct {
+	ID                    uint       `gorm:"primaryKey" json:"id"`
+	OrderNo               string     `gorm:"size:64;uniqueIndex;not null" json:"orderNo"`
+	UserID                uint       `gorm:"index;not null" json:"userId"`
+	ProductID             uint       `gorm:"index;not null" json:"productId"`
+	ProductName           string     `gorm:"size:128;not null" json:"productName"`
+	PriceCents            int64      `gorm:"not null" json:"priceCents"`
+	Currency              string     `gorm:"size:8;default:'CNY'" json:"currency"`
+	DurationDays          int        `gorm:"not null" json:"durationDays"`
+	GroupID               uint       `gorm:"index;not null" json:"groupId"`
+	Status                string     `gorm:"size:16;index;default:'pending'" json:"status"`
+	Provider              string     `gorm:"size:16;index;not null" json:"provider"`
+	ProviderTradeNo       string     `gorm:"size:128;default:''" json:"providerTradeNo"`
+	PaidAt                *time.Time `json:"paidAt,omitempty"`
+	FulfilledAt           *time.Time `json:"fulfilledAt,omitempty"`
+	MembershipExpiresAt   *time.Time `json:"membershipExpiresAt,omitempty"`
+	NotifyRaw             string     `gorm:"type:text" json:"-"`
+	CreatedAt             time.Time  `json:"createdAt"`
+	UpdatedAt             time.Time  `json:"updatedAt"`
+	User                  User       `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Product               ShopProduct `gorm:"foreignKey:ProductID" json:"product,omitempty"`
+	Group                 Group      `gorm:"foreignKey:GroupID" json:"group,omitempty"`
+}
+
+func (ShopOrder) TableName() string {
+	return "shop_orders"
 }

@@ -1252,3 +1252,182 @@ export async function redeemCode(input: {
   }>("/account/redeem", input);
   return { ...res.data.data, message: res.data.message };
 }
+
+// --- Shop / Payment ---
+
+export type ShopProduct = {
+  id: number;
+  name: string;
+  description?: string;
+  priceCents: number;
+  currency: string;
+  durationDays: number;
+  groupId: number;
+  enabled: boolean;
+  sort: number;
+  group?: GroupRecord;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ShopOrder = {
+  id: number;
+  orderNo: string;
+  userId: number;
+  productId: number;
+  productName: string;
+  priceCents: number;
+  currency: string;
+  durationDays: number;
+  groupId: number;
+  status: string;
+  provider: string;
+  providerTradeNo?: string;
+  paidAt?: string | null;
+  fulfilledAt?: string | null;
+  membershipExpiresAt?: string | null;
+  createdAt: string;
+  group?: GroupRecord;
+  user?: { id: number; name: string; email: string };
+};
+
+export type MembershipInfo = {
+  active: boolean;
+  expiresAt?: string | null;
+  groupId?: number | null;
+  groupName?: string;
+  previousGroupId?: number | null;
+};
+
+export type PaymentSettings = {
+  enabled: boolean;
+  epay: {
+    enabled: boolean;
+    apiUrl: string;
+    pid: string;
+    key: string;
+    defaultType: string;
+  };
+  alipay: {
+    enabled: boolean;
+    appId: string;
+    privateKey: string;
+    alipayPublicKey: string;
+    gateway: string;
+  };
+  wechat: {
+    enabled: boolean;
+    appId: string;
+    mchId: string;
+    apiKey: string;
+  };
+  stripe: {
+    enabled: boolean;
+    secretKey: string;
+    webhookSecret: string;
+  };
+};
+
+export async function fetchShopProducts() {
+  const res = await apiClient.get<{ data: ShopProduct[] }>("/shop/products");
+  return res.data.data;
+}
+
+export async function fetchShopProviders() {
+  const res = await apiClient.get<{ data: string[] }>("/shop/providers");
+  return res.data.data;
+}
+
+export async function createShopOrder(input: {
+  productId: number;
+  provider: string;
+  epayType?: string;
+  returnUrl?: string;
+}) {
+  const res = await apiClient.post<{
+    data: {
+      order: ShopOrder;
+      payUrl?: string;
+      qrContent?: string;
+      extra?: Record<string, string>;
+    };
+  }>("/shop/orders", input);
+  return res.data.data;
+}
+
+export async function fetchMyShopOrders(params?: { limit?: number; offset?: number }) {
+  const res = await apiClient.get<{ data: ShopOrder[] }>("/shop/orders", { params });
+  return res.data.data;
+}
+
+export async function fetchMyShopOrder(orderNo: string) {
+  const res = await apiClient.get<{ data: ShopOrder }>(`/shop/orders/${orderNo}`);
+  return res.data.data;
+}
+
+export async function fetchMembership() {
+  const res = await apiClient.get<{ data: MembershipInfo }>("/shop/membership");
+  return res.data.data;
+}
+
+export async function fetchAdminShopProducts() {
+  const res = await apiClient.get<{ data: ShopProduct[] }>("/admin/shop/products");
+  return res.data.data;
+}
+
+export async function createAdminShopProduct(input: {
+  name: string;
+  description?: string;
+  priceCents: number;
+  currency?: string;
+  durationDays: number;
+  groupId: number;
+  enabled?: boolean;
+  sort?: number;
+}) {
+  const res = await apiClient.post<{ data: ShopProduct }>("/admin/shop/products", input);
+  return res.data.data;
+}
+
+export async function updateAdminShopProduct(
+  id: number,
+  input: {
+    name: string;
+    description?: string;
+    priceCents: number;
+    currency?: string;
+    durationDays: number;
+    groupId: number;
+    enabled?: boolean;
+    sort?: number;
+  }
+) {
+  const res = await apiClient.put<{ data: ShopProduct }>(`/admin/shop/products/${id}`, input);
+  return res.data.data;
+}
+
+export async function deleteAdminShopProduct(id: number) {
+  await apiClient.delete(`/admin/shop/products/${id}`);
+}
+
+export async function fetchAdminShopOrders(params?: { status?: string; limit?: number; offset?: number }) {
+  const res = await apiClient.get<{ data: ShopOrder[] }>("/admin/shop/orders", { params });
+  return res.data.data;
+}
+
+export async function fetchPaymentSettings() {
+  const res = await apiClient.get<{ data: PaymentSettings }>("/admin/system/payment");
+  return res.data.data;
+}
+
+export async function updatePaymentSettings(input: PaymentSettings) {
+  const res = await apiClient.put<{ data: boolean }>("/admin/system/payment", input);
+  return res.data.data;
+}
+
+export function formatPriceCents(cents: number, currency = "CNY") {
+  const amount = (cents / 100).toFixed(2);
+  if (currency === "CNY" || currency === "cny") return `¥${amount}`;
+  if (currency === "USD" || currency === "usd") return `$${amount}`;
+  return `${amount} ${currency}`;
+}

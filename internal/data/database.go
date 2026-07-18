@@ -79,6 +79,8 @@ func AllModels() []interface{} {
 		&Album{},
 		&RedeemCode{},
 		&RedeemCodeUsage{},
+		&ShopProduct{},
+		&ShopOrder{},
 	}
 }
 
@@ -101,6 +103,8 @@ func MigrateTables() []MigrateTable {
 		{Name: "albums", Model: &Album{}},
 		{Name: "redeem_codes", Model: &RedeemCode{}},
 		{Name: "redeem_code_usages", Model: &RedeemCodeUsage{}},
+		{Name: "shop_products", Model: &ShopProduct{}},
+		{Name: "shop_orders", Model: &ShopOrder{}},
 	}
 }
 

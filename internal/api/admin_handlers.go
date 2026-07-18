@@ -82,6 +82,7 @@ func (s *Server) registerAdminRoutes(r *gin.RouterGroup) {
 	adminGroup.POST("/system/database/test", s.handleAdminDatabaseTest)
 	adminGroup.POST("/system/database/migrate", s.handleAdminDatabaseMigrate)
 	adminGroup.PUT("/system/oauth", s.handleAdminUpdateOAuthSettings)
+	s.registerAdminShopRoutes(adminGroup)
 }
 
 func requireSuperAdmin(c *gin.Context) bool {

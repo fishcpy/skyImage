@@ -3,6 +3,7 @@ package data
 import (
 	"crypto/rand"
 	"fmt"
+	"math"
 	"math/big"
 	"strconv"
 
@@ -69,7 +70,11 @@ func MigrateUserIDsToSixteenDigits(db *gorm.DB) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		// Phase 1: move old PKs to temporary IDs to avoid unique collisions.
 		for i, item := range pending {
-			tempID := uint(userIDTempBase + uint64(i) + 1)
+			tempRaw := userIDTempBase + uint64(i) + 1
+			tempID, err := uintFromUint64(tempRaw)
+			if err != nil {
+				return fmt.Errorf("temp id out of range: %w", err)
+			}
 			if err := rewriteUserID(tx, item.oldID, tempID); err != nil {
 				return fmt.Errorf("temp remap %d -> %d: %w", item.oldID, tempID, err)
 			}
@@ -107,17 +112,26 @@ func nextFreeSixteenDigit(used map[uint64]struct{}) (uint, error) {
 		if _, exists := used[id]; exists {
 			continue
 		}
-		return uint(id), nil
+		return uintFromUint64(id)
 	}
 	// Fallback linear scan from a random start (unlikely).
 	start, _ := rand.Int(rand.Reader, big.NewInt(int64(userIDSpan)))
 	for i := uint64(0); i < userIDSpan; i++ {
 		id := userIDMin + (start.Uint64()+i)%userIDSpan
 		if _, exists := used[id]; !exists {
-			return uint(id), nil
+			return uintFromUint64(id)
 		}
 	}
 	return 0, fmt.Errorf("exhausted 16-digit user id space")
+}
+
+// uintFromUint64 converts with a constant upper bound so values fit in uint
+// (CodeQL incorrect-integer-conversion barrier; requires 64-bit uint for 16-digit IDs).
+func uintFromUint64(v uint64) (uint, error) {
+	if v > math.MaxUint {
+		return 0, fmt.Errorf("value %d exceeds uint range", v)
+	}
+	return uint(v), nil
 }
 
 func rewriteUserID(tx *gorm.DB, oldID, newID uint) error {
@@ -158,11 +172,18 @@ func rewriteUserID(tx *gorm.DB, oldID, newID uint) error {
 	return nil
 }
 
-// ParseUserID parses a decimal user id string (supports full 16-digit values).
+// uintBitSize is 32 or 64 depending on the platform (matches strconv bitSize for uint).
+const uintBitSize = 32 << (^uint(0) >> 63)
+
+// ParseUserID parses a decimal user id string (supports full 16-digit values on 64-bit).
 func ParseUserID(raw string) (uint, error) {
-	v, err := strconv.ParseUint(raw, 10, 64)
+	// Parse with the target type's bit size so conversion cannot truncate (CodeQL CWE-681).
+	v, err := strconv.ParseUint(raw, 10, uintBitSize)
 	if err != nil {
 		return 0, err
+	}
+	if v > math.MaxUint {
+		return 0, fmt.Errorf("user id out of range")
 	}
 	return uint(v), nil
 }

@@ -35,6 +35,7 @@ import (
 	"skyimage/internal/oauth"
 	"skyimage/internal/redeem"
 	"skyimage/internal/session"
+	"skyimage/internal/shop"
 	"skyimage/internal/users"
 	"skyimage/internal/verification"
 )
@@ -50,6 +51,7 @@ type Server struct {
 	users         *users.Service
 	notifications *notifications.Service
 	redeem        *redeem.Service
+	shop          *shop.Service
 	mail          *mail.Service
 	captcha       *captcha.Service
 	verification  *verification.Service
@@ -57,6 +59,7 @@ type Server struct {
 	session       *session.Manager
 	authLimiter   *requestLimiter
 	publicPaths   map[string]struct{}
+	stopShopExp   chan struct{}
 }
 
 func NewServer(cfg config.Config, db *gorm.DB) *Server {
@@ -119,6 +122,12 @@ func (s *Server) applyRuntimeConfig(cfg config.Config, db *gorm.DB) {
 	s.users = users.New(db)
 	s.notifications = notifications.New(db)
 	s.redeem = redeem.New(db)
+	if s.shop == nil {
+		s.shop = shop.New(db, adminService)
+	} else {
+		s.shop.SetDB(db)
+		s.shop.SetAdmin(adminService)
+	}
 	s.mail = mail.New(adminService)
 	s.captcha = captcha.New(adminService)
 	s.verification = verification.New()
@@ -136,6 +145,7 @@ func (s *Server) applyRuntimeConfig(cfg config.Config, db *gorm.DB) {
 	if s.installer != nil {
 		s.installer.SetRuntime(db, cfg)
 	}
+	s.ensureShopExpiryLoop()
 }
 
 func (s *Server) Run(ctx context.Context) error {
@@ -251,6 +261,30 @@ func (s *Server) ensureDemoUser(ctx context.Context) error {
 	return nil
 }
 
+func (s *Server) ensureShopExpiryLoop() {
+	if s.stopShopExp != nil {
+		return
+	}
+	s.stopShopExp = make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-s.stopShopExp:
+				return
+			case <-ticker.C:
+				if s.shop == nil {
+					continue
+				}
+				if _, err := s.shop.ExpireDueMemberships(context.Background(), 200); err != nil {
+					log.Printf("shop membership expiry: %v", err)
+				}
+			}
+		}
+	}()
+}
+
 func (s *Server) healthHandler(c *gin.Context) {
 	status, err := s.installer.Status(c.Request.Context())
 	if err != nil {
@@ -287,6 +321,7 @@ func (s *Server) registerRoutes() {
 	s.registerOAuthRoutes(apiGroup)
 	s.registerAccountRoutes(apiGroup)
 	s.registerAdminRoutes(apiGroup)
+	s.registerShopRoutes(apiGroup)
 	s.registerFileRoutes(apiGroup)
 	s.registerSiteRoutes(apiGroup)
 	s.registerLskyV1Routes(apiGroup)
@@ -347,6 +382,7 @@ func (s *Server) isKnownFrontendRoute(rawPath string) bool {
 		"/reset-password":  {},
 		"/terms":           {},
 		"/privacy":         {},
+		"/shop":            {},
 	}
 	if _, ok := exactRoutes[cleanPath]; ok {
 		return true

@@ -74,43 +74,73 @@ func dialectorFor(cfg config.Config) (gorm.Dialector, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
+		// Resolve under storage/ with Abs+Rel (CodeQL path-injection barrier).
+		absPath, err := resolveUnderStorage(dbPath)
+		if err != nil {
+			return nil, err
+		}
+		if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {
 			return nil, fmt.Errorf("create database dir: %w", err)
 		}
-		return sqlite.Open(dbPath), nil
+		return sqlite.Open(absPath), nil
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s", dbType)
 	}
 }
+
+const sqliteStorageRoot = "storage"
 
 // SanitizeSQLitePath normalizes a SQLite file path and restricts it under storage/.
 // Absolute paths and path traversal are rejected.
 func SanitizeSQLitePath(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return filepath.Join("storage", "data", "skyImage.db"), nil
-	}
-	if filepath.IsAbs(raw) {
-		return "", fmt.Errorf("sqlite path must be a relative path under storage/")
+		return filepath.Join(sqliteStorageRoot, "data", "skyImage.db"), nil
 	}
 	// Reject URI schemes and null bytes early.
 	if strings.Contains(raw, "\x00") || strings.Contains(raw, "://") {
 		return "", fmt.Errorf("invalid database path")
 	}
 	cleaned := filepath.Clean(raw)
-	sep := string(filepath.Separator)
-	if cleaned == ".." || strings.HasPrefix(cleaned, ".."+sep) {
-		return "", fmt.Errorf("invalid database path")
+	if filepath.IsAbs(cleaned) || !filepath.IsLocal(cleaned) {
+		return "", fmt.Errorf("sqlite path must be a relative path under storage/")
 	}
+	sep := string(filepath.Separator)
 	// Only allow under storage/
-	if cleaned != "storage" && !strings.HasPrefix(cleaned, "storage"+sep) {
+	if cleaned != sqliteStorageRoot && !strings.HasPrefix(cleaned, sqliteStorageRoot+sep) {
 		return "", fmt.Errorf("sqlite path must be under storage/")
 	}
 	// Require a file path, not the storage directory itself.
-	if cleaned == "storage" {
+	if cleaned == sqliteStorageRoot {
 		return "", fmt.Errorf("sqlite path must point to a file under storage/")
 	}
+	// Containment check with Abs/Rel (recognized path-injection barrier).
+	if _, err := resolveUnderStorage(cleaned); err != nil {
+		return "", err
+	}
 	return cleaned, nil
+}
+
+// resolveUnderStorage returns an absolute path only when cleaned is inside storage/.
+func resolveUnderStorage(cleaned string) (string, error) {
+	absRoot, err := filepath.Abs(sqliteStorageRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve storage root: %w", err)
+	}
+	absPath, err := filepath.Abs(cleaned)
+	if err != nil {
+		return "", fmt.Errorf("resolve database path: %w", err)
+	}
+	rel, err := filepath.Rel(absRoot, absPath)
+	if err != nil || !filepath.IsLocal(rel) {
+		return "", fmt.Errorf("sqlite path must be under storage/")
+	}
+	// Extra HasPrefix guard for CodeQL (docs recommended pattern).
+	rootPrefix := absRoot + string(filepath.Separator)
+	if absPath != absRoot && !strings.HasPrefix(absPath, rootPrefix) {
+		return "", fmt.Errorf("sqlite path must be under storage/")
+	}
+	return absPath, nil
 }
 
 // ValidateDatabaseConfig checks required fields for the selected database type.

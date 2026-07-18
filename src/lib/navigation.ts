@@ -9,9 +9,12 @@ import {
   Key,
   Layers3,
   LinkIcon,
+  Package,
+  Receipt,
   ServerCog,
   Settings2,
   ShieldAlert,
+  ShoppingBag,
   Ticket,
   Users,
   Users2,
@@ -54,6 +57,8 @@ export const buildNavSections = ({
       items: [
         { url: "/dashboard/upload", title: t("nav.upload"), icon: CloudUpload },
         { url: "/dashboard/images", title: t("nav.images"), icon: ImageIcon },
+        { url: "/dashboard/shop", title: t("nav.shop"), icon: ShoppingBag },
+        { url: "/dashboard/orders", title: t("nav.orders"), icon: Receipt },
         { url: "/dashboard/settings", title: t("nav.settings"), icon: Settings2 },
         { url: "/dashboard/notifications", title: t("nav.notifications"), icon: Bell }
       ]
@@ -61,6 +66,7 @@ export const buildNavSections = ({
     {
       title: t("nav.public"),
       items: [
+        { url: "/shop", title: t("nav.shop"), icon: ShoppingBag },
         ...(enableGallery
           ? [{ url: "/dashboard/gallery", title: t("nav.gallery"), icon: Brush }]
           : []),
@@ -84,6 +90,8 @@ export const buildNavSections = ({
         { url: "/dashboard/admin/audits", title: t("nav.audits"), icon: ShieldAlert },
         { url: "/dashboard/admin/groups", title: t("nav.groups"), icon: Users },
         { url: "/dashboard/admin/redeem-codes", title: t("nav.redeemCodes"), icon: Ticket },
+        { url: "/dashboard/admin/shop/products", title: t("nav.shopProducts"), icon: Package },
+        { url: "/dashboard/admin/shop/orders", title: t("nav.shopOrders"), icon: Receipt },
         { url: "/dashboard/admin/users", title: t("nav.users"), icon: Users2 },
         { url: "/dashboard/admin/strategies", title: t("nav.strategies"), icon: Layers3 },
         {
@@ -95,6 +103,7 @@ export const buildNavSections = ({
             { url: "/dashboard/admin/settings/system", title: t("nav.systemSettings") },
             { url: "/dashboard/admin/settings/captcha", title: t("nav.captchaSettings") },
             { url: "/dashboard/admin/settings/oauth", title: t("nav.oauthSettings") },
+            { url: "/dashboard/admin/settings/payment", title: t("nav.paymentSettings") },
             { url: "/dashboard/admin/settings/database", title: t("nav.databaseSettings") }
           ]
         }

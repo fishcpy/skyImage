@@ -1,4 +1,4 @@
-import { GaugeCircle, Home, Loader2 } from "lucide-react";
+import { GaugeCircle, Home, Loader2, ShoppingBag } from "lucide-react";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { PaletteToggle } from "@/components/PaletteToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -20,6 +20,7 @@ export function PublicTopNav({ title, description, compact = false, floating = f
   const token = useAuthStore((state) => state.token);
   const location = useLocation();
   const isHome = location.pathname === "/";
+  const isShop = location.pathname === "/shop" || location.pathname.startsWith("/shop/");
   const isDashboard = location.pathname.startsWith("/dashboard");
 
   return (
@@ -56,6 +57,20 @@ export function PublicTopNav({ title, description, compact = false, floating = f
               <Link to="/">
                 <Home className="h-4 w-4" />
                 <span className="hidden sm:inline">{t("nav.home")}</span>
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-8 gap-1.5 px-2 text-muted-foreground",
+                isShop && "bg-accent font-medium text-foreground"
+              )}
+            >
+              <Link to="/shop">
+                <ShoppingBag className="h-4 w-4" />
+                <span className="hidden sm:inline">{t("nav.shop")}</span>
               </Link>
             </Button>
             {token && (
