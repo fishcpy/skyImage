@@ -67,7 +67,7 @@ export function ShopPage() {
         productId: Number(productId),
         provider,
         epayType: provider === "epay" ? epayType : undefined,
-        returnUrl: `${window.location.origin}/dashboard/orders`
+        returnUrl: "/dashboard/orders"
       });
     },
     onSuccess: (data) => {
