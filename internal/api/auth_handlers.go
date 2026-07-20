@@ -392,6 +392,8 @@ func (s *Server) handleLogout(c *gin.Context) {
 }
 
 func (s *Server) writeSessionCookie(c *gin.Context, sessionID string) {
+	// Lax (not Strict): OAuth IdP redirects back with a top-level GET navigation.
+	// Strict would omit the session cookie on that callback and break account binding.
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     session.CookieName,
 		Value:    sessionID,
@@ -399,7 +401,7 @@ func (s *Server) writeSessionCookie(c *gin.Context, sessionID string) {
 		MaxAge:   int(s.session.TTL().Seconds()),
 		HttpOnly: true,
 		Secure:   isSecureRequest(c),
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 }
 
@@ -415,7 +417,8 @@ func (s *Server) writeCSRFCookie(c *gin.Context) {
 		MaxAge:   int(s.session.TTL().Seconds()),
 		HttpOnly: false,
 		Secure:   isSecureRequest(c),
-		SameSite: http.SameSiteStrictMode,
+		// Lax so CSRF cookie is still present after OAuth top-level return navigation.
+		SameSite: http.SameSiteLaxMode,
 	})
 }
 
@@ -427,7 +430,7 @@ func (s *Server) clearSessionCookie(c *gin.Context) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   isSecureRequest(c),
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     middleware.CSRFCookieName,
@@ -436,7 +439,7 @@ func (s *Server) clearSessionCookie(c *gin.Context) {
 		MaxAge:   -1,
 		HttpOnly: false,
 		Secure:   isSecureRequest(c),
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 }
 

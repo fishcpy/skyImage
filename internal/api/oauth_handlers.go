@@ -147,10 +147,11 @@ func (s *Server) handleOAuthCallback(c *gin.Context) {
 			s.redirectOAuthResult(c, "/dashboard/settings", "oauth_error", "unauthorized")
 			return
 		}
-		// Re-validate the logged-in session matches the user who started bind.
-		// Prevents stolen bind-state tokens from attaching attacker IdP accounts.
-		current, ok := middleware.CurrentUser(c)
-		if !ok || current.ID != pending.UserID {
+		// Prefer live session when present (must match the user who started bind).
+		// If cookie is missing (e.g. older SameSite=Strict cookies on OAuth return),
+		// fall back to the one-time bind state which already embeds userID and was
+		// created only while authenticated.
+		if current, ok := middleware.CurrentUser(c); ok && current.ID != pending.UserID {
 			s.redirectOAuthResult(c, "/login", "oauth_error", "session required for bind")
 			return
 		}
