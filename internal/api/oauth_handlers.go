@@ -261,10 +261,12 @@ func (s *Server) oauthPublicBase(c *gin.Context) string {
 	}
 	// Do not fall back to Host header (open redirect / host injection).
 	base = strings.TrimRight(base, "/")
-	if u, err := url.Parse(base); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+	u, err := url.Parse(base)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return ""
 	}
-	return base
+	// Return only the origin (scheme + host) to avoid path duplication in redirects.
+	return u.Scheme + "://" + u.Host
 }
 
 func (s *Server) oauthCallbackURL(c *gin.Context, provider string) string {
@@ -283,11 +285,12 @@ func (s *Server) redirectOAuthResult(c *gin.Context, path, key, value string) {
 		c.Redirect(http.StatusFound, path+"?"+url.Values{key: {value}}.Encode())
 		return
 	}
-	u, err := url.Parse(base + path)
+	u, err := url.Parse(base)
 	if err != nil {
 		c.Redirect(http.StatusFound, path+"?"+url.Values{key: {value}}.Encode())
 		return
 	}
+	u.Path = path
 	q := u.Query()
 	q.Set(key, value)
 	u.RawQuery = q.Encode()
