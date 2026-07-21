@@ -1,13 +1,9 @@
-import { useEffect } from "react";
-import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Fancybox } from "@fancyapps/ui";
-import "@fancyapps/ui/dist/fancybox/fancybox.css";
 
-import { fetchGalleryPublic, type FileRecord } from "@/lib/api";
+import { fetchGalleryPublic } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SplashScreen } from "@/components/SplashScreen";
-import { normalizeFileUrl } from "@/lib/file-url";
+import { ImageGrid } from "@/features/files/components/ImageGrid";
 import { useI18n } from "@/i18n";
 
 export function GalleryPage() {
@@ -18,15 +14,6 @@ export function GalleryPage() {
   });
 
   const files = data ?? [];
-
-  // 初始化 Fancybox
-  useEffect(() => {
-    Fancybox.bind("[data-fancybox='gallery']", {} as any);
-
-    return () => {
-      Fancybox.destroy();
-    };
-  }, [files]);
 
   if (isLoading) {
     return <SplashScreen message={t("gallery.loading")} />;
@@ -48,62 +35,7 @@ export function GalleryPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {files.map((file: FileRecord) => {
-            const imageUrl = normalizeFileUrl(file.viewUrl || file.directUrl);
-            const thumbUrl = normalizeFileUrl(file.thumbnailUrl || file.viewUrl || file.directUrl);
-            return (
-              <div
-                key={file.id}
-                className="group rounded-lg border bg-card transition hover:shadow-md"
-              >
-                <a
-                  href={imageUrl}
-                  data-fancybox="gallery"
-                  data-caption={file.originalName}
-                >
-                  <img
-                    src={thumbUrl}
-                    alt={file.originalName}
-                    className="h-48 w-full rounded-t-lg object-cover"
-                    loading="lazy"
-                  />
-                </a>
-                <div className="p-3">
-                  <a
-                    href={imageUrl}
-                    data-fancybox="gallery"
-                    data-caption={file.originalName}
-                    className="truncate text-sm font-medium group-hover:text-primary"
-                  >
-                    {file.originalName}
-                  </a>
-                  <p className="text-xs text-muted-foreground">
-                    {(file.size / 1024).toFixed(1)} KB
-                    {file.ownerName ? (
-                      <>
-                        {" · "}
-                        {file.ownerPublicProfile &&
-                        file.ownerId != null &&
-                        String(file.ownerId) !== "" &&
-                        String(file.ownerId) !== "0" ? (
-                          <Link
-                            to={`/u/${String(file.ownerId)}`}
-                            className="hover:text-primary hover:underline"
-                          >
-                            {file.ownerName}
-                          </Link>
-                        ) : (
-                          file.ownerName
-                        )}
-                      </>
-                    ) : null}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <ImageGrid files={files} isLoading={false} showOwner enableSelection={false} />
       )}
     </div>
   );

@@ -61,6 +61,8 @@ type FileDTO struct {
 	Size          int64         `json:"size"`
 	MimeType      string        `json:"mimeType"`
 	Extension     string        `json:"extension"`
+	ChecksumMD5   string        `json:"checksumMd5,omitempty"`
+	ChecksumSHA1  string        `json:"checksumSha1,omitempty"`
 	Visibility    string        `json:"visibility"`
 	Storage       string        `json:"storage"`
 	StrategyID    uint          `json:"strategyId"`
@@ -461,6 +463,8 @@ func (s *Service) ToDTO(ctx context.Context, file data.FileAsset) (FileDTO, erro
 		Size:               file.Size,
 		MimeType:           file.MimeType,
 		Extension:          file.Extension,
+		ChecksumMD5:        file.ChecksumMD5,
+		ChecksumSHA1:       file.ChecksumSHA1,
 		Visibility:         file.Visibility,
 		Storage:            file.StorageProvider,
 		CreatedAt:          file.CreatedAt,

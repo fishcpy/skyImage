@@ -24,6 +24,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from "@/components/ui/alert-dialog";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle
+} from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 
 type Props = {
@@ -49,6 +56,7 @@ type Props = {
   enableDeleteReason?: boolean;
   onAuditApprove?: (id: number) => void | Promise<void>;
   approvingAuditId?: number;
+  enableSelection?: boolean;
 };
 
 type MenuState = {
@@ -74,7 +82,8 @@ export function ImageGrid({
   onBatchDelete,
   enableDeleteReason = false,
   onAuditApprove,
-  approvingAuditId
+  approvingAuditId,
+  enableSelection = true
 }: Props) {
   const { t } = useI18n();
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -85,6 +94,9 @@ export function ImageGrid({
   const [pendingDeleteIds, setPendingDeleteIds] = useState<number[] | null>(null);
   const [pendingDeleteLabel, setPendingDeleteLabel] = useState("");
   const [pendingDeleteReason, setPendingDeleteReason] = useState("");
+  const [propertiesFile, setPropertiesFile] = useState<FileRecord | null>(null);
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
   const [baseVisibleRows, setBaseVisibleRows] = useState(0);
   const [extraVisibleRows, setExtraVisibleRows] = useState(0);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -98,6 +110,14 @@ export function ImageGrid({
 
   const items = files ?? [];
   const normalizedBatchRows = Math.max(1, Math.min(20, Math.trunc(loadRowsPerBatch || 4)));
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 640px)");
+    const update = () => setIsDesktop(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   // 初始化 Fancybox
   useEffect(() => {
@@ -394,6 +414,24 @@ export function ImageGrid({
     }
   }, [t]);
 
+  const formatFileSize = useCallback((bytes: number) => {
+    if (!Number.isFinite(bytes) || bytes < 0) return t("grid.prop.unknown");
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  }, [t]);
+
+  const resolveFormat = useCallback((file: FileRecord) => {
+    const ext = (file.extension || "").replace(/^\./, "").toUpperCase();
+    if (ext) return ext;
+    const mime = (file.mimeType || "").split("/")[1];
+    if (mime) return mime.toUpperCase();
+    const fromName = file.originalName?.split(".").pop();
+    if (fromName && fromName !== file.originalName) return fromName.toUpperCase();
+    return t("grid.prop.unknown");
+  }, [t]);
+
   const executeDelete = useCallback(
     async (ids: number[], reason?: string) => {
       if (batchBusy) return;
@@ -478,6 +516,14 @@ export function ImageGrid({
         enabled: !isMulti
       },
       {
+        label: t("grid.properties"),
+        action: () => {
+          setPropertiesFile(file);
+          setPropertiesOpen(true);
+        },
+        enabled: !isMulti
+      },
+      {
         label: `${visibilityLabel}${selectionLabelSuffix}`,
         action: async () => {
           if (batchBusy) return;
@@ -549,9 +595,10 @@ export function ImageGrid({
     return <p className="text-sm text-muted-foreground">{t("grid.empty")}</p>;
   }
 
-  const hasSelection = selectedIds.size > 0;
+  const hasSelection = enableSelection && selectedIds.size > 0;
 
   const toggleSelection = (id: number) => {
+    if (!enableSelection) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -608,7 +655,7 @@ export function ImageGrid({
 
   return (
     <div className="relative">
-      {hasSelection && (
+      {enableSelection && hasSelection && (
         <div className="sticky top-0 z-10 mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-background/90 px-3 py-2 text-sm shadow-sm backdrop-blur">
           <span className="text-muted-foreground">
             {t("grid.selectedCount", { count: selectedIds.size })}
@@ -629,55 +676,61 @@ export function ImageGrid({
             {t("grid.clear")}
           </button>
             <div className="ml-auto flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted"
-              onClick={async () => {
-                if (!onBatchVisibilityChange || batchBusy) return;
-                setBatchBusy(true);
-                try {
-                  await onBatchVisibilityChange(
-                    Array.from(selectedIds),
-                    "public"
-                  );
-                } finally {
-                  setBatchBusy(false);
-                }
-              }}
-            >
-              {t("grid.batchPublic")}
-            </button>
-            <button
-              type="button"
-              className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted"
-              onClick={async () => {
-                if (!onBatchVisibilityChange || batchBusy) return;
-                setBatchBusy(true);
-                try {
-                  await onBatchVisibilityChange(
-                    Array.from(selectedIds),
-                    "private"
-                  );
-                } finally {
-                  setBatchBusy(false);
-                }
-              }}
-            >
-              {t("grid.batchPrivate")}
-            </button>
-            <button
-              type="button"
-              className="rounded-md border px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10"
-              onClick={() => {
-                const ids = Array.from(selectedIds);
-                if (!ids.length) return;
-                setPendingDeleteIds(ids);
-                setPendingDeleteLabel(t("grid.selectedItems", { count: ids.length }));
-                setPendingDeleteReason("");
-              }}
-            >
-              {t("grid.batchDelete")}
-            </button>
+            {onBatchVisibilityChange ? (
+              <>
+                <button
+                  type="button"
+                  className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted"
+                  onClick={async () => {
+                    if (batchBusy) return;
+                    setBatchBusy(true);
+                    try {
+                      await onBatchVisibilityChange(
+                        Array.from(selectedIds),
+                        "public"
+                      );
+                    } finally {
+                      setBatchBusy(false);
+                    }
+                  }}
+                >
+                  {t("grid.batchPublic")}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted"
+                  onClick={async () => {
+                    if (batchBusy) return;
+                    setBatchBusy(true);
+                    try {
+                      await onBatchVisibilityChange(
+                        Array.from(selectedIds),
+                        "private"
+                      );
+                    } finally {
+                      setBatchBusy(false);
+                    }
+                  }}
+                >
+                  {t("grid.batchPrivate")}
+                </button>
+              </>
+            ) : null}
+            {onBatchDelete || onDelete ? (
+              <button
+                type="button"
+                className="rounded-md border px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10"
+                onClick={() => {
+                  const ids = Array.from(selectedIds);
+                  if (!ids.length) return;
+                  setPendingDeleteIds(ids);
+                  setPendingDeleteLabel(t("grid.selectedItems", { count: ids.length }));
+                  setPendingDeleteReason("");
+                }}
+              >
+                {t("grid.batchDelete")}
+              </button>
+            ) : null}
           </div>
         </div>
       )}
@@ -705,6 +758,7 @@ export function ImageGrid({
                       flexShrink: 0
                     }}
                     onClick={(event) => {
+                if (!enableSelection) return;
                 if (event.metaKey || event.ctrlKey || event.shiftKey || hasSelection) {
                   toggleSelection(item.id);
                   return;
@@ -712,8 +766,8 @@ export function ImageGrid({
               }}
               onContextMenu={(event) => {
                 event.preventDefault();
-                const isItemSelected = selectedIds.has(item.id);
-                const hasOtherSelections = selectedIds.size > 0;
+                const isItemSelected = enableSelection && selectedIds.has(item.id);
+                const hasOtherSelections = enableSelection && selectedIds.size > 0;
 
                 if (isItemSelected && hasOtherSelections) {
                   setMenu({ file: item, x: event.clientX, y: event.clientY, scope: "selection" });
@@ -765,20 +819,22 @@ export function ImageGrid({
               >
                 <span className="sr-only">{t("grid.viewImage")}</span>
               </a>
-              <span
-                className={[
-                  "absolute left-3 top-3 z-10 inline-flex h-5 w-5 items-center justify-center rounded border text-[11px] pointer-events-auto",
-                  isSelected
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-white/50 bg-black/30 text-white/80"
-                ].join(" ")}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  toggleSelection(item.id);
-                }}
-              >
-                {isSelected ? "✓" : ""}
-              </span>
+              {enableSelection ? (
+                <span
+                  className={[
+                    "absolute left-3 top-3 z-10 inline-flex h-5 w-5 items-center justify-center rounded border text-[11px] pointer-events-auto",
+                    isSelected
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-white/50 bg-black/30 text-white/80"
+                  ].join(" ")}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleSelection(item.id);
+                  }}
+                >
+                  {isSelected ? "✓" : ""}
+                </span>
+              ) : null}
               <button
                 type="button"
                 className="absolute right-3 top-3 z-10 rounded-md border border-white/40 bg-black/35 px-2 py-0.5 text-xs text-white/80 backdrop-blur transition hover:bg-black/50 pointer-events-auto"
@@ -865,6 +921,101 @@ export function ImageGrid({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Drawer
+        open={propertiesOpen}
+        onOpenChange={setPropertiesOpen}
+        direction={isDesktop ? "right" : "bottom"}
+      >
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>{t("grid.propertiesTitle")}</DrawerTitle>
+            <DrawerDescription className="truncate">
+              {propertiesFile?.originalName ?? ""}
+            </DrawerDescription>
+          </DrawerHeader>
+          {propertiesFile ? (
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-6 text-sm">
+              {(
+                [
+                  { label: t("grid.prop.name"), value: propertiesFile.originalName },
+                  {
+                    label: t("grid.prop.uploadedAt"),
+                    value: propertiesFile.createdAt
+                      ? new Date(propertiesFile.createdAt).toLocaleString()
+                      : t("grid.prop.unknown")
+                  },
+                  { label: t("grid.prop.format"), value: resolveFormat(propertiesFile) },
+                  {
+                    label: t("grid.prop.mimeType"),
+                    value: propertiesFile.mimeType || t("grid.prop.unknown")
+                  },
+                  {
+                    label: t("grid.prop.size"),
+                    value: formatFileSize(propertiesFile.size)
+                  },
+                  {
+                    label: t("grid.prop.dimensions"),
+                    value:
+                      propertiesFile.width && propertiesFile.height
+                        ? `${propertiesFile.width} × ${propertiesFile.height}`
+                        : t("grid.prop.unknown")
+                  },
+                  {
+                    label: t("grid.prop.md5"),
+                    value: propertiesFile.checksumMd5 || t("grid.prop.unknown"),
+                    copyable: Boolean(propertiesFile.checksumMd5)
+                  },
+                  {
+                    label: t("grid.prop.sha1"),
+                    value: propertiesFile.checksumSha1 || t("grid.prop.unknown"),
+                    copyable: Boolean(propertiesFile.checksumSha1)
+                  },
+                  {
+                    label: t("grid.prop.key"),
+                    value: propertiesFile.key || t("grid.prop.unknown"),
+                    copyable: Boolean(propertiesFile.key)
+                  },
+                  {
+                    label: t("grid.prop.visibility"),
+                    value:
+                      propertiesFile.visibility === "public"
+                        ? t("grid.public")
+                        : t("grid.private")
+                  },
+                  {
+                    label: t("grid.prop.strategy"),
+                    value: propertiesFile.strategyName || t("grid.prop.unknown")
+                  },
+                  {
+                    label: t("grid.prop.storage"),
+                    value: propertiesFile.storageDriver || t("grid.prop.unknown")
+                  }
+                ] as Array<{ label: string; value: string; copyable?: boolean }>
+              ).map((row) => (
+                <div
+                  key={row.label}
+                  className="grid grid-cols-[7.5rem_1fr_auto] items-start gap-2 border-b border-border/60 py-2 last:border-0"
+                >
+                  <span className="text-muted-foreground">{row.label}</span>
+                  <span className="break-all font-mono text-xs sm:text-sm">{row.value}</span>
+                  {row.copyable ? (
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-md border px-2 py-0.5 text-xs hover:bg-muted"
+                      onClick={() => void handleCopy(row.value, t("grid.prop.copied"))}
+                    >
+                      {t("grid.prop.copy")}
+                    </button>
+                  ) : (
+                    <span />
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

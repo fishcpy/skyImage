@@ -467,6 +467,10 @@ export type FileRecord = {
   key: string;
   originalName: string;
   size: number;
+  mimeType?: string;
+  extension?: string;
+  checksumMd5?: string;
+  checksumSha1?: string;
   viewUrl: string;
   directUrl: string;
   thumbnailUrl?: string;
