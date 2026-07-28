@@ -4,7 +4,7 @@ SkyImage 是一个现代化的图床系统，采用前后端分离架构。
 
 # 演示站
 
-🔗 演示地址：https://skyimage.demo.nxtcorex.top
+🔗 演示地址：https://skyimage.demo.123123223.xyz
 
 | 角色 | 邮箱 | 密码 |
 | --- | --- | --- |
