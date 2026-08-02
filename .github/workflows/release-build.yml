@@ -27,6 +27,7 @@ permissions:
 
 env:
   DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME || github.repository_owner }}/skyimage
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
   # ===== 前端构建 =====
@@ -86,11 +87,20 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.DOCKER_IMAGE }}
+          images: |
+            ${{ env.DOCKER_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
 
       - name: Build and push by digest
         id: build
@@ -101,7 +111,9 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=release-${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=release-${{ matrix.platform }}
-          outputs: type=image,name=${{ env.DOCKER_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          outputs: |
+            type=image,name=${{ env.DOCKER_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+            type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digest
         run: |
@@ -145,36 +157,40 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Determine tags
         id: tags
         run: |
+          TAGS=""
+          IS_RELEASE="false"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.is_release }}" = "true" ]; then
             VERSION="${{ inputs.version }}"
-            TAGS="${{ env.DOCKER_IMAGE }}:${VERSION}"
-            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:latest"
+            TAGS="${{ env.DOCKER_IMAGE }}:${VERSION},${{ env.DOCKER_IMAGE }}:latest"
             MAJOR=$(echo $VERSION | cut -d. -f1)
             MINOR=$(echo $VERSION | cut -d. -f1-2)
-            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:${MAJOR}"
-            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:${MINOR}"
-            echo "tags=${TAGS}" >> $GITHUB_OUTPUT
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
-            echo "is_release=true" >> $GITHUB_OUTPUT
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:${MAJOR},${{ env.DOCKER_IMAGE }}:${MINOR}"
+            IS_RELEASE="true"
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ inputs.version }}"
             TAGS="${{ env.DOCKER_IMAGE }}:${VERSION}-preview"
-            echo "tags=${TAGS}" >> $GITHUB_OUTPUT
-            echo "version=${VERSION}-preview" >> $GITHUB_OUTPUT
-            echo "is_release=false" >> $GITHUB_OUTPUT
           else
             VERSION="${GITHUB_REF#refs/tags/v}"
-            TAGS="${{ env.DOCKER_IMAGE }}:${VERSION}"
-            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:latest"
-            echo "tags=${TAGS}" >> $GITHUB_OUTPUT
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
-            echo "is_release=true" >> $GITHUB_OUTPUT
+            TAGS="${{ env.DOCKER_IMAGE }}:${VERSION},${{ env.DOCKER_IMAGE }}:latest"
+            IS_RELEASE="true"
           fi
+          GHCR_TAGS=$(echo "$TAGS" | sed "s|${{ env.DOCKER_IMAGE }}|${{ env.GHCR_IMAGE }}|g")
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+          echo "ghcr_tags=${GHCR_TAGS}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "is_release=${IS_RELEASE}" >> $GITHUB_OUTPUT
 
-      - name: Create manifest list and push
+      - name: Create Docker Hub manifest list and push
         working-directory: /tmp/digests
         run: |
           TAGS_ARRAY=($(echo "${{ steps.tags.outputs.tags }}" | tr ',' ' '))
@@ -184,6 +200,17 @@ jobs:
           done
           docker buildx imagetools create $TAG_ARGS \
             $(printf '${{ env.DOCKER_IMAGE }}@sha256:%s ' *)
+
+      - name: Create GHCR manifest and push
+        working-directory: /tmp/digests
+        run: |
+          TAGS_ARRAY=($(echo "${{ steps.tags.outputs.ghcr_tags }}" | tr ',' ' '))
+          TAG_ARGS=""
+          for tag in "${TAGS_ARRAY[@]}"; do
+            TAG_ARGS="$TAG_ARGS -t $tag"
+          done
+          docker buildx imagetools create $TAG_ARGS \
+            $(printf '${{ env.GHCR_IMAGE }}@sha256:%s ' *)
 
       - name: Inspect image
         run: |
@@ -323,6 +350,8 @@ jobs:
           echo '```' >> release_notes.md
           echo "${{ env.DOCKER_IMAGE }}:${{ steps.version.outputs.version }}" >> release_notes.md
           echo "${{ env.DOCKER_IMAGE }}:latest" >> release_notes.md
+          echo "${{ env.GHCR_IMAGE }}:${{ steps.version.outputs.version }}" >> release_notes.md
+          echo "${{ env.GHCR_IMAGE }}:latest" >> release_notes.md
           echo '```' >> release_notes.md
           echo "" >> release_notes.md
 
@@ -359,4 +388,5 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 产物" >> $GITHUB_STEP_SUMMARY
           echo "- Docker 镜像: \`${{ env.DOCKER_IMAGE }}:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- GHCR 镜像: \`${{ env.GHCR_IMAGE }}:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- 二进制文件: 5 个平台" >> $GITHUB_STEP_SUMMARY

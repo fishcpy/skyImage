@@ -41,6 +41,9 @@ on:
         type: boolean
         default: true
 
+env:
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}
+
 jobs:
   build-and-push:
     permissions:
@@ -98,11 +101,20 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.DOCKER_IMAGE }}
+          images: |
+            ${{ env.DOCKER_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
           tags: |
             type=raw,value=demo-${{ steps.version.outputs.version_tag }}
             type=raw,value=demo-latest
@@ -158,7 +170,9 @@ jobs:
             SKIP_INSTALL=${{ inputs.skip_install || 'true' }}
           cache-from: type=gha,scope=demo-build-${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=demo-build-${{ matrix.platform }}
-          outputs: type=image,name=${{ env.DOCKER_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          outputs: |
+            type=image,name=${{ env.DOCKER_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+            type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digest
         run: |
@@ -231,21 +245,32 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Determine tags
         id: tags
         run: |
           VERSION_TAG="${{ steps.version.outputs.version_tag }}"
           VERSION="${{ steps.version.outputs.version }}"
           DOCKER_IMAGE="${{ env.DOCKER_IMAGE }}"
+          GHCR_IMAGE="${{ env.GHCR_IMAGE }}"
           
           # 生成标签：只保留必要的标签
           # demo-{version}-{hash}: 完整版本标识
           # demo-latest: 最新版本
           TAG1="${DOCKER_IMAGE}:demo-${VERSION_TAG}"
           TAG2="${DOCKER_IMAGE}:demo-latest"
+          G1="${GHCR_IMAGE}:demo-${VERSION_TAG}"
+          G2="${GHCR_IMAGE}:demo-latest"
           
           # 输出标签，确保在一行中（使用 printf 避免 echo 的自动换行）
           printf "tags=%s,%s\n" "$TAG1" "$TAG2" >> $GITHUB_OUTPUT
+          printf "ghcr_tags=%s,%s\n" "$G1" "$G2" >> $GITHUB_OUTPUT
           printf "version=%s\n" "$VERSION" >> $GITHUB_OUTPUT
           printf "version_tag=%s\n" "$VERSION_TAG" >> $GITHUB_OUTPUT
           printf "tag_name=demo-%s\n" "$VERSION_TAG" >> $GITHUB_OUTPUT
@@ -280,9 +305,25 @@ jobs:
           docker buildx imagetools create $TAG_ARGS \
             $(printf '${{ env.DOCKER_IMAGE }}@sha256:%s ' *)
 
-      - name: Inspect image
+      - name: Create GHCR manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          RAW_TAGS="${{ steps.tags.outputs.ghcr_tags }}"
+          CLEAN_TAGS=$(echo "$RAW_TAGS" | tr -d '\n\r')
+          TAGS_ARRAY=($(echo "$CLEAN_TAGS" | tr ',' ' '))
+          TAG_ARGS=""
+          for tag in "${TAGS_ARRAY[@]}"; do
+            if [ -n "$tag" ]; then
+              TAG_ARGS="$TAG_ARGS -t $tag"
+            fi
+          done
+          docker buildx imagetools create $TAG_ARGS \
+            $(printf '${{ env.GHCR_IMAGE }}@sha256:%s ' *)
+
+      - name: Inspect images
         run: |
           docker buildx imagetools inspect ${{ env.DOCKER_IMAGE }}:${{ steps.tags.outputs.tag_name }}
+          docker buildx imagetools inspect ${{ env.GHCR_IMAGE }}:${{ steps.tags.outputs.tag_name }}
 
       - name: Build summary
         run: |

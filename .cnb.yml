@@ -1,0 +1,61 @@
+# SkyImage - CNB 流水线
+# 在 main 推送时构建镜像并推送到 CNB Docker 制品仓库
+
+main:
+  push:
+    - name: 构建并推送 SkyImage 预览镜像
+      services:
+        - docker
+      stages:
+        - name: 设置 tag
+          script: "echo -n '${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:preview,$(git rev-parse --short=7 HEAD | sed 's/^/preview-/' )'"
+          exports:
+            info: IMAGE_TAGS
+        - name: 构建镜像
+          script: |
+            for tag in $(echo "$IMAGE_TAGS" | tr ',' ' '); do
+              docker build -t "$tag" .
+            done
+        - name: 推送镜像
+          script: |
+            for tag in $(echo "$IMAGE_TAGS" | tr ',' ' '); do
+              docker push "$tag"
+            done
+
+master:
+  push:
+    - name: 构建并推送 SkyImage 预览镜像
+      services:
+        - docker
+      stages:
+        - name: 设置 tag
+          script: "echo -n '${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:preview'"
+          exports:
+            info: IMAGE_TAG
+        - name: 构建镜像
+          script: docker build -t "$IMAGE_TAG" .
+        - name: 推送镜像
+          script: docker push "$IMAGE_TAG"
+
+# 发布版本标签 (v*) 时构建并推送带版本号的镜像
+$:
+  push:
+    - name: 构建并推送 SkyImage 版本镜像
+      if: echo "$CNB_BRANCH" | grep -q '^v[0-9]'
+      services:
+        - docker
+      stages:
+        - name: 设置 tag
+          script: "echo -n '${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:${CNB_BRANCH#v},${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:latest'"
+          exports:
+            info: IMAGE_TAGS
+        - name: 构建镜像
+          script: |
+            for tag in $(echo "$IMAGE_TAGS" | tr ',' ' '); do
+              docker build -t "$tag" .
+            done
+        - name: 推送镜像
+          script: |
+            for tag in $(echo "$IMAGE_TAGS" | tr ',' ' '); do
+              docker push "$tag"
+            done
