@@ -8,7 +8,7 @@ main:
         - docker
       stages:
         - name: 设置 tag
-          script: "echo -n \"${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:preview,$(git rev-parse --short=7 HEAD | sed 's/^/preview-/')\""
+          script: "echo -n \"${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:preview,${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:$(git rev-parse --short=7 HEAD | sed 's/^/preview-/')\""
           exports:
             info: IMAGE_TAGS
         - name: 构建镜像
