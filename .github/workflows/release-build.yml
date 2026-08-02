@@ -78,6 +78,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      - name: Set GHCR image name (lowercase)
+        run: echo "GHCR_IMAGE=${GHCR_IMAGE,,}" >> $GITHUB_ENV
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -140,6 +143,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+
+      - name: Set GHCR image name (lowercase)
+        run: echo "GHCR_IMAGE=${GHCR_IMAGE,,}" >> $GITHUB_ENV
 
       - name: Download digests
         uses: actions/download-artifact@v7
@@ -313,6 +319,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+
+      - name: Set GHCR image name (lowercase)
+        run: echo "GHCR_IMAGE=${GHCR_IMAGE,,}" >> $GITHUB_ENV
 
       - name: Download all binary artifacts
         uses: actions/download-artifact@v7

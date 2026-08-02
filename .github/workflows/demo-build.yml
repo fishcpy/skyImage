@@ -41,9 +41,6 @@ on:
         type: boolean
         default: true
 
-env:
-  GHCR_IMAGE: ghcr.io/${{ github.repository }}
-
 jobs:
   build-and-push:
     permissions:
@@ -70,8 +67,12 @@ jobs:
           else
             DOCKER_IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/skyimage-demo"
           fi
+          # GHCR 要求仓库名全小写，github.repository 保留原始大小写，需转为小写
+          GHCR_IMAGE="ghcr.io/${{ github.repository }}"
+          GHCR_IMAGE="${GHCR_IMAGE,,}"
           echo "docker_image=${DOCKER_IMAGE}" >> $GITHUB_OUTPUT
           echo "DOCKER_IMAGE=${DOCKER_IMAGE}" >> $GITHUB_ENV
+          echo "GHCR_IMAGE=${GHCR_IMAGE}" >> $GITHUB_ENV
 
       - name: Get version and commit hash
         id: version
@@ -207,8 +208,12 @@ jobs:
           else
             DOCKER_IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/skyimage-demo"
           fi
+          # GHCR 要求仓库名全小写，github.repository 保留原始大小写，需转为小写
+          GHCR_IMAGE="ghcr.io/${{ github.repository }}"
+          GHCR_IMAGE="${GHCR_IMAGE,,}"
           echo "docker_image=${DOCKER_IMAGE}" >> $GITHUB_OUTPUT
           echo "DOCKER_IMAGE=${DOCKER_IMAGE}" >> $GITHUB_ENV
+          echo "GHCR_IMAGE=${GHCR_IMAGE}" >> $GITHUB_ENV
 
       - name: Get version and commit hash
         id: version
