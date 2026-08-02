@@ -3,6 +3,7 @@ export const themePalettes = [
     value: "skyimage",
     labelKey: "theme.palette.skyimage",
     descriptionKey: "theme.palette.skyimage.description",
+    // Official shadcn/ui neutral base
     swatches: ["0 0% 9%", "0 0% 96.1%", "0 0% 45.1%"]
   },
   {
