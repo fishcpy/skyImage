@@ -107,7 +107,19 @@ jobs:
             ${{ env.DOCKER_IMAGE }}
             ${{ env.GHCR_IMAGE }}
 
-      - name: Build and push by digest
+      - name: Compute version and platform suffix
+        id: buildinfo
+        run: |
+          PLATFORM="${{ matrix.platform }}"
+          echo "platform_suffix=${PLATFORM//\//-}" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Build and push
         id: build
         uses: docker/build-push-action@v7
         with:
@@ -117,20 +129,20 @@ jobs:
           cache-from: type=gha,scope=release-${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=release-${{ matrix.platform }}
           outputs: |
-            type=image,name=${{ env.DOCKER_IMAGE }},push-by-digest=true,name-canonical=true,push=true
-            type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+            type=image,name=${{ env.DOCKER_IMAGE }}:${{ steps.buildinfo.outputs.version }}-${{ steps.buildinfo.outputs.platform_suffix }},push=true
+            type=image,name=${{ env.GHCR_IMAGE }}:${{ steps.buildinfo.outputs.version }}-${{ steps.buildinfo.outputs.platform_suffix }},push=true
 
-      - name: Export digest
+      - name: Export tags
         run: |
-          mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
+          mkdir -p /tmp/tags/docker /tmp/tags/ghcr
+          echo "${{ env.DOCKER_IMAGE }}:${{ steps.buildinfo.outputs.version }}-${{ steps.buildinfo.outputs.platform_suffix }}" > /tmp/tags/docker/${{ steps.buildinfo.outputs.platform_suffix }}
+          echo "${{ env.GHCR_IMAGE }}:${{ steps.buildinfo.outputs.version }}-${{ steps.buildinfo.outputs.platform_suffix }}" > /tmp/tags/ghcr/${{ steps.buildinfo.outputs.platform_suffix }}
 
-      - name: Upload digest
+      - name: Upload tags
         uses: actions/upload-artifact@v6
         with:
-          name: docker-digests-${{ strategy.job-index }}
-          path: /tmp/digests/*
+          name: docker-tags-${{ strategy.job-index }}
+          path: /tmp/tags/*
           if-no-files-found: error
           retention-days: 1
 
@@ -149,11 +161,11 @@ jobs:
       - name: Set GHCR image name (lowercase)
         run: echo "GHCR_IMAGE=${GHCR_IMAGE,,}" >> $GITHUB_ENV
 
-      - name: Download digests
+      - name: Download tags
         uses: actions/download-artifact@v7
         with:
-          path: /tmp/digests
-          pattern: docker-digests-*
+          path: /tmp/tags
+          pattern: docker-tags-*
           merge-multiple: true
 
       - name: Set up Docker Buildx
@@ -201,26 +213,24 @@ jobs:
           echo "is_release=${IS_RELEASE}" >> $GITHUB_OUTPUT
 
       - name: Create Docker Hub manifest list and push
-        working-directory: /tmp/digests
+        working-directory: /tmp/tags/docker
         run: |
           TAGS_ARRAY=($(echo "${{ steps.tags.outputs.tags }}" | tr ',' ' '))
           TAG_ARGS=""
           for tag in "${TAGS_ARRAY[@]}"; do
             TAG_ARGS="$TAG_ARGS -t $tag"
           done
-          docker buildx imagetools create $TAG_ARGS \
-            $(printf '${{ env.DOCKER_IMAGE }}@sha256:%s ' *)
+          docker buildx imagetools create $TAG_ARGS $(cat *)
 
       - name: Create GHCR manifest and push
-        working-directory: /tmp/digests
+        working-directory: /tmp/tags/ghcr
         run: |
           TAGS_ARRAY=($(echo "${{ steps.tags.outputs.ghcr_tags }}" | tr ',' ' '))
           TAG_ARGS=""
           for tag in "${TAGS_ARRAY[@]}"; do
             TAG_ARGS="$TAG_ARGS -t $tag"
           done
-          docker buildx imagetools create $TAG_ARGS \
-            $(printf '${{ env.GHCR_IMAGE }}@sha256:%s ' *)
+          docker buildx imagetools create $TAG_ARGS $(cat *)
 
       - name: Inspect image
         run: |

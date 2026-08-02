@@ -63,7 +63,15 @@ jobs:
             ${{ env.DOCKER_IMAGE }}
             ${{ env.GHCR_IMAGE }}
 
-      - name: Build and push by digest
+      - name: Compute platform suffix and commit sha
+        id: platform
+        run: |
+          PLATFORM="${{ matrix.platform }}"
+          echo "suffix=${PLATFORM//\//-}" >> $GITHUB_OUTPUT
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Build and push
         id: build
         uses: docker/build-push-action@v7
         with:
@@ -73,22 +81,22 @@ jobs:
           cache-from: type=gha,scope=build-${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=build-${{ matrix.platform }}
           outputs: |
-            type=image,name=${{ env.DOCKER_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ github.event_name != 'pull_request' }}
-            type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ github.event_name != 'pull_request' }}
+            type=image,name=${{ env.DOCKER_IMAGE }}:preview-${{ steps.platform.outputs.short_sha }}-${{ steps.platform.outputs.suffix }},push=${{ github.event_name != 'pull_request' }}
+            type=image,name=${{ env.GHCR_IMAGE }}:preview-${{ steps.platform.outputs.short_sha }}-${{ steps.platform.outputs.suffix }},push=${{ github.event_name != 'pull_request' }}
 
-      - name: Export digest
+      - name: Export tags
         if: github.event_name != 'pull_request'
         run: |
-          mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
+          mkdir -p /tmp/tags/docker /tmp/tags/ghcr
+          echo "${{ env.DOCKER_IMAGE }}:preview-${{ steps.platform.outputs.short_sha }}-${{ steps.platform.outputs.suffix }}" > /tmp/tags/docker/${{ steps.platform.outputs.suffix }}
+          echo "${{ env.GHCR_IMAGE }}:preview-${{ steps.platform.outputs.short_sha }}-${{ steps.platform.outputs.suffix }}" > /tmp/tags/ghcr/${{ steps.platform.outputs.suffix }}
 
-      - name: Upload digest
+      - name: Upload tags
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v6
         with:
-          name: digests-${{ strategy.job-index }}
-          path: /tmp/digests/*
+          name: tags-${{ strategy.job-index }}
+          path: /tmp/tags/*
           if-no-files-found: error
           retention-days: 1
 
@@ -104,11 +112,11 @@ jobs:
       - name: Set GHCR image name (lowercase)
         run: echo "GHCR_IMAGE=${GHCR_IMAGE,,}" >> $GITHUB_ENV
 
-      - name: Download digests
+      - name: Download tags
         uses: actions/download-artifact@v7
         with:
-          path: /tmp/digests
-          pattern: digests-*
+          path: /tmp/tags
+          pattern: tags-*
           merge-multiple: true
 
       - name: Set up Docker Buildx
@@ -144,26 +152,24 @@ jobs:
           echo "version=preview-${SHORT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Create Docker Hub manifest list and push
-        working-directory: /tmp/digests
+        working-directory: /tmp/tags/docker
         run: |
           TAGS_ARRAY=($(echo "${{ steps.tags.outputs.tags }}" | tr ',' ' '))
           TAG_ARGS=""
           for tag in "${TAGS_ARRAY[@]}"; do
             TAG_ARGS="$TAG_ARGS -t $tag"
           done
-          docker buildx imagetools create $TAG_ARGS \
-            $(printf '${{ env.DOCKER_IMAGE }}@sha256:%s ' *)
+          docker buildx imagetools create $TAG_ARGS $(cat *)
 
       - name: Create GHCR manifest list and push
-        working-directory: /tmp/digests
+        working-directory: /tmp/tags/ghcr
         run: |
           TAGS_ARRAY=($(echo "${{ steps.tags.outputs.ghcr_tags }}" | tr ',' ' '))
           TAG_ARGS=""
           for tag in "${TAGS_ARRAY[@]}"; do
             TAG_ARGS="$TAG_ARGS -t $tag"
           done
-          docker buildx imagetools create $TAG_ARGS \
-            $(printf '${{ env.GHCR_IMAGE }}@sha256:%s ' *)
+          docker buildx imagetools create $TAG_ARGS $(cat *)
 
       - name: Inspect images
         run: |
