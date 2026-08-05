@@ -366,9 +366,6 @@ jobs:
         env:
           CHANGELOG: ${{ needs.changelog.outputs.body }}
         run: |
-          echo "## SkyImage ${{ steps.version.outputs.tag }}" > release_notes.md
-          echo "" >> release_notes.md
-
           if [ -n "$CHANGELOG" ]; then
             echo "### 更新日志" >> release_notes.md
             echo "" >> release_notes.md
