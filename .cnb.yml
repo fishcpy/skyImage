@@ -40,13 +40,13 @@ master:
 # 发布版本标签 (v*) 时构建并推送带版本号的镜像，并自动发布 CNB Release
 $:
   tag_push:
-    - name: 构建并推送 SkyImage 版本镜像
+    - name: 构建并发布 SkyImage 版本
       if: echo "$CNB_BRANCH" | grep -q '^v[0-9]'
       services:
         - docker
       stages:
         - name: 设置 tag
-          script: "echo -n '${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:${CNB_BRANCH#v},${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:latest'"
+          script: "echo -n \"${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:$(echo ${CNB_BRANCH} | sed 's/^v//'),${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:latest\""
           exports:
             info: IMAGE_TAGS
         - name: 构建镜像
@@ -59,9 +59,6 @@ $:
             for tag in $(echo "$IMAGE_TAGS" | tr ',' ' '); do
               docker push "$tag"
             done
-    - name: 发布 CNB Release
-      if: echo "$CNB_BRANCH" | grep -q '^v[0-9]'
-      stages:
         - name: 生成更新日志
           script: |
             awk '/^## \[[0-9]/{if(f) exit} f{print} /^## \[[0-9]/{f=1}' CHANGELOG.md > LATEST_CHANGELOG.md
