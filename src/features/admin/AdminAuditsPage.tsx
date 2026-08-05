@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { deleteAuditProfile, fetchAuditProfiles, type AuditProfileRecord } from "@/lib/api";
 import { useI18n } from "@/i18n";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 export function AdminAuditsPage() {
   const { t } = useI18n();
@@ -51,7 +52,7 @@ export function AdminAuditsPage() {
           <CardTitle>{t("admin.audits.list")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {isLoading && <p className="text-sm text-muted-foreground">{t("common.loading")}</p>}
+          {isLoading && <ListSkeleton />}
           {!isLoading && !audits?.length && (
             <p className="text-sm text-muted-foreground">{t("admin.audits.empty")}</p>
           )}

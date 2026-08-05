@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchUserTrends } from "@/lib/api";
 import { UserTrendChart } from "./components/UserTrendChart";
 import { useI18n } from "@/i18n";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function DashboardPage() {
   const { t } = useI18n();
@@ -33,6 +34,24 @@ export function DashboardPage() {
   };
 
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;
+
+  if (!user) {
+    return (
+      <div className="space-y-6">
+        <div className="space-y-3">
+          <Skeleton className="h-8 w-48 max-w-full" />
+          <Skeleton className="h-4 w-72 max-w-full" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-4">
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
+        </div>
+        <Skeleton className="h-56 w-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { fetchHasUsers, fetchProfile, fetchSiteConfig } from "@/lib/api";
@@ -8,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { LoginForm } from "@/components/login-form";
 import { PublicTopNav } from "@/components/PublicTopNav";
 import { useI18n } from "@/i18n";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function LoginPage() {
   const { t } = useI18n();
@@ -61,8 +61,14 @@ export function LoginPage() {
 
   if (!sessionChecked) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      <div className="flex min-h-svh items-center justify-center bg-muted p-6">
+        <div className="w-full max-w-sm space-y-4">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
       </div>
     );
   }
@@ -89,11 +95,13 @@ export function LoginPage() {
       <div className="flex min-h-[calc(100svh-88px)] flex-col items-center justify-center gap-6 px-6 pb-10 md:px-10">
         <div className="flex w-full max-w-sm flex-col gap-6">
           <div className="self-center font-medium text-xl">
-            {siteName ? siteName : <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
+            {siteName ? siteName : <Skeleton className="h-6 w-24" />}
           </div>
           {checkingUsers ? (
-            <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
-              {t("login.page.checking")}
+            <div className="space-y-3">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
             </div>
           ) : (
             <LoginForm forgotPasswordEnabled={siteConfig?.forgotPasswordEnabled === true} />

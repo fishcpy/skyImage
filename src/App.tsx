@@ -117,7 +117,7 @@ function HomeEntry() {
   }
 
   if (isLoading && !siteConfig) {
-    return <div className="min-h-screen bg-background" />;
+    return <SplashScreen />;
   }
 
   return <HomePage siteConfig={siteConfig} />;

@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { fetchStrategies, deleteStrategy, type StrategyRecord } from "@/lib/api";
 import { useI18n } from "@/i18n";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 export function AdminStrategiesPage() {
   const { t } = useI18n();
@@ -51,7 +52,7 @@ export function AdminStrategiesPage() {
           <CardTitle>{t("admin.strategies.list")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {isLoading && <p className="text-sm text-muted-foreground">{t("common.loading")}</p>}
+          {isLoading && <ListSkeleton />}
           {!isLoading && !strategies?.length && (
             <p className="text-sm text-muted-foreground">{t("admin.strategies.empty")}</p>
           )}

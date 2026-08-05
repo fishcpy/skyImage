@@ -33,6 +33,7 @@ import {
   type RedeemCodeRecord
 } from "@/lib/api";
 import { useI18n } from "@/i18n";
+import { ListSkeleton, Skeleton } from "@/components/ui/skeleton";
 
 function getUsageStatus(item: RedeemCodeRecord): "disabled" | "exhausted" | "unused" | "inUse" {
   if (!item.enabled) return "disabled";
@@ -141,7 +142,7 @@ export function AdminRedeemCodesPage() {
           <CardTitle>{t("admin.redeem.list")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {isLoading && <p className="text-sm text-muted-foreground">{t("common.loading")}</p>}
+          {isLoading && <ListSkeleton />}
           {!isLoading && !codes?.length && (
             <p className="text-sm text-muted-foreground">{t("admin.redeem.empty")}</p>
           )}
@@ -231,7 +232,10 @@ export function AdminRedeemCodesPage() {
           </DialogHeader>
           <div className="max-h-[50vh] space-y-2 overflow-y-auto">
             {usagesLoading && (
-              <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+              <div className="space-y-2">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
             )}
             {!usagesLoading && !usages?.length && (
               <p className="text-sm text-muted-foreground">{t("admin.redeem.usagesEmpty")}</p>

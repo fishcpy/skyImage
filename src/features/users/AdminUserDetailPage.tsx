@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/state/auth";
 import { useI18n } from "@/i18n";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type SizeUnit = "B" | "KB" | "MB" | "GB" | "TB";
 
@@ -194,7 +195,11 @@ export function AdminUserDetailPage() {
           </Link>{" "}
           / {t("users.detail.edit")}
         </p>
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+        <div className="space-y-3">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
       </div>
     );
   }

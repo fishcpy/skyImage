@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useI18n } from "@/i18n";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 export function ApiTokensPage() {
   const { t } = useI18n();
@@ -74,7 +75,7 @@ export function ApiTokensPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+            <ListSkeleton />
           ) : tokenItems.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("apiTokens.empty")}</p>
           ) : (

@@ -21,6 +21,7 @@ import {
 import type { FileRecord } from "@/lib/api";
 import { normalizeFileUrl } from "@/lib/file-url";
 import { FileAuditBadge } from "@/features/files/components/FileAuditBadge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Props = {
   files?: FileRecord[];
@@ -40,7 +41,17 @@ export function FileTable({
   onPreview
 }: Props) {
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">加载中...</p>;
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <div key={index} className="flex items-center gap-3">
+            <Skeleton className="h-12 w-12 shrink-0 rounded-md" />
+            <Skeleton className="h-4 flex-1" />
+            <Skeleton className="h-4 w-16" />
+          </div>
+        ))}
+      </div>
+    );
   }
 
   if (!files?.length) {

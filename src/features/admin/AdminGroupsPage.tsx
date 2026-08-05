@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { fetchGroups, deleteGroup, type GroupRecord } from "@/lib/api";
 import { useI18n } from "@/i18n";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 export function AdminGroupsPage() {
   const { t } = useI18n();
@@ -51,7 +52,7 @@ export function AdminGroupsPage() {
           <CardTitle>{t("admin.groups.list")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {isLoading && <p className="text-sm text-muted-foreground">{t("common.loading")}</p>}
+          {isLoading && <ListSkeleton />}
           {!isLoading && !groups?.length && (
             <p className="text-sm text-muted-foreground">{t("admin.groups.empty")}</p>
           )}

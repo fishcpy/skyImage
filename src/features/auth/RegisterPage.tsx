@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 
 import { fetchRegistrationStatus, fetchSiteConfig } from "@/lib/api";
@@ -10,6 +9,7 @@ import { RegisterForm } from "@/components/register-form";
 import { OAuthButtons } from "@/components/OAuthButtons";
 import { PublicTopNav } from "@/components/PublicTopNav";
 import { useI18n } from "@/i18n";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function RegisterPage() {
   const { t } = useI18n();
@@ -45,8 +45,11 @@ export function RegisterPage() {
         <div className="flex min-h-[calc(100svh-88px)] flex-col items-center justify-center gap-6 px-6 pb-10 md:px-10">
           <div className="flex w-full max-w-sm flex-col gap-6">
             <Card>
-              <CardContent className="pt-6">
-                <p className="text-center text-muted-foreground">{t("common.loading")}</p>
+              <CardContent className="space-y-4 pt-6">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
               </CardContent>
             </Card>
           </div>
@@ -66,7 +69,7 @@ export function RegisterPage() {
         <div className="flex min-h-[calc(100svh-88px)] flex-col items-center justify-center gap-6 px-6 pb-10 md:px-10">
           <div className="flex w-full max-w-sm flex-col gap-6">
             <div className="self-center font-medium text-xl">
-              {siteName ? siteName : <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
+              {siteName ? siteName : <Skeleton className="h-6 w-24" />}
             </div>
             <Card>
               <CardHeader>

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { useAuthStore } from "@/state/auth";
 import { useI18n } from "@/i18n";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const REFRESH_COOLDOWN_MS = 5000; // 5 seconds
 
@@ -59,7 +60,13 @@ export function CapacityMeter() {
   };
 
   if (!user) {
-    return null;
+    return (
+      <div className="space-y-2 rounded-lg border p-3">
+        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-2 w-full" />
+        <Skeleton className="h-4 w-32" />
+      </div>
+    );
   }
 
   return (

@@ -12,6 +12,7 @@ import { UnifiedCaptcha, type UnifiedCaptchaRef } from "@/components/UnifiedCapt
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { PaletteToggle } from "@/components/PaletteToggle";
 import { useI18n } from "@/i18n";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function ResetPasswordPage() {
   const { t } = useI18n();
@@ -56,10 +57,11 @@ export function ResetPasswordPage() {
     return (
       <div className="flex min-h-svh items-center justify-center bg-muted p-6">
         <Card className="w-full max-w-sm">
-          <CardHeader>
-            <CardTitle>{t("resetPassword.checkingTitle")}</CardTitle>
-            <CardDescription>{t("resetPassword.checkingDescription")}</CardDescription>
-          </CardHeader>
+          <CardContent className="space-y-4 pt-6">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
         </Card>
       </div>
     );

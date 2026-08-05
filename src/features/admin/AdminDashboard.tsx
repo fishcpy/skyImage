@@ -5,6 +5,7 @@ import { fetchAdminMetrics, fetchAdminTrends } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendChart } from "./components/TrendChart";
 import { useI18n } from "@/i18n";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function AdminConsolePage() {
   const { t } = useI18n();
@@ -32,7 +33,20 @@ export function AdminConsolePage() {
   };
 
   if (isLoading) {
-    return <div>{t("admin.loadingDashboard")}</div>;
+    return (
+      <div className="space-y-6">
+        <div className="space-y-3">
+          <Skeleton className="h-8 w-48 max-w-full" />
+          <Skeleton className="h-4 w-72 max-w-full" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
+        </div>
+        <Skeleton className="h-72 w-full" />
+      </div>
+    );
   }
   return (
     <div className="space-y-6">

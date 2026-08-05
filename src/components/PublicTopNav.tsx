@@ -1,4 +1,4 @@
-import { GaugeCircle, Home, Loader2, ShoppingBag } from "lucide-react";
+import { GaugeCircle, Home, ShoppingBag } from "lucide-react";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { PaletteToggle } from "@/components/PaletteToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -7,6 +7,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/state/auth";
 import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type PublicTopNavProps = {
   title?: string;
@@ -38,7 +39,7 @@ export function PublicTopNav({ title, description, compact = false, floating = f
             {title ? (
               <p className={compact ? "text-lg font-semibold" : "text-xl font-semibold"}>{title}</p>
             ) : (
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <Skeleton className="h-5 w-24" />
             )}
             <p className="text-sm text-muted-foreground">{description || ""}</p>
           </div>

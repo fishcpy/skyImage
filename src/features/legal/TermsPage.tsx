@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
 import { fetchSiteConfig } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n } from "@/i18n";
 import { PublicTopNav } from "@/components/PublicTopNav";
 import { MarkdownContent } from "@/components/MarkdownContent";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function TermsPage() {
   const { t } = useI18n();
@@ -21,10 +21,13 @@ export function TermsPage() {
         <PublicTopNav title={siteName} description="" compact />
         <div className="flex min-h-[calc(100svh-88px)] items-center justify-center px-4 pb-8">
         <Card className="w-full max-w-4xl mx-4">
-          <CardContent className="pt-6">
-            <div className="flex justify-center">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
+          <CardContent className="space-y-4 pt-6">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+            <Skeleton className="h-4 w-4/6" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/6" />
           </CardContent>
         </Card>
         </div>

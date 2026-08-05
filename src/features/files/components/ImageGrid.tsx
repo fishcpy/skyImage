@@ -8,6 +8,7 @@ import type { FileRecord } from "@/lib/api";
 import { normalizeFileUrl } from "@/lib/file-url";
 import { useI18n } from "@/i18n";
 import { FileAuditBadge } from "@/features/files/components/FileAuditBadge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // 固定行高（像素）
 const ROW_HEIGHT = 240;
@@ -588,7 +589,7 @@ export function ImageGrid({
   ]);
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
+    return <ImageGridSkeleton />;
   }
 
   if (!items.length) {
@@ -736,7 +737,7 @@ export function ImageGrid({
       )}
       <div ref={containerRef} className="flex w-full flex-col" style={{ gap: `${GAP}px` }}>
         {imageDimensions.size < items.length || containerWidth <= 0 ? (
-          <p className="text-sm text-muted-foreground">{t("grid.loadingImages")}</p>
+          <ImageGridSkeleton />
         ) : (
           visibleRows.map((row, rowIndex) => (
             <div key={rowIndex} className="flex w-full" style={{ gap: `${GAP}px`, height: `${ROW_HEIGHT}px` }}>
@@ -866,7 +867,13 @@ export function ImageGrid({
       </div>
       <div ref={sentinelRef} className="h-6 w-full" />
       {isFetchingMore && (
-        <p className="text-sm text-muted-foreground">{t("grid.loadingMore")}</p>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="aspect-[4/3] overflow-hidden rounded-xl">
+              <Skeleton className="h-full w-full rounded-none" />
+            </div>
+          ))}
+        </div>
       )}
 
       {contextMenu}
@@ -1016,6 +1023,18 @@ export function ImageGrid({
           ) : null}
         </DrawerContent>
       </Drawer>
+    </div>
+  );
+}
+
+function ImageGridSkeleton() {
+  return (
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      {Array.from({ length: 8 }).map((_, index) => (
+        <div key={index} className="aspect-[4/3] overflow-hidden rounded-xl">
+          <Skeleton className="h-full w-full rounded-none" />
+        </div>
+      ))}
     </div>
   );
 }

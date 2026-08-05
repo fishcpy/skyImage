@@ -57,7 +57,13 @@ export function InstallerPage() {
   });
 
   if (isLoading) {
-    return <div className="p-6 text-muted-foreground">{t("installer.checking")}</div>;
+    return (
+      <div className="mx-auto max-w-2xl space-y-4 p-6">
+        <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
+        <div className="h-4 w-72 max-w-full animate-pulse rounded-md bg-muted" />
+        <div className="h-64 w-full animate-pulse rounded-md bg-muted" />
+      </div>
+    );
   }
 
   if (data?.installed) {

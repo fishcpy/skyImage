@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/state/auth";
 import { useI18n } from "@/i18n";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 export function UserManagementPage() {
   const { t } = useI18n();
@@ -46,7 +47,7 @@ export function UserManagementPage() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+              <ListSkeleton />
             ) : (
               <>
               {/* 桌面端表格 */}
