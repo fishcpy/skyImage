@@ -37,9 +37,9 @@ master:
         - name: 推送镜像
           script: docker push "$IMAGE_TAG"
 
-# 发布版本标签 (v*) 时构建并推送带版本号的镜像
+# 发布版本标签 (v*) 时构建并推送带版本号的镜像，并自动发布 CNB Release
 $:
-  push:
+  tag_push:
     - name: 构建并推送 SkyImage 版本镜像
       if: echo "$CNB_BRANCH" | grep -q '^v[0-9]'
       services:
@@ -59,3 +59,16 @@ $:
             for tag in $(echo "$IMAGE_TAGS" | tr ',' ' '); do
               docker push "$tag"
             done
+    - name: 发布 CNB Release
+      if: echo "$CNB_BRANCH" | grep -q '^v[0-9]'
+      stages:
+        - name: 生成更新日志
+          script: |
+            awk '/^## \[[0-9]/{if(f) exit} f{print} /^## \[[0-9]/{f=1}' CHANGELOG.md > LATEST_CHANGELOG.md
+            echo "已从 CHANGELOG.md 生成更新日志:"
+            cat LATEST_CHANGELOG.md
+        - name: 发布 Release
+          type: git:release
+          options:
+            latest: true
+            descriptionFromFile: LATEST_CHANGELOG.md
