@@ -485,7 +485,6 @@ export type FileRecord = {
   strategyId?: number;
   strategyName?: string;
   relativePath?: string;
-  storageDriver?: string;
   width?: number;
   height?: number;
   audit?: FileAuditRecord;

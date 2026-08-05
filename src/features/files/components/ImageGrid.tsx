@@ -32,6 +32,13 @@ import {
   DrawerHeader,
   DrawerTitle
 } from "@/components/ui/drawer";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
 type Props = {
@@ -654,6 +661,81 @@ export function ImageGrid({
         )
       : null;
 
+  const propertyRows = propertiesFile
+    ? (
+        [
+          { label: t("grid.prop.name"), value: propertiesFile.originalName },
+          {
+            label: t("grid.prop.uploadedAt"),
+            value: propertiesFile.createdAt
+              ? new Date(propertiesFile.createdAt).toLocaleString()
+              : t("grid.prop.unknown")
+          },
+          { label: t("grid.prop.format"), value: resolveFormat(propertiesFile) },
+          {
+            label: t("grid.prop.mimeType"),
+            value: propertiesFile.mimeType || t("grid.prop.unknown")
+          },
+          {
+            label: t("grid.prop.size"),
+            value: formatFileSize(propertiesFile.size)
+          },
+          {
+            label: t("grid.prop.dimensions"),
+            value:
+              propertiesFile.width && propertiesFile.height
+                ? `${propertiesFile.width} × ${propertiesFile.height}`
+                : t("grid.prop.unknown")
+          },
+          {
+            label: t("grid.prop.md5"),
+            value: propertiesFile.checksumMd5 || t("grid.prop.unknown"),
+            copyable: Boolean(propertiesFile.checksumMd5)
+          },
+          {
+            label: t("grid.prop.sha1"),
+            value: propertiesFile.checksumSha1 || t("grid.prop.unknown"),
+            copyable: Boolean(propertiesFile.checksumSha1)
+          },
+          {
+            label: t("grid.prop.key"),
+            value: propertiesFile.key || t("grid.prop.unknown"),
+            copyable: Boolean(propertiesFile.key)
+          },
+          {
+            label: t("grid.prop.visibility"),
+            value:
+              propertiesFile.visibility === "public"
+                ? t("grid.public")
+                : t("grid.private")
+          },
+          {
+            label: t("grid.prop.strategy"),
+            value: propertiesFile.strategyName || t("grid.prop.unknown")
+          }
+        ] as Array<{ label: string; value: string; copyable?: boolean }>
+      ).map((row) => (
+        <div
+          key={row.label}
+          className="grid grid-cols-[7.5rem_1fr_auto] items-start gap-2 border-b border-border/60 py-2 last:border-0"
+        >
+          <span className="text-muted-foreground">{row.label}</span>
+          <span className="break-all font-mono text-xs sm:text-sm">{row.value}</span>
+          {row.copyable ? (
+            <button
+              type="button"
+              className="shrink-0 rounded-md border px-2 py-0.5 text-xs hover:bg-muted"
+              onClick={() => void handleCopy(row.value, t("grid.prop.copied"))}
+            >
+              {t("grid.prop.copy")}
+            </button>
+          ) : (
+            <span />
+          )}
+        </div>
+      ))
+    : null;
+
   return (
     <div className="relative">
       {enableSelection && hasSelection && (
@@ -929,100 +1011,43 @@ export function ImageGrid({
         </AlertDialogContent>
       </AlertDialog>
 
-      <Drawer
-        open={propertiesOpen}
-        onOpenChange={setPropertiesOpen}
-        direction={isDesktop ? "right" : "bottom"}
-      >
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle>{t("grid.propertiesTitle")}</DrawerTitle>
-            <DrawerDescription className="truncate">
-              {propertiesFile?.originalName ?? ""}
-            </DrawerDescription>
-          </DrawerHeader>
-          {propertiesFile ? (
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-6 text-sm">
-              {(
-                [
-                  { label: t("grid.prop.name"), value: propertiesFile.originalName },
-                  {
-                    label: t("grid.prop.uploadedAt"),
-                    value: propertiesFile.createdAt
-                      ? new Date(propertiesFile.createdAt).toLocaleString()
-                      : t("grid.prop.unknown")
-                  },
-                  { label: t("grid.prop.format"), value: resolveFormat(propertiesFile) },
-                  {
-                    label: t("grid.prop.mimeType"),
-                    value: propertiesFile.mimeType || t("grid.prop.unknown")
-                  },
-                  {
-                    label: t("grid.prop.size"),
-                    value: formatFileSize(propertiesFile.size)
-                  },
-                  {
-                    label: t("grid.prop.dimensions"),
-                    value:
-                      propertiesFile.width && propertiesFile.height
-                        ? `${propertiesFile.width} × ${propertiesFile.height}`
-                        : t("grid.prop.unknown")
-                  },
-                  {
-                    label: t("grid.prop.md5"),
-                    value: propertiesFile.checksumMd5 || t("grid.prop.unknown"),
-                    copyable: Boolean(propertiesFile.checksumMd5)
-                  },
-                  {
-                    label: t("grid.prop.sha1"),
-                    value: propertiesFile.checksumSha1 || t("grid.prop.unknown"),
-                    copyable: Boolean(propertiesFile.checksumSha1)
-                  },
-                  {
-                    label: t("grid.prop.key"),
-                    value: propertiesFile.key || t("grid.prop.unknown"),
-                    copyable: Boolean(propertiesFile.key)
-                  },
-                  {
-                    label: t("grid.prop.visibility"),
-                    value:
-                      propertiesFile.visibility === "public"
-                        ? t("grid.public")
-                        : t("grid.private")
-                  },
-                  {
-                    label: t("grid.prop.strategy"),
-                    value: propertiesFile.strategyName || t("grid.prop.unknown")
-                  },
-                  {
-                    label: t("grid.prop.storage"),
-                    value: propertiesFile.storageDriver || t("grid.prop.unknown")
-                  }
-                ] as Array<{ label: string; value: string; copyable?: boolean }>
-              ).map((row) => (
-                <div
-                  key={row.label}
-                  className="grid grid-cols-[7.5rem_1fr_auto] items-start gap-2 border-b border-border/60 py-2 last:border-0"
-                >
-                  <span className="text-muted-foreground">{row.label}</span>
-                  <span className="break-all font-mono text-xs sm:text-sm">{row.value}</span>
-                  {row.copyable ? (
-                    <button
-                      type="button"
-                      className="shrink-0 rounded-md border px-2 py-0.5 text-xs hover:bg-muted"
-                      onClick={() => void handleCopy(row.value, t("grid.prop.copied"))}
-                    >
-                      {t("grid.prop.copy")}
-                    </button>
-                  ) : (
-                    <span />
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </DrawerContent>
-      </Drawer>
+      {isDesktop ? (
+        <Dialog
+          open={propertiesOpen}
+          onOpenChange={setPropertiesOpen}
+        >
+          <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{t("grid.propertiesTitle")}</DialogTitle>
+              <DialogDescription className="truncate">
+                {propertiesFile?.originalName ?? ""}
+              </DialogDescription>
+            </DialogHeader>
+            {propertyRows ? (
+              <div className="space-y-2 text-sm">{propertyRows}</div>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <Drawer
+          open={propertiesOpen}
+          onOpenChange={setPropertiesOpen}
+        >
+          <DrawerContent>
+            <DrawerHeader>
+              <DrawerTitle>{t("grid.propertiesTitle")}</DrawerTitle>
+              <DrawerDescription className="truncate">
+                {propertiesFile?.originalName ?? ""}
+              </DrawerDescription>
+            </DrawerHeader>
+            {propertyRows ? (
+              <div className="max-h-[60vh] min-h-0 space-y-2 overflow-y-auto px-4 pb-6 text-sm">
+                {propertyRows}
+              </div>
+            ) : null}
+          </DrawerContent>
+        </Drawer>
+      )}
     </div>
   );
 }

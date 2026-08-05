@@ -64,7 +64,6 @@ type FileDTO struct {
 	ChecksumMD5   string        `json:"checksumMd5,omitempty"`
 	ChecksumSHA1  string        `json:"checksumSha1,omitempty"`
 	Visibility    string        `json:"visibility"`
-	Storage       string        `json:"storage"`
 	StrategyID    uint          `json:"strategyId"`
 	StrategyName  string        `json:"strategyName"`
 	CreatedAt     time.Time     `json:"createdAt"`
@@ -78,7 +77,6 @@ type FileDTO struct {
 	OwnerEmail         string        `json:"ownerEmail,omitempty"`
 	OwnerPublicProfile bool          `json:"ownerPublicProfile,omitempty"`
 	RelativePath       string        `json:"relativePath"`
-	StorageDriver      string        `json:"storageDriver"`
 	Width              int           `json:"width,omitempty"`
 	Height             int           `json:"height,omitempty"`
 	Audit              *FileAuditDTO `json:"audit,omitempty"`
@@ -466,7 +464,6 @@ func (s *Service) ToDTO(ctx context.Context, file data.FileAsset) (FileDTO, erro
 		ChecksumMD5:        file.ChecksumMD5,
 		ChecksumSHA1:       file.ChecksumSHA1,
 		Visibility:         file.Visibility,
-		Storage:            file.StorageProvider,
 		CreatedAt:          file.CreatedAt,
 		ViewURL:            publicURL,
 		DirectURL:          publicURL,
@@ -480,7 +477,6 @@ func (s *Service) ToDTO(ctx context.Context, file data.FileAsset) (FileDTO, erro
 		StrategyID:         file.StrategyID,
 		StrategyName:       file.Strategy.Name,
 		RelativePath:       file.RelativePath,
-		StorageDriver:      file.StorageProvider,
 		Width:              file.Width,
 		Height:             file.Height,
 		Audit:              buildFileAuditDTO(file),
