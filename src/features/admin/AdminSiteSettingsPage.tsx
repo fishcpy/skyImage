@@ -44,6 +44,7 @@ const defaultSiteSettingsForm: SiteSettings = {
   enableGallery: true,
   enableHome: true,
   enableApi: true,
+  enablePasskey: true,
   allowRegistration: true,
   registrationMode: "open",
   accountDisabledNotice: ""
@@ -375,6 +376,14 @@ export function AdminSiteSettingsPage() {
                 onCheckedChange={(checked) => handleChange("enableApi", checked)}
               />
               <Label htmlFor="enableApi">{t("admin.siteSettings.enableApi")}</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="enablePasskey"
+                checked={form.enablePasskey}
+                onCheckedChange={(checked) => handleChange("enablePasskey", checked)}
+              />
+              <Label htmlFor="enablePasskey">{t("admin.siteSettings.enablePasskey")}</Label>
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label>{t("admin.siteSettings.registrationMode")}</Label>

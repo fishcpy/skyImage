@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { Pencil } from "lucide-react";
 
 import { useAuthStore } from "@/state/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -30,6 +39,7 @@ import {
 import {
   fetchAccountProfile,
   fetchCaptchaConfig,
+  fetchRegistrationStatus,
   updateAccountProfile,
   deleteAccount,
   redeemCode,
@@ -38,6 +48,7 @@ import {
   startOAuthBind,
   unbindOAuth
 } from "@/lib/api";
+import { listPasskeys, registerPasskey, deletePasskey, renamePasskey, isPasskeySupported } from "@/lib/passkeys";
 import { UnifiedCaptcha, type UnifiedCaptchaRef } from "@/components/UnifiedCaptcha";
 import { SplashScreen } from "@/components/SplashScreen";
 import { useI18n } from "@/i18n";
@@ -66,6 +77,16 @@ export function ProfileSettingsPage() {
     queryFn: fetchOAuthProviders,
     staleTime: 0,
     refetchOnMount: "always"
+  });
+  const { data: passkeysEnabled } = useQuery({
+    queryKey: ["registration-status"],
+    queryFn: fetchRegistrationStatus,
+    select: (status) => Boolean(status.passkeyEnabled)
+  });
+  const { data: passkeys, isLoading: passkeysLoading } = useQuery({
+    queryKey: ["account", "passkeys"],
+    queryFn: listPasskeys,
+    enabled: Boolean(passkeysEnabled && isPasskeySupported())
   });
 
   useEffect(() => {
@@ -172,6 +193,44 @@ export function ProfileSettingsPage() {
     mutationFn: startOAuthBind,
     onSuccess: (url) => {
       window.location.href = url;
+    },
+    onError: (error) => toast.error(error.message)
+  });
+
+  const passkeyRegisterMutation = useMutation({
+    mutationFn: registerPasskey,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["account", "passkeys"] });
+      toast.success(t("passkeys.registerSuccess"));
+    },
+    onError: (error) => {
+      if (error.message === "passkeys.canceled") {
+        toast.error(t("passkeys.canceled"));
+        return;
+      }
+      toast.error(error.message);
+    }
+  });
+
+  const passkeyDeleteMutation = useMutation({
+    mutationFn: deletePasskey,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["account", "passkeys"] });
+      toast.success(t("passkeys.deleteSuccess"));
+    },
+    onError: (error) => toast.error(error.message)
+  });
+
+  const [renameTarget, setRenameTarget] = useState<{ id: number; name: string } | null>(null);
+  const [renameInput, setRenameInput] = useState("");
+
+  const passkeyRenameMutation = useMutation({
+    mutationFn: ({ id, name }: { id: number; name: string }) => renamePasskey(id, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["account", "passkeys"] });
+      toast.success(t("passkeys.renameSuccess"));
+      setRenameTarget(null);
+      setRenameInput("");
     },
     onError: (error) => toast.error(error.message)
   });
@@ -439,6 +498,118 @@ export function ProfileSettingsPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      {passkeysEnabled && isPasskeySupported() && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("passkeys.title")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">{t("passkeys.profileDescription")}</p>
+            {passkeysLoading ? (
+              <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+            ) : (passkeys?.length || 0) === 0 ? (
+              <p className="text-sm text-muted-foreground">{t("passkeys.empty")}</p>
+            ) : (
+              (passkeys || []).map((passkey) => (
+                <div
+                  key={passkey.id}
+                  className="flex items-center justify-between rounded-md border p-3"
+                >
+                  <div>
+                    <p className="font-medium">{passkey.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {t("passkeys.lastUsed")}{" "}
+                      {passkey.lastUsedAt
+                        ? new Date(passkey.lastUsedAt).toLocaleString()
+                        : t("passkeys.never")}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setRenameTarget({ id: passkey.id, name: passkey.name });
+                        setRenameInput(passkey.name);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      <span className="sr-only">{t("passkeys.rename")}</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={passkeyDeleteMutation.isPending}
+                      onClick={() => passkeyDeleteMutation.mutate(passkey.id)}
+                    >
+                      {t("passkeys.remove")}
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+            <Button
+              onClick={() => passkeyRegisterMutation.mutate()}
+              disabled={passkeyRegisterMutation.isPending}
+            >
+              {passkeyRegisterMutation.isPending
+                ? t("passkeys.registering")
+                : t("passkeys.register")}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <Dialog
+        open={renameTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenameTarget(null);
+            setRenameInput("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("passkeys.renameTitle")}</DialogTitle>
+            <DialogDescription>{t("passkeys.renameDescription")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="passkey-name">{t("passkeys.name")}</Label>
+            <Input
+              id="passkey-name"
+              value={renameInput}
+              maxLength={128}
+              onChange={(e) => setRenameInput(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRenameTarget(null);
+                setRenameInput("");
+              }}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              disabled={!renameInput.trim() || passkeyRenameMutation.isPending}
+              onClick={() => {
+                if (renameTarget) {
+                  passkeyRenameMutation.mutate({
+                    id: renameTarget.id,
+                    name: renameInput.trim()
+                  });
+                }
+              }}
+            >
+              {passkeyRenameMutation.isPending ? t("common.saving") : t("common.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>

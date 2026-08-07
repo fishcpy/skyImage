@@ -48,6 +48,7 @@ type siteSettingsPayload struct {
 	EnableGallery         bool   `json:"enableGallery"`
 	EnableHome            bool   `json:"enableHome"`
 	EnableApi             bool   `json:"enableApi"`
+	EnablePasskey         bool   `json:"enablePasskey"`
 	AllowRegistration     bool   `json:"allowRegistration"` // legacy, derived from registrationMode
 	RegistrationMode      string `json:"registrationMode"`  // open | oauth_only | closed
 	AccountDisabledNotice string `json:"accountDisabledNotice"`
@@ -100,6 +101,7 @@ func (s *Server) handleAdminSiteSettings(c *gin.Context) {
 		EnableGallery:         settings["features.gallery"] != "false",
 		EnableHome:            settings["features.home"] != "false",
 		EnableApi:             settings["features.api"] != "false",
+		EnablePasskey:         settings["features.passkeys_enabled"] != "false",
 		AllowRegistration:     regMode != "closed",
 		RegistrationMode:      regMode,
 		AccountDisabledNotice: disabledNotice,
@@ -162,6 +164,7 @@ func (s *Server) handleAdminUpdateSiteSettings(c *gin.Context) {
 		"features.api":                strconv.FormatBool(payload.EnableApi),
 		"features.registration_mode":  regMode,
 		"features.allow_registration": strconv.FormatBool(regMode != "closed"),
+		"features.passkeys_enabled":   strconv.FormatBool(payload.EnablePasskey),
 		"account.disabled_notice":     notice,
 	}
 

@@ -155,6 +155,7 @@ export type RegistrationStatus = {
   oauthAllowed: boolean;
   emailVerifyEnabled: boolean;
   forgotPasswordEnabled: boolean;
+  passkeyEnabled?: boolean;
 };
 
 export async function fetchRegistrationStatus() {
@@ -785,6 +786,7 @@ export type SiteSettings = {
   enableGallery: boolean;
   enableHome: boolean;
   enableApi: boolean;
+  enablePasskey: boolean;
   allowRegistration: boolean;
   registrationMode: RegistrationMode;
   accountDisabledNotice: string;

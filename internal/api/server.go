@@ -33,6 +33,7 @@ import (
 	"skyimage/internal/middleware"
 	"skyimage/internal/notifications"
 	"skyimage/internal/oauth"
+	"skyimage/internal/passkey"
 	"skyimage/internal/redeem"
 	"skyimage/internal/session"
 	"skyimage/internal/shop"
@@ -58,6 +59,7 @@ type Server struct {
 	captcha       *captcha.Service
 	verification  *verification.Service
 	oauth         *oauth.Service
+	passkeys      *passkey.Service
 	session       *session.Manager
 	authLimiter   *requestLimiter
 	publicPaths   map[string]struct{}
@@ -146,6 +148,12 @@ func (s *Server) applyRuntimeConfig(cfg config.Config, db *gorm.DB) {
 	} else {
 		s.oauth.SetDB(db)
 		s.oauth.SetSettings(adminService)
+	}
+	if s.passkeys == nil {
+		s.passkeys = passkey.New(db, adminService, cfg.PublicBaseURL)
+	} else {
+		s.passkeys.SetDB(db)
+		s.passkeys.SetSettings(adminService)
 	}
 	if s.session == nil {
 		s.session = session.NewManager(db, 24*time.Hour)
@@ -329,6 +337,7 @@ func (s *Server) registerRoutes() {
 	s.registerInstallerRoutes(apiGroup)
 	s.registerAuthRoutes(apiGroup)
 	s.registerOAuthRoutes(apiGroup)
+	s.registerPasskeyRoutes(apiGroup)
 	s.registerAccountRoutes(apiGroup)
 	s.registerTicketRoutes(apiGroup)
 	s.registerAdminRoutes(apiGroup)

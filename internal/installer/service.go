@@ -167,6 +167,7 @@ func (s *Service) Run(ctx context.Context, in RunInput) (Status, error) {
 			"features.api":                             "true",
 			"features.registration_mode":               "open",
 			"features.allow_registration":              "true",
+			"features.passkeys_enabled":                "true",
 			"oauth.enabled":                            "false",
 			"oauth.auto_link_by_email":                 "false",
 			"oauth.github.enabled":                     "false",

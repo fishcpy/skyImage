@@ -497,6 +497,7 @@ func (s *Server) handleRegistrationStatus(c *gin.Context) {
 		"oauthAllowed":          oauthAllowed,
 		"emailVerifyEnabled":    emailVerifyEnabled,
 		"forgotPasswordEnabled": forgotEnabled,
+		"passkeyEnabled":        settings["features.passkeys_enabled"] != "false",
 	}})
 }
 

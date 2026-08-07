@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { login, fetchCaptchaConfig, fetchRegistrationStatus } from "@/lib/api";
+import { loginWithPasskey, isPasskeySupported } from "@/lib/passkeys";
 import { useAuthStore } from "@/state/auth";
 import { UnifiedCaptcha, type UnifiedCaptchaRef } from "@/components/UnifiedCaptcha";
 import { OAuthButtons } from "@/components/OAuthButtons";
@@ -95,6 +96,25 @@ export function LoginForm({
       if (captchaRef.current) {
         captchaRef.current.reset();
       }
+    }
+  });
+
+  const passkeyMutation = useMutation({
+    mutationFn: loginWithPasskey,
+    onSuccess: (data) => {
+      setAuth({ user: data.user });
+      toast.success(t("login.success"));
+      const redirect = (location.state as any)?.from?.pathname ?? "/dashboard";
+      navigate(redirect, { replace: true });
+    },
+    onError: (error) => {
+      let message = error.message;
+      if (message === "passkeys.canceled") {
+        message = t("passkeys.canceled");
+      } else if (message === "passkeys disabled") {
+        message = t("passkeys.disabled");
+      }
+      toast.error(message);
     }
   });
 
@@ -189,6 +209,17 @@ export function LoginForm({
                 <Button type="submit" className="w-full" disabled={mutation.isPending}>
                   {mutation.isPending ? t("login.submitting") : t("login.submit")}
                 </Button>
+                {registrationStatus?.passkeyEnabled && isPasskeySupported() && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={passkeyMutation.isPending}
+                    onClick={() => passkeyMutation.mutate()}
+                  >
+                    {passkeyMutation.isPending ? t("passkeys.loggingIn") : t("passkeys.loginButton")}
+                  </Button>
+                )}
                 <OAuthButtons />
                 {registrationStatus?.allowed !== false && (
                   <FieldDescription className="text-center">

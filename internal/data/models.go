@@ -73,6 +73,39 @@ func (UserOAuthBinding) TableName() string {
 	return "user_oauth_bindings"
 }
 
+// UserPasskey links a local user to a WebAuthn (Passkey) public key credential.
+// Credential stores the full webauthn.Credential JSON record; it must be kept
+// byte-for-byte identical so signature verification keeps working.
+type UserPasskey struct {
+	ID         uint      `gorm:"primaryKey" json:"id"`
+	UserID     uint      `gorm:"index;not null" json:"userId"`
+	Name       string    `gorm:"size:128;not null" json:"name"`
+	Credential string    `gorm:"type:text;not null" json:"-"`
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+	User       User      `gorm:"foreignKey:UserID" json:"-"`
+}
+
+func (UserPasskey) TableName() string {
+	return "user_passkeys"
+}
+
+// PasskeyChallenge stores short-lived WebAuthn ceremony session data
+// (multi-instance safe, single-use, similar to OAuthState).
+type PasskeyChallenge struct {
+	ID          string    `gorm:"primaryKey;size:64" json:"id"`
+	UserID      uint      `gorm:"index;not null" json:"userId"`
+	Action      string    `gorm:"size:16;not null" json:"action"` // register | login
+	SessionData string    `gorm:"type:text;not null" json:"-"`
+	ExpiresAt   time.Time `gorm:"index;not null" json:"expiresAt"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+func (PasskeyChallenge) TableName() string {
+	return "passkey_challenges"
+}
+
 // OAuthState stores short-lived OAuth CSRF/PKCE state (multi-instance safe).
 type OAuthState struct {
 	ID            string    `gorm:"primaryKey;size:64" json:"id"`
