@@ -724,7 +724,7 @@ export function ImageGrid({
           {row.copyable ? (
             <button
               type="button"
-              className="shrink-0 rounded-md border px-2 py-0.5 text-xs hover:bg-muted"
+              className="shrink-0 rounded-md border px-2 py-0.5 text-xs transition active:scale-[0.98] hover:bg-muted"
               onClick={() => void handleCopy(row.value, t("grid.prop.copied"))}
             >
               {t("grid.prop.copy")}
@@ -745,7 +745,7 @@ export function ImageGrid({
           </span>
           <button
             type="button"
-            className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted"
+            className="rounded-md border px-2.5 py-1 text-xs transition active:scale-[0.98] hover:bg-muted"
             onClick={selectAll}
             disabled={isAllSelected}
           >
@@ -753,7 +753,7 @@ export function ImageGrid({
           </button>
           <button
             type="button"
-            className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted"
+            className="rounded-md border px-2.5 py-1 text-xs transition active:scale-[0.98] hover:bg-muted"
             onClick={() => setSelectedIds(new Set())}
           >
             {t("grid.clear")}
@@ -763,7 +763,7 @@ export function ImageGrid({
               <>
                 <button
                   type="button"
-                  className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted"
+                  className="rounded-md border px-2.5 py-1 text-xs transition active:scale-[0.98] hover:bg-muted"
                   onClick={async () => {
                     if (batchBusy) return;
                     setBatchBusy(true);
@@ -781,7 +781,7 @@ export function ImageGrid({
                 </button>
                 <button
                   type="button"
-                  className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted"
+                  className="rounded-md border px-2.5 py-1 text-xs transition active:scale-[0.98] hover:bg-muted"
                   onClick={async () => {
                     if (batchBusy) return;
                     setBatchBusy(true);
@@ -802,7 +802,7 @@ export function ImageGrid({
             {onBatchDelete || onDelete ? (
               <button
                 type="button"
-                className="rounded-md border px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10"
+                className="rounded-md border px-2.5 py-1 text-xs text-destructive transition active:scale-[0.98] hover:bg-destructive/10"
                 onClick={() => {
                   const ids = Array.from(selectedIds);
                   if (!ids.length) return;
@@ -832,7 +832,7 @@ export function ImageGrid({
                   <div
                     key={item.id}
                     className={[
-                      "group relative overflow-hidden rounded-xl border bg-muted/30 text-left shadow-sm transition hover:shadow-lg cursor-pointer select-none",
+                      "group relative overflow-hidden rounded-xl border bg-muted/30 text-left shadow-sm transition hover:shadow-lg active:scale-[0.98] active:shadow-md cursor-pointer select-none",
                       isSelected ? "ring-2 ring-primary/70" : ""
                     ].join(" ")}
                     style={{ 

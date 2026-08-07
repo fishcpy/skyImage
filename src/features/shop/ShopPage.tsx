@@ -127,7 +127,7 @@ export function ShopPage() {
               <Card
                 key={p.id}
                 className={
-                  String(p.id) === productId ? "border-primary ring-1 ring-primary/30" : "cursor-pointer"
+                  String(p.id) === productId ? "border-primary ring-1 ring-primary/30" : "cursor-pointer transition-transform duration-200 ease-out active:scale-[0.99]"
                 }
                 onClick={() => setProductId(String(p.id))}
               >

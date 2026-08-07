@@ -85,7 +85,7 @@ function OptionGrid<T extends string>({
           >
             <div
               className={cn(
-                "relative rounded-[6px] ring-[1px] ring-border transition duration-200 ease-in",
+                "relative rounded-[6px] ring-[1px] ring-border transition-[transform,box-shadow] duration-200 ease-in group-active:scale-[0.96]",
                 active ? "ring-primary shadow-2xl" : ""
               )}
             >

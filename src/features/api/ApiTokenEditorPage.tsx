@@ -355,7 +355,7 @@ export function ApiTokenEditorPage() {
                             type="button"
                             onClick={() => setSelectedDate(date)}
                             className={cn(
-                              "h-8 w-8 rounded-md text-sm hover:bg-accent",
+                              "h-8 w-8 rounded-md text-sm transition active:scale-95 hover:bg-accent",
                               isSelected && "bg-primary text-primary-foreground hover:bg-primary"
                             )}
                           >
