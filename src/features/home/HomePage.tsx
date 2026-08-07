@@ -254,6 +254,14 @@ export function HomePage({ siteConfig }: { siteConfig?: SiteConfig }) {
           <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
             <p>© {new Date().getFullYear()} {title.trim() || "SkyImage"}</p>
             <div className="flex gap-4">
+              <a
+                href="https://github.com/fishcpy/skyImage"
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-foreground transition-colors"
+              >
+                GitHub
+              </a>
               <Link to="/privacy" className="hover:text-foreground transition-colors">
                 {t("footer.privacy")}
               </Link>

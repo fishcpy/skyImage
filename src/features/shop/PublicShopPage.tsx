@@ -126,6 +126,14 @@ export function PublicShopPage() {
               © {new Date().getFullYear()} {(siteConfig?.title || "").trim() || "SkyImage"}
             </p>
             <div className="flex gap-4">
+              <a
+                href="https://github.com/fishcpy/skyImage"
+                target="_blank"
+                rel="noreferrer"
+                className="transition-colors hover:text-foreground"
+              >
+                GitHub
+              </a>
               <Link to="/privacy" className="transition-colors hover:text-foreground">
                 {t("footer.privacy")}
               </Link>
